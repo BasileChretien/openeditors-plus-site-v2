@@ -174,6 +174,10 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       { key: "ror_state", label: "State/Province",    filterable: true,  visible: false, sortable: true },
       { key: "scientific_field", label: "Field",      filterable: true,  visible: true,  sortable: true },
       { key: "h_index",  label: "h-index",            filterable: false, visible: true,  sortable: true },
+      // How the OpenAlex profile behind h_index was resolved. Hidden by
+      // default, filterable so users can restrict to the strong tiers
+      // (orcid, name_ror) before trusting the bibliometrics.
+      { key: "oa_match_method", label: "OpenAlex match", filterable: true, visible: false, sortable: true },
       { key: "gender",   label: "Gender (inferred*)", filterable: true,  visible: true,  sortable: true },
       { key: "orcid",    label: "ORCID",              filterable: false, visible: true,  sortable: false, special: "orcid" },
       { key: "ror_id",   label: "ROR ID",             filterable: false, visible: false, sortable: false },
@@ -480,8 +484,10 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     // ─── Charts ───
     function renderGenderChart(dist) {
       const total = Object.values(dist).reduce((a, b) => a + b, 0);
-      const colors = { male: "#4c6ef5", female: "#e64980", andy: "#fab005", unknown: "#adb5bd" };
-      const labels = { male: "Male", female: "Female", andy: "Androgynous", unknown: "Unknown" };
+      // gender is a closed set of male / female / unknown since v3.0.0; the
+      // legacy "andy" (androgynous) value was retired from the data.
+      const colors = { male: "#4c6ef5", female: "#e64980", unknown: "#adb5bd" };
+      const labels = { male: "Male", female: "Female", unknown: "Unknown" };
       document.getElementById("gender-chart").innerHTML = '<div class="space-y-1.5">' +
         Object.entries(dist).filter(([,v]) => v > 0).map(([k, v]) => {
           const pct = total > 0 ? ((v / total) * 100).toFixed(1) : "0";
@@ -987,7 +993,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
             } else if (col.key === "role_std") {
               cells += `<td class="py-1.5 px-2 text-xs"><span class="inline-block px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 text-[10px] font-medium" title="${esc(val)}">${esc(formatRole(val))}</span></td>`;
             } else if (col.key === "gender") {
-              const gc = { male: "text-blue-600", female: "text-pink-600", andy: "text-amber-600", unknown: "text-gray-400" };
+              const gc = { male: "text-blue-600", female: "text-pink-600", unknown: "text-gray-400" };
               cells += `<td class="py-1.5 px-2 text-xs ${gc[val]||''}">${val ? val.charAt(0).toUpperCase() + val.slice(1) : '—'}</td>`;
             } else if (col.key === "h_index") {
               cells += `<td class="py-1.5 px-2 text-xs text-center tabular-nums">${val || '<span class="text-text-muted">—</span>'}</td>`;

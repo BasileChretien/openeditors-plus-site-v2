@@ -6,15 +6,14 @@ import release from "../../../public/api/release_meta.json";
 // Zenodo record ID for the CURRENT (latest) version. Download URLs go
 // here. When a new version is published, bump this to the new record ID
 // AND add a new entry at the top of `versions` with its version DOI.
-// NOTE: v2.7.0 bytes are live in this repo but a new Zenodo record has
-// not been created yet. Downloads continue to point at the v2.2.0
-// record — update ZENODO_RECORD_ID + the v2.7.0 entry's doi field once
-// the new Zenodo record is minted.
+// PLACEHOLDER: set to the v3.0.0 record ID as soon as the deposit is
+// published. Until then downloads still resolve to the v2.0.0 record.
 const ZENODO_RECORD_ID = "19590816";
-// Primary DOI shown in the header chip — currently the v2 version DOI.
-// (The original concept DOI assumed earlier was incorrect; if a proper
-// concept-doi-that-resolves-to-latest is available, update this.)
-const ZENODO_DOI = "10.5281/zenodo.19590816";
+// Primary DOI shown in the header chip. This is the CONCEPT DOI
+// (concept recid 19468382), verified against the Zenodo API: it always
+// resolves to the latest published version. Version-specific DOIs live
+// in the `versions` table below. Do not replace this with a version DOI.
+const ZENODO_DOI = "10.5281/zenodo.19468382";
 
 // Human-friendly size renderer — MB with one decimal, no locale quirks.
 const fmtMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
@@ -35,13 +34,22 @@ const parquetShort = parquet.sha256.slice(0, 16);
 // add an entry here AND update CHANGELOG.md in the same commit.
 const versions = [
   {
+    version: "3.0.0",
+    date: "2026-07-27",
+    title: "Corrected release: board statistics, published identity keys, role repair",
+    summary:
+      "Major release. Changes values in existing columns, not just the schema, so analyses built on v2.6.0 or v2.7.0 must be re-run. (1) board_pct_female was constant at 0 in v2.6.0 and v2.7.0: a gender-wipe regression introduced in v2.6.0 had cleared the per-row gender values that the board-statistics stage reads as input, and because an all-zero result is arithmetically valid nothing raised an error. The inputs are restored and the denominator now matches the codebook definition, the resolved gender count (male plus female) rather than total board size; 907,086 rows (98.4%) now carry a non-zero value and the mean board is 31.5% female. (2) editor_key, the composite identity key behind the 745,125 unique-editor figure, is now published so that count is reproducible without reconstructing the key: 'orcid:' tier 346,713 records / 250,372 unique editors, 'ror:' tier 294,399 / 236,613, 'aff:' tier 280,985 / 258,140. (3) openalex_author_id is published, restoring direct interoperability with the OpenAlex graph, on 531,437 records (57.6%), which is 98.7% of the 538,550 records that matched an OpenAlex author. (4) Three provenance columns added: oa_match_method (orcid 344,957 / name_ror 107,173 / name_only 86,420 / unmatched 383,547), name_is_initials (26,763 records, 2.9%) and orcid_shared_flag (239 records where one ORCID maps to several distinct name strings); a supporting orcid_n_names column is also published. (5) role_std contamination fixed: 2,359 IEEE rows carried raw section headings, and a senior_editor category was added for 5,005 positions previously absorbed into 'other', leaving exactly ten canonical values. (6) All downstream statistics recomputed; multi-board editorship drops from a name-based 25.3% to 15.0% on two or more boards, because exact name matching had merged distinct homonymous individuals. The legacy 'andy' gender value is retired, leaving male, female and unknown. Public schema widens from 71 to 77 columns over 922,097 positions, 15,168 journals, 48 publishers and 189 countries. See the release notes page for the full re-run guidance.",
+    doi: "10.5281/zenodo.19468382",
+    latest: true,
+  },
+  {
     version: "2.7.0",
     date: "2026-04-30",
     title: "Country-aware gender inference (WGND 2.0)",
     summary:
       "Minor release. Replaces the country-blind gender-guesser library (Joerg Michael's ~48,000-name list, hard-coded confidence buckets) with the World Gender Name Dictionary 2.0 (WGND 2.0; Raffo & Lax-Martinez, WIPO 2021; Harvard Dataverse DOI 10.7910/DVN/MSEGSJ; CC0). WGND 2.0 covers ~3.5 million unique first names with frequency-weighted gender labels across 195 countries, sourced primarily from WIPO patent applicant administrative records. The enrichment pipeline now runs ROR institutional matching as Stage 2 before gender inference (Stage 3) so the editor's country of affiliation (ror_country) is available at gender lookup time — disambiguating names whose modal gender flips across cultures (Andrea is overwhelmingly male in Italy and overwhelmingly female in the United States). Layered lookup per editor: (1) wgnd_country — exact (first_name, ISO-2 country) cell, strongest signal; (2) wgnd_global — first_name aggregated across all countries, used when the country-specific cell is empty or ror_country is unknown; (3) gender_guesser — country-blind tertiary fallback for names absent from WGND; (4) unknown. Schema additions: gender_nobs (WGND sample size for the chosen cell) and gender_source (provenance ∈ {wgnd_country, wgnd_global, gender_guesser, unknown}); gender_prob is now a continuous WGND weight in [0, 1] replacing the previous {0.0, 0.75, 1.0} buckets. gender_raw is kept as a backwards-compatibility mirror of gender (WGND has no mostly_* granularity). v2.7 also applies a confidence floor of gender_prob ≥ 0.75: matches with weights below the floor are demoted to gender = 'unknown' / gender_source = 'unknown' while the raw gender_prob and gender_nobs stay populated for transparency. The threshold was set empirically from a 100-row manual validation sample where every gender-misclassification on the resolved subset had a sub-0.75 weight; the floor lifts precision on the resolved subset from ~97% to near 100% at a coverage cost of ~5 percentage points. On the 922,097-row master, 48.8% of records resolve via the country-conditional WGND table (wgnd_country), 33.2% via the global WGND aggregate (wgnd_global), and 18.0% remain unknown after the floor. Coverage gain on East Asian editorial-board members compared to v2.6 gender-guesser: China 8.0% → 44.6%, South Korea 11.6% → 40.2%; Italy 95.7% → 97.3%; UK 80.8% → 89.7%; US 75.0% → 86.3%. Implemented in scripts/wgnd.py with parquet caching of the ~5M-row dictionary; 33 unit tests in scripts/test_wgnd.py cover country-conditional disambiguation, layered fallbacks, vectorised pandas-merge equivalence, and the confidence threshold. Schema otherwise unchanged: 922,097 rows, 15,168 journals. Zenodo DOI pending.",
     doi: "10.5281/zenodo.19590816",
-    latest: true,
+    latest: false,
   },
   {
     version: "2.6.0",

@@ -1,18 +1,27 @@
 {
   "schema_version": 1,
-  "exported_at": "2026-05-01T07:27:56+00:00",
+  "version": "3.0.0",
+  "data_version": "2026.2",
+  "release_date": "2026-07-27",
+  "exported_at": "2026-07-27T07:23:56+00:00",
   "row_count": 922097,
-  "column_count": 71,
+  "column_count": 77,
+  "unique_editors": 745125,
+  "journal_count": 15168,
+  "publisher_count": 48,
+  "country_count": 189,
+  "concept_doi": "10.5281/zenodo.19468382",
+  "license": "CC0-1.0",
   "files": {
     "csv": {
       "name": "openeditors_plus_2026.csv",
-      "bytes": 770204928,
-      "sha256": "c87197ec69f31549a6d94fee4f2ad10c23496db6a8e29aa80e7f6fe6b08efc60"
+      "bytes": 843765460,
+      "sha256": "52a0b0c262e26b45872279cebca363f2863c78e087a0b5fe6f6ac012519eee6f"
     },
     "parquet": {
       "name": "openeditors_plus_2026.parquet",
-      "bytes": 68045366,
-      "sha256": "0d30dcec982253f5fbf72087a5dd3290f1c7ddda36d0904fd360a34cc603f6dc"
+      "bytes": 98657070,
+      "sha256": "990de81610b5b279de517cc9b9224c9f29aa782c8bb3ea668f6904837a98ee1d"
     }
   }
 }

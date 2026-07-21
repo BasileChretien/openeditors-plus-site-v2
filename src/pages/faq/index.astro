@@ -8,6 +8,14 @@ const gd = summary.gender_distribution;
 const resolved = gd.male + gd.female;
 const pctFemale = (gd.female / resolved * 100).toFixed(1);
 
+// File sizes are read from release_meta.json (regenerated with every export)
+// rather than typed in, so they cannot drift from the bytes on Zenodo.
+// Same MiB-based convention the /download page uses.
+const fmtMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(0);
+const csvMB = fmtMB(release.files.csv.bytes);
+const parquetMB = fmtMB(release.files.parquet.bytes);
+const compressionRatio = (release.files.csv.bytes / release.files.parquet.bytes).toFixed(0);
+
 const faqs = [
   {
     q: "What is Open Editors Plus?",
@@ -39,7 +47,7 @@ const faqs = [
   },
   {
     q: "How can I download the dataset?",
-    a: "The dataset is freely available under CC0 on Zenodo in CSV (690 MB) and Parquet (55 MB) formats. You can also explore all records interactively at openeditors-plus.org/explore using DuckDB-WASM, which runs entirely in your browser."
+    a: `The dataset is freely available under CC0 on Zenodo in CSV (${csvMB} MB) and Parquet (${parquetMB} MB) formats. You can also explore all records interactively at openeditors-plus.org/explore using DuckDB-WASM, which runs entirely in your browser.`
   },
   {
     q: "How should I cite this dataset?",
@@ -59,7 +67,7 @@ const faqs = [
   },
   {
     q: "What formats is the data available in?",
-    a: "The dataset is available in CSV (comma-separated values, 690 MB) and Apache Parquet (columnar format, 55 MB). Parquet is recommended for analytical use as it is 12x smaller and much faster to query. Pre-aggregated JSON data is also available via the API endpoints on the website."
+    a: `The dataset is available in CSV (comma-separated values, ${csvMB} MB) and Apache Parquet (columnar format, ${parquetMB} MB). Parquet is recommended for analytical use as it is ${compressionRatio}x smaller and much faster to query. Pre-aggregated JSON data is also available via the API endpoints on the website.`
   }
 ];
 
