@@ -1,0 +1,38 @@
+---
+import { CONTACT_USER, CONTACT_DOMAIN } from "../lib/contact";
+
+interface Props {
+  /** Optional pre-filled mailto subject line. */
+  subject?: string;
+  /** Override link styling; defaults to the site's brand link style. */
+  class?: string;
+  /** Pre-JS / no-JS link text; replaced with the real address once JS runs. */
+  label?: string;
+}
+
+const {
+  subject = "",
+  class: className = "text-brand-600 hover:underline font-medium break-words",
+  label = "email address",
+} = Astro.props;
+
+// Base64-encode the two halves at build time so the plain address (and any
+// "user [at] domain" form of it) is NOT present in the static HTML. The
+// rewriter in Base.astro runs only in the browser: it decodes the halves,
+// swaps the link text to the real address, and sets the mailto: href. This
+// defeats bulk harvesters that scrape static markup. It cannot hide the
+// address from a determined, targeted attacker (no client-side scheme can) —
+// an accepted limitation. For no-JS users the address is revealed once
+// scripting is enabled; the data-rights route is also reachable via the
+// Corrections page.
+const eu = Buffer.from(CONTACT_USER, "utf8").toString("base64");
+const ed = Buffer.from(CONTACT_DOMAIN, "utf8").toString("base64");
+---
+<a
+  class:list={["oep-eml", className]}
+  href="#"
+  rel="nofollow"
+  data-eu={eu}
+  data-ed={ed}
+  data-s={subject}
+>{label}</a>

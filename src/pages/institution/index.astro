@@ -1,0 +1,180 @@
+---
+import Base from "../../layouts/Base.astro";
+import institutions from "../../../public/api/institutions_index.json";
+
+// Pre-sort by position count and embed the FULL list as JSON. The
+// client paginates + searches in-browser, so every institution in the
+// dataset (~5k entries, ~1 MB of JSON) is reachable without additional
+// fetches. Ship the whole thing once, filter/page it on the client.
+const sorted = [...institutions].sort((a, b) => b.records - a.records);
+const totalCount = sorted.length;
+const payload = JSON.stringify(sorted);
+---
+<Base
+  title="Research Institutions - Open Editors Plus"
+  path="institution"
+  description={"Searchable leaderboard across " + totalCount.toLocaleString() + " research institutions (ROR)"}
+>
+  <div class="max-w-5xl mx-auto px-4 py-12">
+    <nav class="text-xs text-text-muted mb-6">
+      <a href="/">Home</a> / <span class="text-text-primary font-medium">Institutions</span>
+    </nav>
+    <h1 class="text-3xl font-bold mb-2">Research Institutions</h1>
+    <p class="text-text-secondary mb-6">
+      Institution-level editorial footprint, keyed by
+      <a href="https://ror.org" target="_blank" rel="noopener" class="text-brand-600 hover:underline">ROR</a>.
+      All <strong>{totalCount.toLocaleString()}</strong> institutions with at least 10
+      editorial positions in the dataset are listed below. Use the search box to filter
+      by name, city, or country — every institution is searchable, not just the top of
+      the ranking.
+    </p>
+
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <input
+        id="search"
+        type="search"
+        placeholder="Search by institution name, city, or country…"
+        class="flex-1 min-w-[240px] px-4 py-2 border border-border rounded-lg focus:outline-none focus:border-brand-500"
+      />
+      <span id="inst-count" class="text-xs text-text-muted whitespace-nowrap"></span>
+    </div>
+
+    <div class="overflow-x-auto bg-white rounded-xl border border-border shadow-sm">
+      <table class="w-full text-sm">
+        <thead class="bg-surface-dim text-text-secondary">
+          <tr>
+            <th class="text-left py-2 px-3 font-semibold w-10">#</th>
+            <th class="text-left py-2 px-3 font-semibold">Institution</th>
+            <th class="text-left py-2 px-3 font-semibold">Country</th>
+            <th class="text-right py-2 px-3 font-semibold">Positions</th>
+            <th class="text-right py-2 px-3 font-semibold">Editors</th>
+            <th class="text-right py-2 px-3 font-semibold">% Female</th>
+            <th class="text-right py-2 px-3 font-semibold">Mean h-index</th>
+          </tr>
+        </thead>
+        <tbody id="inst-tbody">
+          <tr><td colspan="7" class="py-6 text-center text-text-muted text-sm">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-between mt-4 text-xs">
+      <button id="inst-prev" class="px-3 py-1.5 border border-border rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-dim">← Prev</button>
+      <span id="inst-page-label" class="text-text-muted"></span>
+      <button id="inst-next" class="px-3 py-1.5 border border-border rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-dim">Next →</button>
+    </div>
+
+    <p class="text-xs text-text-muted mt-4">
+      Institutions with fewer than 10 editorial positions are excluded from this list
+      for readability but remain queryable via <a href="/explore" class="text-brand-600 hover:underline">/explore</a>.
+    </p>
+  </div>
+
+  <!-- Institution payload: full dataset, embedded once, paginated/filtered in-browser. -->
+  <script id="inst-data" type="application/json" set:html={payload}></script>
+
+  <script is:inline>
+    // @ts-nocheck
+    const PAGE_SIZE = 25;
+    const DATA = JSON.parse(document.getElementById("inst-data").textContent);
+    const tbody = document.getElementById("inst-tbody");
+    const countEl = document.getElementById("inst-count");
+    const pageLabel = document.getElementById("inst-page-label");
+    const prevBtn = document.getElementById("inst-prev");
+    const nextBtn = document.getElementById("inst-next");
+    const search = document.getElementById("search");
+
+    // Pre-compute the searchable haystack for each row so keystroke
+    // filtering is O(n) over 5k rows on every input event.
+    const HAYSTACKS = DATA.map((i) =>
+      ((i.name || "") + " " + (i.ror_city || "") + " " + (i.ror_country || "")).toLowerCase()
+    );
+
+    let filtered = DATA.map((_, i) => i); // indices into DATA
+    let page = 0;
+
+    function applyFilter(q) {
+      if (!q) {
+        filtered = DATA.map((_, i) => i);
+      } else {
+        const needle = q.trim().toLowerCase();
+        filtered = [];
+        for (let i = 0; i < HAYSTACKS.length; i++) {
+          if (HAYSTACKS[i].includes(needle)) filtered.push(i);
+        }
+      }
+      page = 0;
+      render();
+    }
+
+    function fmtPct(v) {
+      return v != null && !Number.isNaN(v) ? v + "%" : "—";
+    }
+    function fmtNum(v) {
+      return typeof v === "number" ? v : "—";
+    }
+
+    function render() {
+      const n = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(n / PAGE_SIZE));
+      if (page > totalPages - 1) page = totalPages - 1;
+      if (page < 0) page = 0;
+      const start = page * PAGE_SIZE;
+      const end = Math.min(start + PAGE_SIZE, n);
+
+      if (n === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-text-muted text-sm">No institutions match that query.</td></tr>';
+      } else {
+        const parts = [];
+        for (let i = start; i < end; i++) {
+          const idx = filtered[i];
+          const item = DATA[idx];
+          // Rank is the absolute rank in the full sorted list (not the
+          // filtered rank), so "Harvard #4" stays #4 even after filter.
+          const rank = idx + 1;
+          const city = item.ror_city ? `<span class="text-text-muted text-xs ml-1">· ${escapeHtml(item.ror_city)}</span>` : "";
+          const nameLink = `<a href="/institution/${item.ror_id}" class="text-brand-700 font-medium hover:underline">${escapeHtml(item.name)}</a>`;
+          const country = item.ror_country ? escapeHtml(item.ror_country) : "—";
+          parts.push(
+            '<tr class="border-t border-border hover:bg-brand-50">' +
+              `<td class="py-2 px-3 text-text-muted">${rank}</td>` +
+              `<td class="py-2 px-3">${nameLink}${city}</td>` +
+              `<td class="py-2 px-3 text-text-secondary">${country}</td>` +
+              `<td class="py-2 px-3 text-right font-semibold">${item.records.toLocaleString()}</td>` +
+              `<td class="py-2 px-3 text-right">${item.editors.toLocaleString()}</td>` +
+              `<td class="py-2 px-3 text-right">${fmtPct(item.pct_female)}</td>` +
+              `<td class="py-2 px-3 text-right">${fmtNum(item.mean_h_index)}</td>` +
+            '</tr>'
+          );
+        }
+        tbody.innerHTML = parts.join("");
+      }
+
+      countEl.textContent =
+        n === DATA.length
+          ? `${DATA.length.toLocaleString()} institutions`
+          : `${n.toLocaleString()} matching institution${n === 1 ? "" : "s"} (of ${DATA.length.toLocaleString()})`;
+
+      pageLabel.textContent = n === 0
+        ? ""
+        : `${(start + 1).toLocaleString()}–${end.toLocaleString()} of ${n.toLocaleString()} · page ${page + 1} / ${totalPages}`;
+
+      prevBtn.disabled = page === 0;
+      nextBtn.disabled = page >= totalPages - 1;
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+
+    let searchTimer = null;
+    search.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => applyFilter(search.value), 120);
+    });
+    prevBtn.addEventListener("click", () => { page--; render(); });
+    nextBtn.addEventListener("click", () => { page++; render(); });
+
+    render();
+  </script>
+</Base>

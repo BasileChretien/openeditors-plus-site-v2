@@ -1,0 +1,105 @@
+---
+import Base from "../../layouts/Base.astro";
+import ContactEmail from "../../components/ContactEmail.astro";
+---
+
+<Base
+  title="Corrections, removal & data rights — Open Editors Plus"
+  path="corrections"
+  description="Request correction or removal of your editorial-board record in Open Editors Plus, or report a data error. No reason required, no charge; acknowledged within 5 business days."
+  breadcrumbs={[{ name: "Corrections & data rights", url: "corrections" }]}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <h1 class="text-3xl sm:text-4xl font-bold mb-4">Corrections, removal &amp; data rights</h1>
+    <p class="text-text-secondary text-lg mb-10">
+      If you are listed in Open Editors Plus, you control whether and how your
+      record appears. You can have it corrected, removed entirely, or object to
+      it being processed — no reason required, and no charge.
+    </p>
+
+    <div class="prose prose-slate max-w-none space-y-8">
+      <!-- How to request -->
+      <section>
+        <h2 class="text-2xl font-bold mt-6 mb-4">How to make a request</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Email the data-protection contact with your <strong>name</strong> as it
+          appears in the data and the <strong>journal(s)</strong> you are (or were)
+          listed for, and tell us what you would like done — correction, removal,
+          or objection to processing:
+        </p>
+        <div class="bg-surface-dim border border-border rounded-lg p-5 mb-4">
+          <p class="text-text-secondary leading-relaxed">
+            <span class="font-semibold text-text-primary">Contact:</span>
+            <ContactEmail subject="Open Editors Plus — correction / removal request" />
+          </p>
+        </div>
+        <ul class="list-disc pl-5 text-text-secondary space-y-1.5 text-sm">
+          <li><strong>No reason required.</strong> You do not need to justify a removal or objection.</li>
+          <li><strong>No charge.</strong> Requests are always free.</li>
+          <li><strong>Removal is complete.</strong> If you ask for removal, your record is dropped in full — not merely hidden.</li>
+        </ul>
+      </section>
+
+      <!-- What happens next -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">What happens next</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="bg-white border border-border rounded-lg p-5">
+            <div class="text-2xl font-bold text-brand-800 mb-1">5 business days</div>
+            <p class="text-sm text-text-secondary">We acknowledge your request and confirm what we understood you to be asking.</p>
+          </div>
+          <div class="bg-white border border-border rounded-lg p-5">
+            <div class="text-2xl font-bold text-brand-800 mb-1">30 days</div>
+            <p class="text-sm text-text-secondary">We action the correction or removal, and confirm back to you once it is done.</p>
+          </div>
+        </div>
+        <p class="text-text-secondary leading-relaxed">
+          The change then propagates to the next versioned
+          <a href="https://doi.org/10.5281/zenodo.19590816" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Zenodo</a>
+          release and to the online <a href="/explore" class="text-brand-600 hover:underline">Explorer</a>,
+          so the correction reaches everyone who uses the dataset going forward.
+        </p>
+      </section>
+
+      <!-- Report a data error -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Just want to report an error?</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          If something about your record is simply <em>inaccurate</em> — a wrong
+          affiliation, a misspelled name, a role that has changed — and you would
+          like it fixed rather than removed, you can flag it the same way: email
+          the data-protection contact
+          (<ContactEmail subject="Open Editors Plus — data error report" />)
+          with your name and the journal(s) concerned.
+        </p>
+      </section>
+
+      <!-- Honest limitation about CC0 copies -->
+      <section>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h3 class="font-semibold text-amber-900 text-sm mb-1">One honest limitation</h3>
+          <p class="text-sm text-amber-800 leading-relaxed">
+            Removing your record deletes it from the Open Editors Plus release, the
+            Explorer, and all future versions we publish. Because earlier versions
+            are distributed openly under CC0, we cannot recall copies that other
+            people have already downloaded or redistributed elsewhere. We remove
+            what is within our control and stop republishing your record; we cannot
+            control independent third-party copies of prior releases.
+          </p>
+        </div>
+      </section>
+
+      <!-- Commitment / cross-link -->
+      <section>
+        <p class="text-text-secondary leading-relaxed text-sm">
+          The dataset is a permanent public deposit
+          (<a href="https://doi.org/10.5281/zenodo.19590816" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">DOI 10.5281/zenodo.19590816</a>),
+          and we will keep a working contact address published for the life of that
+          deposit so this route stays open. For what data the project holds, the
+          named data controller, and the legal basis for processing, see the
+          <a href="/privacy" class="text-brand-600 hover:underline">Privacy &amp; Data Protection</a> page.
+        </p>
+      </section>
+    </div>
+  </div>
+</Base>

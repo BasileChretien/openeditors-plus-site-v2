@@ -1,0 +1,738 @@
+---
+import Base from "../../layouts/Base.astro";
+import { slugify } from "../../lib/slugify";
+import countries from "../../../public/api/countries.json";
+import countryMetrics from "../../../public/api/country_metrics.json";
+import fields from "../../../public/api/fields.json";
+
+const bySize = [...countries].sort((a, b) => b.records - a.records);
+const byName = [...countries].sort((a, b) => a.country.localeCompare(b.country));
+
+// Fields sorted by total records, passed to the client for the field-map selector.
+const fieldList = [...fields]
+  .sort((a, b) => b.records - a.records)
+  .map((f) => ({ field: f.field, records: f.records, country_counts: f.country_counts || {} }));
+---
+<Base title="Countries - Open Editors Plus" path="country">
+  <div class="max-w-6xl mx-auto px-4 py-8 sm:py-12">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-3xl font-bold">Countries</h1>
+    </div>
+    <p class="text-sm text-text-secondary mb-8 max-w-3xl">
+      World maps summarising gender balance, field representation, and editorial density
+      per country, followed by the full country list. All maps are built from the same
+      dataset as the <a href="/explore" class="underline text-brand-700">Explore</a> page.
+    </p>
+
+    <!-- ────────────── Map 1: gender ────────────── -->
+    <section class="bg-white rounded-xl border border-border shadow-sm overflow-hidden mb-8">
+      <div class="px-4 py-3 border-b border-border bg-surface-dim flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="font-semibold text-sm">% female editors per country</h2>
+          <p class="text-[11px] text-text-muted mt-0.5">
+            Red ≈ 0% · yellow ≈ 25% · green ≥ 50%. Grey = below the editor threshold. Hatched = low gender-inference coverage (&lt; 60% of editors classifiable; see <a href="/methodology#gender-coverage" class="underline">methodology</a>).
+          </p>
+        </div>
+        <label class="text-xs text-text-secondary flex items-center gap-2">
+          Min editors:
+          <input id="gender-threshold" type="range" min="10" max="500" step="10" value="50" class="w-32 align-middle" />
+          <span id="gender-threshold-label" class="font-mono text-brand-700">50</span>
+        </label>
+      </div>
+      <div id="map-gender" class="h-[420px]"></div>
+      <div id="legend-gender" class="px-4 py-2 border-t border-border flex items-center gap-2 text-[11px] text-text-secondary">
+        <span>0%</span>
+        <div class="flex-1 h-2 rounded" style="background:linear-gradient(to right,#b91c1c,#dc2626,#f97316,#facc15,#a3e635,#16a34a)"></div>
+        <span>≥50%</span>
+      </div>
+    </section>
+
+    <!-- ────────────── Map 2: field representation ────────────── -->
+    <section class="bg-white rounded-xl border border-border shadow-sm overflow-hidden mb-8">
+      <div class="px-4 py-3 border-b border-border bg-surface-dim">
+        <h2 class="font-semibold text-sm">Field representation by country</h2>
+        <p class="text-[11px] text-text-muted mt-0.5">
+          Share of each country's editors working in the selected field. Pick a field on the right.
+        </p>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-[1fr_220px]">
+        <div id="map-field" class="h-[420px] order-2 lg:order-1"></div>
+        <div class="order-1 lg:order-2 border-t lg:border-t-0 lg:border-l border-border max-h-[420px] overflow-y-auto p-2">
+          <div id="field-buttons" class="flex flex-col gap-1"></div>
+        </div>
+      </div>
+      <div id="legend-field" class="px-4 py-2 border-t border-border flex items-center gap-2 text-[11px] text-text-secondary">
+        <span>0%</span>
+        <div class="flex-1 h-2 rounded" style="background:linear-gradient(to right,#f1f5f9,#bfdbfe,#60a5fa,#2563eb,#1e3a8a)"></div>
+        <span id="legend-field-max">max</span>
+      </div>
+    </section>
+
+    <!-- ────────────── Map 3: editor density ────────────── -->
+    <section class="bg-white rounded-xl border border-border shadow-sm overflow-hidden mb-8">
+      <div class="px-4 py-3 border-b border-border bg-surface-dim flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="font-semibold text-sm">Editorial representation, normalised</h2>
+          <p class="text-[11px] text-text-muted mt-0.5" id="density-caption">
+            Editors per 1,000 researchers in the country (editors ÷ (population × researchers-per-million ÷ 1000)).
+            A higher value means the country contributes more editors relative to the size of its research workforce.
+          </p>
+        </div>
+        <div class="flex gap-1 text-xs">
+          <button data-density="editors_per_1k_researchers" class="density-btn px-2 py-1 rounded border border-brand-500 bg-brand-50 text-brand-700">per 1k researchers</button>
+          <button data-density="editors_per_million_pop" class="density-btn px-2 py-1 rounded border border-border text-text-secondary">per million people</button>
+        </div>
+      </div>
+      <div id="map-density" class="h-[420px]"></div>
+      <!-- Density legend — labelled with real numbers + note about log scale. -->
+      <div class="px-4 py-3 border-t border-border text-[11px] text-text-secondary">
+        <div class="flex items-center gap-2">
+          <span id="legend-density-label" class="whitespace-nowrap font-medium">Editors per 1k researchers</span>
+          <div class="flex-1 h-3 rounded relative" style="background:linear-gradient(to right,#f1f5f9,#fde68a,#fb923c,#dc2626,#7f1d1d)">
+            <span id="legend-density-min" class="absolute -bottom-4 left-0 font-mono">0</span>
+            <span id="legend-density-q1"  class="absolute -bottom-4 left-[25%] -translate-x-1/2 font-mono"></span>
+            <span id="legend-density-q2"  class="absolute -bottom-4 left-1/2 -translate-x-1/2 font-mono"></span>
+            <span id="legend-density-q3"  class="absolute -bottom-4 left-[75%] -translate-x-1/2 font-mono"></span>
+            <span id="legend-density-max" class="absolute -bottom-4 right-0 font-mono"></span>
+          </div>
+        </div>
+        <p class="mt-5 text-[10px] text-text-muted">
+          Colour scale is logarithmic so that a handful of outlier countries do not compress the rest of the world into a single hue.
+          Grey = denominator unavailable. Toggle "per million people" to switch to a population-normalised view.
+        </p>
+      </div>
+
+      <!-- Economic context table — all countries, paginated -->
+      <div class="px-4 py-4 border-t border-border">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+          <h3 class="text-xs font-semibold text-text-secondary uppercase tracking-wide">
+            Economic context — all countries
+          </h3>
+          <p class="text-[10px] text-text-muted" id="econ-meta">World Bank Open Data</p>
+        </div>
+        <p class="text-[11px] text-text-muted mb-3">
+          Three policy-relevant indicators alongside the editor ratio. Click a column header to sort.
+        </p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead class="bg-surface-dim select-none">
+              <tr class="text-left">
+                <th data-sort="name"                       class="px-3 py-2 font-semibold cursor-pointer hover:bg-brand-50">Country</th>
+                <th data-sort="editors_total"              class="px-3 py-2 font-semibold text-right cursor-pointer hover:bg-brand-50">Editors</th>
+                <th data-sort="editors_per_1k_researchers" class="px-3 py-2 font-semibold text-right cursor-pointer hover:bg-brand-50">Editors / 1k researchers</th>
+                <th data-sort="rnd_pct_gdp"                class="px-3 py-2 font-semibold text-right cursor-pointer hover:bg-brand-50">R&amp;D (% GDP)</th>
+                <th data-sort="gdp_per_capita"             class="px-3 py-2 font-semibold text-right cursor-pointer hover:bg-brand-50">GDP / capita (US$)</th>
+                <th data-sort="researchers_per_million"    class="px-3 py-2 font-semibold text-right cursor-pointer hover:bg-brand-50">Researchers / M</th>
+              </tr>
+            </thead>
+            <tbody id="econ-table"></tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs">
+          <button id="econ-prev" class="px-2.5 py-1 border border-border rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-dim">← Prev</button>
+          <span id="econ-page-label" class="text-text-muted"></span>
+          <button id="econ-next" class="px-2.5 py-1 border border-border rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface-dim">Next →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ────────────── Map 4: Representation ratio ────────────── -->
+    <section class="bg-white rounded-xl border border-border shadow-sm overflow-hidden mb-8">
+      <div class="px-4 py-3 border-b border-border bg-surface-dim">
+        <h2 class="font-semibold text-sm">Editorial representation vs. publication output</h2>
+        <p class="text-[11px] text-text-muted mt-0.5">
+          Ratio = country's share of global editorial positions ÷ country's share of global
+          publications (OpenAlex). A value of <strong>1.0</strong> means the country is
+          proportionally represented; <strong>&gt; 1</strong> = over-represented on editorial boards
+          relative to research output; <strong>&lt; 1</strong> = under-represented.
+          Blue = under-represented, white = proportional, red = over-represented.
+          Grey = data unavailable.
+        </p>
+      </div>
+      <div id="map-repr" class="h-[420px]"></div>
+      <div class="px-4 py-2 border-t border-border flex items-center gap-2 text-[11px] text-text-secondary">
+        <span>0.2× (under)</span>
+        <div class="flex-1 h-2 rounded" style="background:linear-gradient(to right,#1e3a8a,#3b82f6,#93c5fd,#ffffff,#fca5a5,#ef4444,#7f1d1d)"></div>
+        <span>3× (over)</span>
+      </div>
+    </section>
+
+    <!-- ────────────── Map 5: ORCID coverage ────────────── -->
+    <section class="bg-white rounded-xl border border-border shadow-sm overflow-hidden mb-8">
+      <div class="px-4 py-3 border-b border-border bg-surface-dim">
+        <h2 class="font-semibold text-sm">ORCID coverage per country</h2>
+        <p class="text-[11px] text-text-muted mt-0.5">
+          Share of unique editors in each country who carry an ORCID.
+          ORCID adoption varies sharply by region and career stage — darker = more
+          editors resolvable to a persistent identifier. Grey = below the editor threshold.
+        </p>
+      </div>
+      <div id="map-orcid" class="h-[420px]"></div>
+      <div id="legend-orcid" class="px-4 py-2 border-t border-border flex items-center gap-2 text-[11px] text-text-secondary">
+        <span>0%</span>
+        <div class="flex-1 h-2 rounded" style="background:linear-gradient(to right,#f1f5f9,#cffafe,#22d3ee,#0891b2,#164e63)"></div>
+        <span>≥ 75%</span>
+      </div>
+    </section>
+
+    <!-- ────────────── Legacy country list ────────────── -->
+    <div class="flex items-center justify-between mb-4 mt-12">
+      <h2 class="text-xl font-bold">All countries</h2>
+      <div class="flex gap-2">
+        <button id="sort-size" class="px-3 py-1.5 text-xs font-medium border border-brand-500 text-brand-700 bg-brand-50 rounded-lg">By positions</button>
+        <button id="sort-alpha" class="px-3 py-1.5 text-xs font-medium border border-border text-text-secondary rounded-lg hover:bg-surface-dim">A-Z</button>
+      </div>
+    </div>
+    <div id="list-size" class="space-y-2">
+      {bySize.map((c) => (
+        <a href={"/country/" + slugify(c.country)} class="flex justify-between items-center p-3 rounded-lg hover:bg-brand-50 transition-colors border border-border">
+          <span class="font-medium text-brand-700">{c.country}</span>
+          <span class="text-sm text-text-muted">{c.records.toLocaleString() + " positions"}</span>
+        </a>
+      ))}
+    </div>
+    <div id="list-alpha" class="space-y-2 hidden">
+      {byName.map((c) => (
+        <a href={"/country/" + slugify(c.country)} class="flex justify-between items-center p-3 rounded-lg hover:bg-brand-50 transition-colors border border-border">
+          <span class="font-medium text-brand-700">{c.country}</span>
+          <span class="text-sm text-text-muted">{c.records.toLocaleString() + " positions"}</span>
+        </a>
+      ))}
+    </div>
+  </div>
+
+  <!-- Leaflet (same version the Explore page uses) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" is:inline></script>
+
+  <!-- Data payloads -->
+  <script id="country-metrics-data" type="application/json" set:html={JSON.stringify(countryMetrics)}></script>
+  <script id="fields-data" type="application/json" set:html={JSON.stringify(fieldList)}></script>
+
+  <script is:inline>
+    // @ts-nocheck
+
+    // ── Sort buttons for the legacy list ────────────────────────────
+    const btnSize = document.getElementById("sort-size");
+    const btnAlpha = document.getElementById("sort-alpha");
+    const listSize = document.getElementById("list-size");
+    const listAlpha = document.getElementById("list-alpha");
+    btnSize.addEventListener("click", () => {
+      listSize.classList.remove("hidden"); listAlpha.classList.add("hidden");
+      btnSize.classList.add("border-brand-500","text-brand-700","bg-brand-50"); btnSize.classList.remove("border-border","text-text-secondary");
+      btnAlpha.classList.remove("border-brand-500","text-brand-700","bg-brand-50"); btnAlpha.classList.add("border-border","text-text-secondary");
+    });
+    btnAlpha.addEventListener("click", () => {
+      listAlpha.classList.remove("hidden"); listSize.classList.add("hidden");
+      btnAlpha.classList.add("border-brand-500","text-brand-700","bg-brand-50"); btnAlpha.classList.remove("border-border","text-text-secondary");
+      btnSize.classList.remove("border-brand-500","text-brand-700","bg-brand-50"); btnSize.classList.add("border-border","text-text-secondary");
+    });
+
+    // ── Read embedded JSON payloads ─────────────────────────────────
+    const metrics = JSON.parse(document.getElementById("country-metrics-data").textContent);
+    const fieldData = JSON.parse(document.getElementById("fields-data").textContent);
+
+    // Names in the Natural Earth geojson that differ from our ror_country strings.
+    const NE_TO_ROR = {
+      "United States of America": "United States",
+      "Dem. Rep. Congo": "DR Congo",
+      "Congo": "Congo Republic",
+      "eSwatini": "Eswatini",
+      "Czechia": "Czech Republic",
+      "Republic of Serbia": "Serbia",
+      "Bosnia and Herz.": "Bosnia and Herzegovina",
+      "N. Cyprus": "Cyprus",
+      "Somaliland": "Somalia",
+      "S. Sudan": "South Sudan",
+      "Dominican Rep.": "Dominican Republic",
+      "Eq. Guinea": "Equatorial Guinea",
+      "Central African Rep.": "Central African Republic",
+      "Solomon Is.": "Solomon Islands",
+      "Falkland Is.": "Falkland Islands",
+      "Fr. S. Antarctic Lands": "French Southern Territories",
+    };
+
+    function resolveCountry(props) {
+      const candidates = [props.NAME, props.NAME_LONG, props.ADMIN, NE_TO_ROR[props.NAME]];
+      for (const c of candidates) {
+        if (c && metrics[c]) return c;
+      }
+      return null;
+    }
+
+    // ── Color scales ────────────────────────────────────────────────
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function hexLerp(c1, c2, t) {
+      const p = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+      const [r1,g1,b1] = p(c1); const [r2,g2,b2] = p(c2);
+      const to2 = (v) => Math.round(lerp(v[0],v[1],t)).toString(16).padStart(2,"0");
+      return "#" + to2([r1,r2]) + to2([g1,g2]) + to2([b1,b2]);
+    }
+    function rampColor(stops, t) {
+      if (t <= 0) return stops[0];
+      if (t >= 1) return stops[stops.length - 1];
+      const seg = (stops.length - 1) * t;
+      const i = Math.floor(seg);
+      return hexLerp(stops[i], stops[i+1], seg - i);
+    }
+    const GENDER_STOPS = ["#b91c1c","#dc2626","#f97316","#facc15","#a3e635","#16a34a"];
+    const FIELD_STOPS  = ["#f1f5f9","#bfdbfe","#60a5fa","#2563eb","#1e3a8a"];
+    const DENS_STOPS   = ["#f1f5f9","#fde68a","#fb923c","#dc2626","#7f1d1d"];
+
+    function genderColor(pct) {
+      // Map 0→0, 50→1, cap at 50% so ≥50 is fully green.
+      return rampColor(GENDER_STOPS, Math.min(pct, 50) / 50);
+    }
+
+    // ── Shared Leaflet helpers ──────────────────────────────────────
+    let geoJsonCache = null;
+    async function loadGeo() {
+      if (geoJsonCache) return geoJsonCache;
+      const resp = await fetch("/geo/world-countries.geojson");
+      geoJsonCache = await resp.json();
+      return geoJsonCache;
+    }
+
+    function buildMap(divId) {
+      const map = L.map(divId, {
+        center: [20, 10],
+        zoom: 1,
+        minZoom: 1,
+        worldCopyJump: true,
+        zoomControl: true,
+        attributionControl: false,
+      });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png", {
+        subdomains: "abcd",
+        maxZoom: 10,
+      }).addTo(map);
+      return map;
+    }
+
+    // ── Map 1: gender ───────────────────────────────────────────────
+    (async () => {
+      const geo = await loadGeo();
+      const map = buildMap("map-gender");
+      let threshold = 50;
+      const COVERAGE_WARN = 60;  // % classified below which we mark the country as low-confidence
+
+      // Build a reusable style function. Countries with low gender-
+      // inference coverage get a dashed stroke AND a lower fillOpacity
+      // so they visually stand out from the trustworthy colour ramp.
+      function genderStyle(feat) {
+        const name = resolveCountry(feat.properties);
+        const d = name ? metrics[name] : null;
+        if (!d || d.editors_total < threshold || d.pct_female == null) {
+          return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6, dashArray: null };
+        }
+        const lowCoverage = typeof d.pct_gender_classified === "number" && d.pct_gender_classified < COVERAGE_WARN;
+        return {
+          fillColor: genderColor(d.pct_female),
+          color: lowCoverage ? "#92400e" : "#64748b",
+          weight: lowCoverage ? 1.2 : 0.5,
+          fillOpacity: lowCoverage ? 0.55 : 0.85,
+          dashArray: lowCoverage ? "3,3" : null,
+        };
+      }
+
+      const layer = L.geoJSON(geo, {
+        style: genderStyle,
+        onEachFeature: (feat, lyr) => {
+          const name = resolveCountry(feat.properties);
+          const d = name ? metrics[name] : null;
+          const nm = feat.properties.NAME;
+          let html;
+          if (!d) {
+            html = `<strong>${nm}</strong><br><span style="color:#94a3b8">no data</span>`;
+          } else if (d.editors_total < threshold) {
+            html = `<strong>${name}</strong><br>${d.editors_total.toLocaleString()} editors<br><span style="color:#94a3b8">below threshold</span>`;
+          } else {
+            const cov = d.pct_gender_classified;
+            const covLine = typeof cov === "number"
+              ? (cov < COVERAGE_WARN
+                  ? `<br><span style="color:#b45309;">⚠ only ${cov}% of editors classifiable (low-confidence)</span>`
+                  : `<br><span style="color:#64748b;">${cov}% of editors classifiable</span>`)
+              : "";
+            html = `<strong>${name}</strong><br>${d.pct_female}% female<br>${d.editors_total.toLocaleString()} editors${covLine}`;
+          }
+          lyr.bindTooltip(html, { sticky: true });
+        },
+      }).addTo(map);
+
+      const slider = document.getElementById("gender-threshold");
+      const label  = document.getElementById("gender-threshold-label");
+      slider.addEventListener("input", () => {
+        threshold = parseInt(slider.value, 10);
+        label.textContent = threshold;
+        layer.setStyle(genderStyle);
+      });
+    })();
+
+    // ── Map 2: field representation ─────────────────────────────────
+    (async () => {
+      const geo = await loadGeo();
+      const map = buildMap("map-field");
+      let selected = fieldData[0];
+
+      // Compute share = share_of_that_country's_editors_in_this_field
+      function shareFor(countryName) {
+        const total = metrics[countryName]?.editors_total || 0;
+        const inField = selected.country_counts[countryName] || 0;
+        if (!total) return null;
+        return inField / total;
+      }
+
+      // Max share across countries, to auto-scale the legend.
+      function computeMax() {
+        let max = 0;
+        for (const c of Object.keys(metrics)) {
+          if (c === "_meta") continue;
+          const s = shareFor(c);
+          if (s && s > max) max = s;
+        }
+        return max || 1;
+      }
+      let shareMax = computeMax();
+
+      const layer = L.geoJSON(geo, {
+        style: (feat) => {
+          const name = resolveCountry(feat.properties);
+          const s = name ? shareFor(name) : null;
+          if (s == null) {
+            return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6 };
+          }
+          return { fillColor: rampColor(FIELD_STOPS, s / shareMax), color: "#64748b", weight: 0.5, fillOpacity: 0.85 };
+        },
+        onEachFeature: (feat, lyr) => {
+          const updateTooltip = () => {
+            const name = resolveCountry(feat.properties);
+            const nm = feat.properties.NAME;
+            if (!name) { lyr.setTooltipContent(`<strong>${nm}</strong><br><span style="color:#94a3b8">no data</span>`); return; }
+            const s = shareFor(name);
+            const count = selected.country_counts[name] || 0;
+            lyr.setTooltipContent(
+              `<strong>${name}</strong><br>${(s * 100).toFixed(1)}% in ${selected.field}<br>${count.toLocaleString()} / ${metrics[name].editors_total.toLocaleString()} editors`
+            );
+          };
+          lyr.bindTooltip("", { sticky: true });
+          lyr._updateTooltip = updateTooltip;
+          updateTooltip();
+        },
+      }).addTo(map);
+
+      // Render field buttons
+      const container = document.getElementById("field-buttons");
+      fieldData.forEach((f, i) => {
+        const btn = document.createElement("button");
+        btn.textContent = `${f.field} (${f.records.toLocaleString()})`;
+        btn.className = "text-left text-[11px] px-2 py-1 rounded border transition-colors " +
+          (i === 0 ? "border-brand-500 bg-brand-50 text-brand-700" : "border-border text-text-secondary hover:bg-surface-dim");
+        btn.addEventListener("click", () => {
+          selected = f;
+          shareMax = computeMax();
+          document.getElementById("legend-field-max").textContent = (shareMax * 100).toFixed(1) + "%";
+          layer.setStyle((feat) => {
+            const name = resolveCountry(feat.properties);
+            const s = name ? shareFor(name) : null;
+            if (s == null) return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6 };
+            return { fillColor: rampColor(FIELD_STOPS, s / shareMax), color: "#64748b", weight: 0.5, fillOpacity: 0.85 };
+          });
+          layer.eachLayer((lyr) => lyr._updateTooltip && lyr._updateTooltip());
+          container.querySelectorAll("button").forEach((b) => {
+            b.className = "text-left text-[11px] px-2 py-1 rounded border transition-colors border-border text-text-secondary hover:bg-surface-dim";
+          });
+          btn.className = "text-left text-[11px] px-2 py-1 rounded border transition-colors border-brand-500 bg-brand-50 text-brand-700";
+        });
+        container.appendChild(btn);
+      });
+      document.getElementById("legend-field-max").textContent = (shareMax * 100).toFixed(1) + "%";
+    })();
+
+    // ── Helpers reused across density map + table ────────────────────
+    // Strip the reserved ``_meta`` key so iterations see only real countries.
+    const META = metrics._meta || null;
+    const countryEntries = Object.entries(metrics).filter(([k]) => k !== "_meta");
+    const slug = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+
+    // ── Map 3: density ──────────────────────────────────────────────
+    (async () => {
+      const geo = await loadGeo();
+      const map = buildMap("map-density");
+      let metric = "editors_per_1k_researchers";
+
+      function metricValues() {
+        return countryEntries
+          .map(([, d]) => d[metric])
+          .filter((v) => typeof v === "number" && v > 0);
+      }
+      function computeMax() {
+        const vs = metricValues();
+        return vs.length ? Math.max(...vs) : 1;
+      }
+      let dMax = computeMax();
+
+      // Log scale to compress the long tail, so a few outliers don't wash out
+      // the rest of the world into a single hue.
+      function densityT(v) {
+        if (!v || v <= 0) return 0;
+        return Math.log10(1 + v) / Math.log10(1 + dMax);
+      }
+      // Inverse: the real-world value that corresponds to a legend position t ∈ [0,1].
+      function densityInverse(t) {
+        return Math.pow(10, t * Math.log10(1 + dMax)) - 1;
+      }
+
+      const layer = L.geoJSON(geo, {
+        style: (feat) => {
+          const name = resolveCountry(feat.properties);
+          const v = name ? metrics[name]?.[metric] : null;
+          if (v == null) return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6 };
+          return { fillColor: rampColor(DENS_STOPS, densityT(v)), color: "#64748b", weight: 0.5, fillOpacity: 0.85 };
+        },
+        onEachFeature: (feat, lyr) => {
+          lyr.bindTooltip("", { sticky: true });
+          const upd = () => {
+            const name = resolveCountry(feat.properties);
+            const nm = feat.properties.NAME;
+            if (!name) { lyr.setTooltipContent(`<strong>${nm}</strong><br><span style="color:#94a3b8">no data</span>`); return; }
+            const d = metrics[name];
+            const v = d?.[metric];
+            const unit = metric === "editors_per_1k_researchers" ? "editors per 1,000 researchers" : "editors per million people";
+            lyr.setTooltipContent(
+              v == null
+                ? `<strong>${name}</strong><br><span style="color:#94a3b8">no denominator</span>`
+                : `<strong>${name}</strong><br>${v.toLocaleString(undefined,{maximumFractionDigits:2})} ${unit}<br>${d.editors_total.toLocaleString()} editors`
+            );
+          };
+          lyr._upd = upd; upd();
+        },
+      }).addTo(map);
+
+      const densLabel = document.getElementById("legend-density-label");
+      const densCaption = document.getElementById("density-caption");
+      const qEls = [
+        document.getElementById("legend-density-q1"),
+        document.getElementById("legend-density-q2"),
+        document.getElementById("legend-density-q3"),
+      ];
+      const maxEl = document.getElementById("legend-density-max");
+
+      function fmtLegend(v) {
+        if (v >= 100) return v.toFixed(0);
+        if (v >= 10)  return v.toFixed(1);
+        return v.toFixed(2);
+      }
+
+      function renderLegend() {
+        const unit = metric === "editors_per_1k_researchers" ? "editors per 1,000 researchers" : "editors per million people";
+        densLabel.textContent = unit[0].toUpperCase() + unit.slice(1);
+        maxEl.textContent = fmtLegend(dMax);
+        // Ticks at 25/50/75% of the log axis.
+        qEls.forEach((el, i) => { el.textContent = fmtLegend(densityInverse((i + 1) * 0.25)); });
+        if (densCaption) {
+          densCaption.textContent = metric === "editors_per_1k_researchers"
+            ? "Editors per 1,000 researchers in the country — editors ÷ (population × researchers-per-million ÷ 1000). Larger = country contributes more editors relative to the size of its research workforce."
+            : "Editors per million people — editors ÷ (population ÷ 1,000,000). Larger = country contributes more editors relative to its population.";
+        }
+      }
+      renderLegend();
+
+      document.querySelectorAll(".density-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          metric = btn.getAttribute("data-density");
+          dMax = computeMax();
+          renderLegend();
+          layer.setStyle((feat) => {
+            const name = resolveCountry(feat.properties);
+            const v = name ? metrics[name]?.[metric] : null;
+            if (v == null) return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6 };
+            return { fillColor: rampColor(DENS_STOPS, densityT(v)), color: "#64748b", weight: 0.5, fillOpacity: 0.85 };
+          });
+          layer.eachLayer((lyr) => lyr._upd && lyr._upd());
+          document.querySelectorAll(".density-btn").forEach((b) => {
+            b.className = "density-btn px-2 py-1 rounded border border-border text-text-secondary";
+          });
+          btn.className = "density-btn px-2 py-1 rounded border border-brand-500 bg-brand-50 text-brand-700";
+        });
+      });
+    })();
+
+    // ── Map 4: Representation ratio ─────────────────────────────────
+    (async () => {
+      const geo = await loadGeo();
+      const map = buildMap("map-repr");
+
+      // Diverging blue–white–red ramp. ratio < 1 = blue (under-repr),
+      // ratio ~ 1 = white, ratio > 1 = red (over-repr). Capped at
+      // 0.2× and 3× to keep outliers from washing out the middle.
+      function reprColor(ratio) {
+        if (ratio == null) return "#e5e7eb";
+        // Map ratio to [-1, 1] where -1 = 0.2×, 0 = 1×, 1 = 3×.
+        // Use log scale so the mid-point sits at ratio = 1.0.
+        const logR = Math.log2(Math.max(0.2, Math.min(ratio, 3)));
+        const logMin = Math.log2(0.2);   // -2.32
+        const logMax = Math.log2(3);     //  1.58
+        // Normalise to [0, 1] where 0 = deep blue, 0.5 = white, 1 = deep red.
+        const t = (logR - logMin) / (logMax - logMin);
+        // Three-stop diverging ramp via the existing rampColor helper.
+        const STOPS_REPR = ["#1e3a8a","#3b82f6","#93c5fd","#ffffff","#fca5a5","#ef4444","#7f1d1d"];
+        return rampColor(STOPS_REPR, t);
+      }
+
+      L.geoJSON(geo, {
+        style: (feat) => {
+          const name = resolveCountry(feat.properties);
+          const d = name ? metrics[name] : null;
+          const rr = d?.representation_ratio;
+          if (!d || rr == null) {
+            return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6 };
+          }
+          return { fillColor: reprColor(rr), color: "#64748b", weight: 0.5, fillOpacity: 0.85 };
+        },
+        onEachFeature: (feat, lyr) => {
+          const name = resolveCountry(feat.properties);
+          const d = name ? metrics[name] : null;
+          const nm = feat.properties.NAME;
+          if (!d || d.representation_ratio == null) {
+            lyr.bindTooltip(`<strong>${nm}</strong><br><span style="color:#94a3b8">no data</span>`, { sticky: true });
+            return;
+          }
+          const rr = d.representation_ratio;
+          const label = rr >= 1
+            ? `${rr.toFixed(2)}× over-represented`
+            : `${rr.toFixed(2)}× under-represented`;
+          const gs = d.is_global_south ? ' · <span style="color:#4f46e5">Global South</span>' : '';
+          const html =
+            `<strong>${name}</strong><br>` +
+            `${label}<br>` +
+            `${d.editors_total.toLocaleString()} editors · ${(d.oa_works_count || 0).toLocaleString()} OA works${gs}`;
+          lyr.bindTooltip(html, { sticky: true });
+        },
+      }).addTo(map);
+    })();
+
+    // ── Map 5: ORCID coverage ────────────────────────────────────────
+    (async () => {
+      const geo = await loadGeo();
+      const map = buildMap("map-orcid");
+      const ORCID_STOPS = ["#f1f5f9","#cffafe","#22d3ee","#0891b2","#164e63"];
+
+      function orcidColor(pct) {
+        // Map 0 → left stop, 75+ → right stop, cap at 75%.
+        return rampColor(ORCID_STOPS, Math.min(pct, 75) / 75);
+      }
+
+      L.geoJSON(geo, {
+        style: (feat) => {
+          const name = resolveCountry(feat.properties);
+          const d = name ? metrics[name] : null;
+          if (!d || !d.editors_total || d.editors_total < 50 || d.pct_with_orcid == null) {
+            return { fillColor: "#e5e7eb", color: "#cbd5e1", weight: 0.5, fillOpacity: 0.6 };
+          }
+          return { fillColor: orcidColor(d.pct_with_orcid), color: "#64748b", weight: 0.5, fillOpacity: 0.85 };
+        },
+        onEachFeature: (feat, lyr) => {
+          const name = resolveCountry(feat.properties);
+          const d = name ? metrics[name] : null;
+          const nm = feat.properties.NAME;
+          const html = !d || !d.editors_total || d.editors_total < 50
+            ? `<strong>${nm}</strong><br><span style="color:#94a3b8">below threshold / no data</span>`
+            : d.pct_with_orcid != null
+              ? `<strong>${name}</strong><br>${d.pct_with_orcid}% with ORCID<br>${d.editors_total.toLocaleString()} editors`
+              : `<strong>${name}</strong><br><span style="color:#94a3b8">no ORCID data</span>`;
+          lyr.bindTooltip(html, { sticky: true });
+        },
+      }).addTo(map);
+    })();
+
+    // ── Economic context table — all countries, paginated ──────────
+    (() => {
+      const PAGE_SIZE = 25;
+      const tbody = document.getElementById("econ-table");
+      const pageLabel = document.getElementById("econ-page-label");
+      const prevBtn = document.getElementById("econ-prev");
+      const nextBtn = document.getElementById("econ-next");
+      const metaEl = document.getElementById("econ-meta");
+
+      if (META && META.worldbank_retrieved_at) {
+        metaEl.textContent = `World Bank Open Data · retrieved ${META.worldbank_retrieved_at}`;
+      }
+
+      // Include every country — only omit rows with zero editors.
+      const rows = countryEntries
+        .filter(([, d]) => (d.editors_total || 0) > 0)
+        .map(([name, d]) => ({ name, ...d }));
+
+      const SORT_KEYS = {
+        name: (r) => r.name.toLowerCase(),
+        editors_total: (r) => r.editors_total ?? -Infinity,
+        editors_per_1k_researchers: (r) => r.editors_per_1k_researchers ?? -Infinity,
+        rnd_pct_gdp: (r) => r.rnd_pct_gdp ?? -Infinity,
+        gdp_per_capita: (r) => r.gdp_per_capita ?? -Infinity,
+        researchers_per_million: (r) => r.researchers_per_million ?? -Infinity,
+      };
+      let sortKey = "editors_total";
+      let sortDir = -1; // desc default
+      let page = 0;
+
+      function sorted() {
+        const key = SORT_KEYS[sortKey];
+        return [...rows].sort((a, b) => {
+          const va = key(a), vb = key(b);
+          if (va < vb) return -1 * sortDir;
+          if (va > vb) return  1 * sortDir;
+          return 0;
+        });
+      }
+
+      const fmt = (v, dec = 1) => (typeof v === "number" ? v.toLocaleString(undefined, { maximumFractionDigits: dec }) : "—");
+
+      function render() {
+        const data = sorted();
+        const totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+        page = Math.min(page, totalPages - 1);
+        const start = page * PAGE_SIZE;
+        const slice = data.slice(start, start + PAGE_SIZE);
+        tbody.innerHTML = "";
+        for (const r of slice) {
+          const tr = document.createElement("tr");
+          tr.className = "border-t border-border";
+          tr.innerHTML =
+            `<td class="px-3 py-1.5"><a class="text-brand-700 hover:underline" href="/country/${slug(r.name)}">${r.name}</a></td>` +
+            `<td class="px-3 py-1.5 text-right font-mono">${fmt(r.editors_total, 0)}</td>` +
+            `<td class="px-3 py-1.5 text-right font-mono">${fmt(r.editors_per_1k_researchers, 1)}</td>` +
+            `<td class="px-3 py-1.5 text-right font-mono">${fmt(r.rnd_pct_gdp, 2)}</td>` +
+            `<td class="px-3 py-1.5 text-right font-mono">${fmt(r.gdp_per_capita, 0)}</td>` +
+            `<td class="px-3 py-1.5 text-right font-mono">${fmt(r.researchers_per_million, 0)}</td>`;
+          tbody.appendChild(tr);
+        }
+        pageLabel.textContent = `${start + 1}–${Math.min(start + PAGE_SIZE, data.length)} of ${data.length} countries`;
+        prevBtn.disabled = page === 0;
+        nextBtn.disabled = page >= totalPages - 1;
+      }
+
+      prevBtn.addEventListener("click", () => { if (page > 0) { page--; render(); } });
+      nextBtn.addEventListener("click", () => { page++; render(); });
+
+      document.querySelectorAll("th[data-sort]").forEach((th) => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-sort");
+          if (sortKey === key) {
+            sortDir = -sortDir;
+          } else {
+            sortKey = key;
+            sortDir = key === "name" ? 1 : -1;
+          }
+          page = 0;
+          render();
+        });
+      });
+
+      render();
+    })();
+  </script>
+
+  <style>
+    .leaflet-container { background: #f8fafc; }
+  </style>
+</Base>

@@ -1,0 +1,225 @@
+---
+import Base from "../../layouts/Base.astro";
+
+// Provenance tag for every column. Helps users assess which columns
+// are trustworthy ground truth vs. inferred/derived values that may
+// carry systematic bias.
+//
+//   collected — direct from publisher HTML (ground truth for that snapshot)
+//   external  — resolved against an authoritative third-party API/registry
+//              (ROR, OpenAlex, DOAJ, COPE, NPI, etc.)
+//   inferred  — algorithmic or ML inference; may be biased, esp. for
+//              names/scripts outside the training distribution
+//   computed  — derived arithmetically from other columns in this dataset
+type Source = "collected" | "external" | "inferred" | "computed";
+
+const columns = [
+  { group: "Core", cols: [
+    { name: "publisher", display: "Publisher", type: "string", source: "collected" as Source, method: "Publisher name (e.g., Elsevier, Springer Nature, Wiley) — known from the collection configuration for each source." },
+    { name: "journal", display: "Journal", type: "string", source: "collected" as Source, method: "Journal title as listed on the publisher website." },
+    { name: "editor", display: "Name", type: "string", source: "collected" as Source, method: "Editor full name as it appeared on the editorial board page, after mojibake repair and light cleaning." },
+    { name: "first_name", display: "First name", type: "string", source: "computed" as Source, method: "Given name extracted from `editor` via the probablepeople ML name parser. Used as the lookup key for WGND 2.0 gender inference; preserved in the public release so users can re-use the parsed value without rerunning probablepeople." },
+    { name: "last_name", display: "Last name", type: "string", source: "computed" as Source, method: "Surname extracted from `editor` via the probablepeople ML name parser. Empty when probablepeople could not parse the string; the original `editor` field is always preserved." },
+    { name: "role", display: "Role (raw)", type: "string", source: "collected" as Source, method: "Role label as listed on the publisher page, unmodified." },
+    { name: "role_std", display: "Role (standardized)", type: "string", source: "computed" as Source, method: "Normalised to one of editor_in_chief, associate_editor, section_editor, reviewing_editor, editorial_board_member, deputy_editor, guest_editor, or other. Mapping is deterministic from the raw role string; 'other' absorbs ~6% of positions that don't match the canonical set." },
+    { name: "affiliation", display: "Affiliation", type: "string", source: "collected" as Source, method: "Institutional affiliation as listed, after universal cleaning (strips roles, credentials, dates, junk). Not canonicalised — see ror_name for the authoritative form." },
+    { name: "orcid", display: "ORCID", type: "string", source: "collected" as Source, method: "16-digit ORCID iD. Preferred from the collected value when available; otherwise backfilled from OpenAlex or the ORCID API (see orcid_source)." },
+    { name: "source_url", display: "Source URL", type: "string", source: "collected" as Source, method: "Publisher URL where this record was collected." },
+    { name: "scraped_at", display: "Collected at", type: "datetime", source: "collected" as Source, method: "ISO timestamp of when this record was collected. (Column name retained as scraped_at for backward compatibility with earlier releases.)" },
+  ]},
+  { group: "Gender", cols: [
+    { name: "gender", display: "Gender", type: "string", source: "inferred" as Source, method: "Country-aware inference from the editor's first name and ror_country using WGND 2.0 (Raffo & Lax-Martinez, WIPO 2021; Harvard Dataverse DOI 10.7910/DVN/MSEGSJ — ~3.5M names across 195 countries). The same name can resolve to different genders in different countries (e.g. 'Andrea' is male in Italy and female in the US). gender-guesser is used as a tertiary fallback for names absent from WGND. Values: male, female, andy (androgynous), unknown. Self-reported gender is NOT available in the dataset." },
+    { name: "gender_raw", display: "Gender (raw)", type: "string", source: "inferred" as Source, method: "Backwards-compatibility column kept since v1; mirrors `gender` (WGND has no `mostly_male`/`mostly_female` granularity)." },
+    { name: "gender_prob", display: "Gender weight", type: "float", source: "inferred" as Source, method: "WGND weight in [0, 1] — probability that an individual with this first name in this country has the inferred gender. Replaces the legacy 3-bucket {0.0, 0.75, 1.0} confidence; downstream filters should use thresholds like `>= 0.95`. For gender-guesser fallback rows, 1.0 = certain, 0.75 = mostly_*, 0.0 = unknown." },
+    { name: "gender_nobs", display: "WGND sample size", type: "int", source: "inferred" as Source, method: "Number of observed individuals in the WGND cell (name × country) underlying the inference. Useful for filtering low-confidence cells in analysis. 0 for gender-guesser-fallback rows." },
+    { name: "gender_source", display: "Gender source", type: "string", source: "inferred" as Source, method: "Provenance of the inference: `wgnd_country` (matched on first_name + ror_country, strongest signal), `wgnd_global` (matched on first_name only, used when country was missing or the country-specific cell was empty), `gender_guesser` (tertiary fallback, country-blind), or `unknown`." },
+  ]},
+  { group: "Institution (ROR)", cols: [
+    { name: "ror_id", display: "ROR ID", type: "string", source: "external" as Source, method: "Research Organization Registry identifier resolved from the raw affiliation string via the ROR /organizations?affiliation= fuzzy-match endpoint. Subject to score+token-overlap guards (see CHANGELOG v2.0.0) to reject low-confidence and blacklisted matches." },
+    { name: "ror_name", display: "Institution", type: "string", source: "external" as Source, method: "Canonical institution name from the ROR v2 record (ror_display name)." },
+    { name: "ror_country", display: "Country", type: "string", source: "external" as Source, method: "Country name from ROR/GeoNames for the primary location of the institution." },
+    { name: "ror_city", display: "City", type: "string", source: "external" as Source, method: "City from ROR/GeoNames for the primary location." },
+    { name: "ror_state", display: "State/Province", type: "string", source: "external" as Source, method: "State or province from ROR/GeoNames when available." },
+    { name: "org_type", display: "Org type", type: "string", source: "external" as Source, method: "Organization type from ROR: education, healthcare, government, facility, nonprofit, company, archive, or other. Taken from the first entry in the ROR record's types array." },
+    { name: "latitude", display: "Latitude", type: "float", source: "external" as Source, method: "Geographic latitude of the institution from ROR/GeoNames." },
+    { name: "longitude", display: "Longitude", type: "float", source: "external" as Source, method: "Geographic longitude of the institution from ROR/GeoNames." },
+  ]},
+  { group: "Classification (OpenAlex)", cols: [
+    { name: "scientific_domain", display: "Domain", type: "string", source: "external" as Source, method: "Broadest classification level from OpenAlex Topics (e.g. Life Sciences, Physical Sciences)." },
+    { name: "scientific_field", display: "Field", type: "string", source: "external" as Source, method: "Mid-level OpenAlex field (e.g. Medicine, Engineering, Psychology). Assigned via the editor's own most-published topic, NOT via the journal's scope — so interdisciplinary editors can show a field that differs from the journal's nominal area." },
+    { name: "scientific_subfield", display: "Subfield", type: "string", source: "external" as Source, method: "Narrow OpenAlex subfield classification for the editor's most-published topic." },
+    { name: "scientific_topic", display: "Topic", type: "string", source: "external" as Source, method: "Most granular OpenAlex topic classification." },
+  ]},
+  { group: "Journal identifiers", cols: [
+    { name: "openalex_source_id", display: "OpenAlex source ID", type: "string", source: "external" as Source, method: "OpenAlex Source identifier for the journal, resolved from the journal title and/or ISSN." },
+    { name: "issn_l", display: "ISSN-L", type: "string", source: "external" as Source, method: "Linking ISSN (the ISSN-L groups print and electronic variants into one identifier) from OpenAlex." },
+  ]},
+  { group: "Journal metrics", cols: [
+    { name: "oa_2yr_mean_citedness", display: "Mean citedness (2yr)", type: "float", source: "external" as Source, method: "OpenAlex 2-year mean citedness: average citations received by articles published in the last 2 years. Open-data analogue of the Clarivate Journal Impact Factor but computed from OpenAlex citation graph." },
+    { name: "oa_journal_h_index", display: "Journal h-index", type: "int", source: "external" as Source, method: "Journal-level h-index from OpenAlex." },
+    { name: "oa_journal_works_count", display: "Journal works count", type: "int", source: "external" as Source, method: "Total number of works published in the journal (OpenAlex count)." },
+    { name: "oa_journal_cited_by_count", display: "Journal citations", type: "int", source: "external" as Source, method: "Total citations received by the journal (OpenAlex count)." },
+    { name: "is_in_doaj", display: "In DOAJ", type: "bool", source: "external" as Source, method: "True if the journal is listed in the Directory of Open Access Journals (DOAJ)." },
+    { name: "is_oa", display: "Open access", type: "bool", source: "external" as Source, method: "True if OpenAlex classifies the journal as open access." },
+    { name: "oa_impact_quartile", display: "OpenAlex citedness quartile (per field)", type: "string", source: "computed" as Source, method: "Q1–Q4 computed locally by this project, per OpenAlex scientific field, from oa_2yr_mean_citedness. Q1 = top 25% most cited within the same field. Accounts for different citation norms across disciplines. NOT the Clarivate JIF or Scopus CiteScore quartile — see CHANGELOG v2.0.0 for the rationale." },
+  ]},
+  { group: "Editor bibliometrics", cols: [
+    { name: "h_index", display: "h-index", type: "int", source: "external" as Source, method: "Author h-index from OpenAlex, looked up by (name, ror_id) pair." },
+    { name: "total_publications", display: "Publications", type: "int", source: "external" as Source, method: "Total number of works by this author in OpenAlex." },
+    { name: "total_citations", display: "Citations", type: "int", source: "external" as Source, method: "Total citations received by this author in OpenAlex." },
+    { name: "academic_age", display: "Academic age", type: "int", source: "computed" as Source, method: "Years since this author's first OpenAlex-indexed publication (current year minus earliest publication year)." },
+    { name: "orcid_source", display: "ORCID source", type: "string", source: "computed" as Source, method: "How the ORCID was obtained: scraped (from the publisher page), openalex (backfilled from the OpenAlex author record), or orcid_api (queried directly by name+affiliation)." },
+  ]},
+  { group: "Indexing", cols: [
+    { name: "indexed_pubmed", display: "PubMed", type: "bool", source: "external" as Source, method: "True if the journal is indexed in PubMed/MEDLINE (matched on ISSN against the NLM catalog)." },
+    { name: "indexed_scopus", display: "Scopus", type: "bool", source: "external" as Source, method: "True if the journal is indexed in Scopus (matched on ISSN against the Scopus source list)." },
+    { name: "indexed_wos", display: "Web of Science", type: "bool", source: "external" as Source, method: "True if the journal is indexed in Web of Science (matched on ISSN against the WoS master journal list)." },
+    { name: "indexed_doaj", display: "DOAJ", type: "bool", source: "external" as Source, method: "True if the journal is listed in the Directory of Open Access Journals (DOAJ)." },
+    { name: "indexed_cope", display: "COPE", type: "bool", source: "external" as Source, method: "True if the publisher is a member of COPE (Committee on Publication Ethics). Publisher-level flag applied to all of that publisher's journals." },
+    { name: "indexed_npi", display: "NPI", type: "bool", source: "external" as Source, method: "True if the journal appears in the Norwegian Publishing Indicator register (at either level 1 or level 2). See the separate 'Norwegian Publishing Indicator' group below for the level and discipline fields." },
+    { name: "indexing_count", display: "Index count", type: "int", source: "computed" as Source, method: "Sum of the indexed_* flags (PubMed, Scopus, WoS, DOAJ, COPE, NPI). Range 0–6. A rough journal-quality proxy independent of citation metrics. Used as the indexing weight in the experimental 'weighted power' score on the Network page." },
+  ]},
+  { group: "Norwegian Publishing Indicator", cols: [
+    { name: "npi_level", display: "NPI level", type: "string", source: "external" as Source, method: "Norwegian Publishing Indicator level (1 or 2). Level 2 = top 20% of journals in the NPI register. Scope limited to Nordic-relevant disciplines." },
+    { name: "npi_discipline", display: "NPI discipline", type: "string", source: "external" as Source, method: "Broad discipline in the NPI register." },
+    { name: "npi_field", display: "NPI field", type: "string", source: "external" as Source, method: "Specific field in the NPI register." },
+  ]},
+  { group: "Funding", cols: [
+    { name: "top_funder_1", display: "Top funder 1", type: "string", source: "external" as Source, method: "Most common funding organization for articles in this journal (from the OpenAlex Works funder metadata)." },
+    { name: "top_funder_1_count", display: "Funder 1 count", type: "int", source: "external" as Source, method: "Number of funded articles from the top funder." },
+    { name: "top_funder_2", display: "Top funder 2", type: "string", source: "external" as Source, method: "Second most common funder." },
+    { name: "top_funder_2_count", display: "Funder 2 count", type: "int", source: "external" as Source, method: "Count of funded articles." },
+    { name: "top_funder_3", display: "Top funder 3", type: "string", source: "external" as Source, method: "Third most common funder." },
+    { name: "top_funder_3_count", display: "Funder 3 count", type: "int", source: "external" as Source, method: "Count of funded articles." },
+  ]},
+  { group: "Board diversity", cols: [
+    { name: "board_size", display: "Board size", type: "int", source: "computed" as Source, method: "Total number of editors on this journal's board (number of distinct editor rows sharing the same journal)." },
+    { name: "board_pct_female", display: "% female", type: "float", source: "computed" as Source, method: "Percentage of female editors on this board. Computed against the RESOLVED denominator (male + female), not total editors, so the value is not artificially depressed for boards where many editors have unknown inferred gender." },
+    { name: "board_country_count", display: "Countries on board", type: "int", source: "computed" as Source, method: "Number of distinct ror_country values on the board." },
+    { name: "board_country_hhi", display: "Country HHI", type: "float", source: "computed" as Source, method: "Herfindahl–Hirschman Index of country concentration. Sum of squared country shares on the board. 0 = maximally diverse across many countries; 1 = all editors from a single country." },
+    { name: "board_institution_count", display: "Institutions on board", type: "int", source: "computed" as Source, method: "Number of distinct ror_id values on the board." },
+    { name: "board_mean_h_index", display: "Mean board h-index", type: "float", source: "computed" as Source, method: "Arithmetic mean of h_index across board members with a resolved OpenAlex profile." },
+  ]},
+  { group: "Multi-board", cols: [
+    { name: "boards_count", display: "Boards served", type: "int", source: "computed" as Source, method: "Number of distinct editorial boards this editor serves on in the dataset." },
+    { name: "publishers_count", display: "Publishers served", type: "int", source: "computed" as Source, method: "Number of distinct publishers this editor serves across." },
+    { name: "is_multi_board", display: "Multi-board", type: "bool", source: "computed" as Source, method: "True if boards_count >= 2." },
+  ]},
+  { group: "Metadata", cols: [
+    { name: "name_script", display: "Script", type: "string", source: "inferred" as Source, method: "Detected writing script of the editor's name (Latin, CJK, Cyrillic, Arabic, etc.). Used to document coverage gaps in downstream inference steps." },
+    { name: "name_script_region", display: "Script region", type: "string", source: "inferred" as Source, method: "Geographic region associated with the name script. Heuristic, not authoritative." },
+    { name: "data_version", display: "Version", type: "string", source: "computed" as Source, method: "Dataset version identifier (matches CHANGELOG.md)." },
+    { name: "enriched_at", display: "Enriched at", type: "datetime", source: "computed" as Source, method: "ISO timestamp of when enrichment completed for this row." },
+  ]},
+];
+
+const typeColors: Record<string, string> = {
+  string: "bg-blue-100 text-blue-800",
+  int: "bg-green-100 text-green-800",
+  float: "bg-amber-100 text-amber-800",
+  bool: "bg-purple-100 text-purple-800",
+  datetime: "bg-gray-100 text-gray-800",
+};
+
+// Provenance badge styling. "inferred" deliberately uses a warning colour
+// so readers can spot columns that may carry systematic bias at a glance.
+const sourceBadges: Record<Source, { label: string; class: string; desc: string }> = {
+  collected: { label: "collected", class: "bg-emerald-100 text-emerald-800 border border-emerald-200", desc: "Direct from publisher HTML" },
+  external: { label: "external", class: "bg-sky-100 text-sky-800 border border-sky-200", desc: "From authoritative API (ROR, OpenAlex, DOAJ, COPE, NPI)" },
+  inferred: { label: "inferred", class: "bg-amber-100 text-amber-800 border border-amber-300", desc: "Algorithmic / ML inference — may carry bias" },
+  computed: { label: "computed", class: "bg-purple-100 text-purple-800 border border-purple-200", desc: "Derived arithmetically from other columns" },
+};
+
+// Count per source for the legend's summary badges.
+const sourceCounts = columns.reduce((acc, g) => {
+  for (const c of g.cols) acc[c.source] = (acc[c.source] || 0) + 1;
+  return acc;
+}, {} as Record<Source, number>);
+---
+
+<Base title="Codebook — Open Editors Plus" path="codebook" description="Column definitions and data dictionary for the Open Editors Plus 2026 dataset, with provenance flags marking which columns are collected, external, inferred, or computed.">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <h1 class="text-3xl sm:text-4xl font-bold mb-4">Codebook</h1>
+    <p class="text-text-secondary text-lg mb-6">
+      Column definitions for the public release dataset. {columns.reduce((acc, g) => acc + g.cols.length, 0)} columns across {columns.length} groups.
+    </p>
+
+    <!-- Provenance legend -->
+    <div class="bg-white border border-border rounded-xl p-5 mb-8">
+      <h2 class="font-bold text-sm mb-2">Provenance</h2>
+      <p class="text-xs text-text-muted mb-4">
+        Every column is tagged with one of four provenance flags so you can tell at a glance how the value was produced. Hover the badge on any row for the full derivation method.
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {(Object.entries(sourceBadges) as [Source, { label: string; class: string; desc: string }][]).map(([key, badge]) => (
+          <div class="flex items-start gap-3">
+            <span class={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-semibold ${badge.class} shrink-0 mt-0.5`}>
+              {badge.label}
+              <span class="font-sans font-normal opacity-70">· {sourceCounts[key] || 0}</span>
+            </span>
+            <span class="text-xs text-text-secondary">{badge.desc}</span>
+          </div>
+        ))}
+      </div>
+      <p class="text-[11px] text-text-muted mt-4 leading-relaxed">
+        Inferred columns (especially <code class="font-mono">gender</code>) carry systematic bias against non-Latin-script names — see the <a href="/methodology" class="underline hover:text-brand-700">methodology</a> page for coverage details.
+      </p>
+    </div>
+
+    <!-- Quick nav -->
+    <nav class="flex flex-wrap gap-2 mb-10">
+      {columns.map((g) => (
+        <a href={`#${g.group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} class="text-xs px-3 py-1.5 rounded-full bg-surface-dim border border-border text-text-secondary hover:bg-brand-50 hover:text-brand-700 hover:border-brand-200 transition-colors">
+          {g.group}
+        </a>
+      ))}
+    </nav>
+
+    <!-- Column tables -->
+    <div class="space-y-10">
+      {columns.map((g) => (
+        <section id={g.group.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>
+          <h2 class="text-xl font-bold mb-3 flex items-center gap-2">
+            {g.group}
+            <span class="text-xs font-normal text-text-muted">({g.cols.length} columns)</span>
+          </h2>
+          <div class="overflow-x-auto border border-border rounded-lg">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-dim border-b border-border">
+                  <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Column</th>
+                  <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Display name</th>
+                  <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Type</th>
+                  <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Source</th>
+                  <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.cols.map((col, i) => (
+                  <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+                    <td class="py-2 px-3 font-mono text-xs text-brand-700 align-top whitespace-nowrap">{col.name}</td>
+                    <td class="py-2 px-3 text-text-primary align-top whitespace-nowrap">{col.display}</td>
+                    <td class="py-2 px-3 align-top">
+                      <span class={`inline-block px-2 py-0.5 rounded text-xs font-medium ${typeColors[col.type] || "bg-gray-100 text-gray-700"}`}>
+                        {col.type}
+                      </span>
+                    </td>
+                    <td class="py-2 px-3 align-top">
+                      <span
+                        class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold cursor-help ${sourceBadges[col.source].class}`}
+                        title={sourceBadges[col.source].desc + " — " + col.method}
+                      >
+                        {sourceBadges[col.source].label}
+                      </span>
+                    </td>
+                    <td class="py-2 px-3 text-text-secondary text-xs">{col.method}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  </div>
+</Base>

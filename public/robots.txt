@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /data/
+Disallow: /_astro/
+
+Sitemap: https://openeditors-plus.org/sitemap-index.xml

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "exported_at": "2026-05-01T07:27:56+00:00",
+  "row_count": 922097,
+  "column_count": 71,
+  "files": {
+    "csv": {
+      "name": "openeditors_plus_2026.csv",
+      "bytes": 770204928,
+      "sha256": "c87197ec69f31549a6d94fee4f2ad10c23496db6a8e29aa80e7f6fe6b08efc60"
+    },
+    "parquet": {
+      "name": "openeditors_plus_2026.parquet",
+      "bytes": 68045366,
+      "sha256": "0d30dcec982253f5fbf72087a5dd3290f1c7ddda36d0904fd360a34cc603f6dc"
+    }
+  }
+}

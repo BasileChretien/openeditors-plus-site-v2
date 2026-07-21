@@ -1,0 +1,602 @@
+---
+import Base from "../../layouts/Base.astro";
+import summary from "../../../public/api/summary.json";
+
+// Role-count rows are rendered from summary.role_distribution so the
+// numbers stay in lock-step with each release. The pattern column maps
+// the documented case-insensitive substring rules to the canonical
+// role_std value the enricher emits.
+const ROLE_ROWS: { patterns: string[]; role: string; note?: string }[] = [
+  { patterns: ["editor-in-chief", "editor in chief", "chief editor"], role: "editor_in_chief" },
+  { patterns: ["associate"], role: "associate_editor" },
+  { patterns: ["section"], role: "section_editor" },
+  { patterns: ["review"], role: "reviewing_editor" },
+  { patterns: ["deputy"], role: "deputy_editor" },
+  { patterns: ["board"], role: "editorial_board_member" },
+  { patterns: ["guest"], role: "guest_editor" },
+  { patterns: ["editor", "editora"], role: "editor", note: "(generic fallback)" },
+];
+const roleDist = (summary as any).role_distribution as Record<string, number>;
+const roleRows = ROLE_ROWS.map((r) => ({ ...r, count: roleDist[r.role] ?? 0 }));
+const otherCount = roleDist["other"] ?? 0;
+---
+
+<Base title="Methodology — Open Editors Plus" path="methodology" description="How Open Editors Plus collects and enriches editorial board data from 48 academic publishers.">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <h1 class="text-3xl sm:text-4xl font-bold mb-8">Methodology</h1>
+
+    <div class="prose prose-slate max-w-none space-y-8">
+      <!-- Overview -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Overview</h2>
+        <p class="text-text-secondary leading-relaxed">
+          Open Editors Plus is a two-stage pipeline that (1) automatically collects editorial board listings from publicly available publisher web pages, then (2) enriches each record with institutional, demographic, and bibliometric metadata from open APIs.
+        </p>
+      </section>
+
+      <!-- Stage 1: Collection -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Stage 1: Editorial board collection</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          The collection pipeline targets 48 academic publishers and extracts editor names, roles, affiliations, and ORCIDs from publicly available journal editorial board pages.
+        </p>
+
+        <h3 class="text-lg font-semibold mt-6 mb-3">Data quality measures</h3>
+        <ul class="list-disc list-inside text-text-secondary space-y-2 text-sm">
+          <li><strong>Encoding repair</strong>: Three-layer mojibake correction (ftfy, algorithmic reversal, table-based replacement) for names in non-Latin scripts.</li>
+          <li><strong>Affiliation cleaning</strong>: Universal cleaning pipeline strips roles, credentials, dates, and junk from all publisher affiliations.</li>
+          <li><strong>Checkpoint resumption</strong>: Completed (publisher, journal) pairs are tracked, enabling interruption-safe runs.</li>
+          <li><strong>Rate limiting</strong>: 1.5-4 second delays between requests to respect publisher infrastructure.</li>
+        </ul>
+      </section>
+
+      <!-- Stage 2: Enrichment -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Stage 2: Enrichment pipeline</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Each collected record passes through a multi-stage enrichment pipeline using open data sources:
+        </p>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="border-b-2 border-border">
+                <th class="text-left py-3 pr-4 font-semibold">Stage</th>
+                <th class="text-left py-3 pr-4 font-semibold">Source</th>
+                <th class="text-left py-3 font-semibold">Fields added</th>
+              </tr>
+            </thead>
+            <tbody class="text-text-secondary">
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Name validation</td>
+                <td class="py-3 pr-4">probablepeople (ML)</td>
+                <td class="py-3">Parsed name components</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Institution canonicalization</td>
+                <td class="py-3 pr-4">ROR API</td>
+                <td class="py-3">ror_id, ror_name, ror_country, org_type, lat/lon</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Gender inference (country-aware)</td>
+                <td class="py-3 pr-4">WGND 2.0 (Raffo &amp; Lax-Martinez, WIPO) → gender-guesser fallback</td>
+                <td class="py-3">gender, gender_prob, gender_nobs, gender_source</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Field classification</td>
+                <td class="py-3 pr-4">OpenAlex API</td>
+                <td class="py-3">scientific_domain/field/subfield/topic</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Bibliometrics</td>
+                <td class="py-3 pr-4">OpenAlex API</td>
+                <td class="py-3">h_index, total_publications, total_citations, academic_age</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Journal indexing</td>
+                <td class="py-3 pr-4">PubMed, Scopus, WoS, DOAJ, COPE lists</td>
+                <td class="py-3">indexed_pubmed/scopus/wos/doaj/cope</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Norwegian index</td>
+                <td class="py-3 pr-4">NPI database</td>
+                <td class="py-3">npi_level, npi_discipline, npi_field</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Journal metrics</td>
+                <td class="py-3 pr-4">OpenAlex API</td>
+                <td class="py-3">journal_h_index, mean_citedness, oa_impact_quartile (OpenAlex citedness quartile per field — not JIF/CiteScore)</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Funding sources</td>
+                <td class="py-3 pr-4">OpenAlex API</td>
+                <td class="py-3">top_funder_1/2/3</td>
+              </tr>
+              <tr>
+                <td class="py-3 pr-4">Board-level diversity</td>
+                <td class="py-3 pr-4">Computed</td>
+                <td class="py-3">board_size, board_pct_female, country_count, country_hhi</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Role taxonomy -->
+      <section id="role-taxonomy">
+        <h2 class="text-2xl font-bold mt-10 mb-4">Role taxonomy</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Editorial role labels on publisher pages are a mess: every publisher uses slightly
+          different wording, capitalisation, and ordering (<em>Editor-in-Chief</em>,
+          <em>Chief Editor</em>, <em>EDITOR-IN-CHIEF</em>, <em>Associate Editors</em>,
+          <em>Associate Editorial Board Members</em>, <em>Editorial Board Member(s)</em>, and
+          so on). The pipeline lowercases the raw string and runs it through a deterministic
+          substring-based normaliser to produce <code class="bg-surface-dim px-1 rounded">role_std</code>.
+          The full mapping is exactly this, in priority order (first matching rule wins):
+        </p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="border-b-2 border-border">
+                <th class="text-left py-3 pr-4 font-semibold">Pattern (case-insensitive substring)</th>
+                <th class="text-left py-3 pr-4 font-semibold">role_std</th>
+                <th class="text-right py-3 font-semibold">Rows in release</th>
+              </tr>
+            </thead>
+            <tbody class="text-text-secondary">
+              {roleRows.map((row) => (
+                <tr class="border-b border-border/50">
+                  <td class="py-2 pr-4">
+                    {row.patterns.map((p, i) => (
+                      <>
+                        {i > 0 && <span> · </span>}
+                        <code class="bg-surface-dim px-1 rounded">{p}</code>
+                      </>
+                    ))}
+                    {row.note && <> <span class="text-text-muted">{row.note}</span></>}
+                  </td>
+                  <td class="py-2 pr-4"><code class="bg-surface-dim px-1 rounded">{row.role}</code></td>
+                  <td class="py-2 text-right font-mono">{row.count.toLocaleString()}</td>
+                </tr>
+              ))}
+              <tr>
+                <td class="py-2 pr-4 text-text-muted">anything else</td>
+                <td class="py-2 pr-4"><code class="bg-surface-dim px-1 rounded">other</code></td>
+                <td class="py-2 text-right font-mono">{otherCount.toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-5 bg-surface-dim border border-border rounded-lg p-4">
+          <p class="text-xs text-text-secondary leading-relaxed">
+            <strong>Priority ordering matters.</strong> A raw role like <em>"Associate
+            Editor-in-Chief"</em> matches both the <code class="font-mono">editor-in-chief</code>
+            and the <code class="font-mono">associate</code> rules. The first rule in the table
+            above wins, so that string is classified as
+            <code class="font-mono">editor_in_chief</code>. A raw role like
+            <em>"Section Board Member"</em> matches both <code class="font-mono">section</code>
+            and <code class="font-mono">board</code>; <code class="font-mono">section</code> is
+            higher in the order and wins, so it becomes
+            <code class="font-mono">section_editor</code> (that's why the section_editor bucket
+            has 42,940 rows despite the raw text almost always saying "Board Member").
+          </p>
+          <p class="text-xs text-text-secondary leading-relaxed mt-3">
+            The normaliser is deterministic: it lowercases the raw string and applies the
+            substring rules above in the priority order shown. If the rule set changes, the
+            <code class="font-mono">role_std</code> column will change but
+            <code class="font-mono">role</code> (the raw, unstandardised string) is always
+            preserved so you can reclassify downstream.
+          </p>
+        </div>
+        <p class="text-xs text-text-muted mt-3">
+          The <code class="font-mono">other</code> bucket (~6% of rows) is dominated by <em>Topical
+          Advisory Panel Members</em>, scientific/advisory committees, and language-specific
+          variants that don't share any of the eight keywords above. None of the high-stakes
+          quality journals use those labels, so their effect on cross-publisher comparisons
+          is small; the bucket is mostly a catch-all for regional and predatory outlets.
+        </p>
+      </section>
+
+      <!-- Board diversity indices -->
+      <section id="board-diversity">
+        <h2 class="text-2xl font-bold mt-10 mb-4">Board diversity indices</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Each per-entity page (country, field, publisher, institution) shows a
+          <strong>Board diversity</strong> panel with up to three per-editor indicators:
+          <em>country diversity</em>, <em>institution-type diversity</em>, and
+          <em>seniority (academic age)</em>. All three are computed against the
+          entity's <strong>unique editors</strong> (composite identity key), not its
+          editorial positions, so a prolific editor who sits on many boards at one
+          publisher contributes their institution type and academic age exactly once.
+        </p>
+
+        <h3 class="font-bold text-lg mt-6 mb-2">Normalized Shannon index</h3>
+        <p class="text-text-secondary leading-relaxed mb-3">
+          Country diversity and institution-type diversity both use the
+          <strong>normalized Shannon index</strong>, also known as <em>Pielou's
+          evenness</em> (Pielou, 1966). For a categorical distribution with
+          proportions <em>p<sub>1</sub>, p<sub>2</sub>, …, p<sub>k</sub></em> across
+          <em>k</em> observed categories:
+        </p>
+        <pre class="bg-surface-dim border border-border rounded-lg p-4 text-xs font-mono overflow-x-auto mb-3">
+  Shannon entropy:     H = −Σ  p<sub>i</sub> · ln(p<sub>i</sub>)            (nats)
+  Pielou evenness:     J = H / ln(k)                    ∈ [0, 1]
+        </pre>
+        <p class="text-text-secondary leading-relaxed mb-3">
+          <em>H</em> is the classical Shannon entropy from information theory
+          (Shannon, 1948); dividing by <em>ln(k)</em> normalises it against the
+          maximum possible entropy for <em>k</em> categories (a uniform distribution),
+          giving a comparable number in [0, 1] regardless of how many categories the
+          entity spans. An entity with <em>J = 1</em> distributes its editors perfectly
+          evenly across every country or institution type it observes; <em>J = 0</em>
+          means all editors fall in the same bucket. A publisher with <em>J = 0.6</em>
+          spreads editors across its observed categories with moderate unevenness —
+          far from uniform, but not concentrated in a single group.
+        </p>
+
+        <div class="bg-white border border-border rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-sm mb-2">Country diversity — how it's calculated</h4>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            The aggregator collects the <code class="font-mono">ror_country</code> of every
+            unique editor at this entity into a <code class="font-mono">Counter</code>,
+            computes <em>H</em> over that distribution, and divides by <em>ln(k)</em>
+            where <em>k</em> is the number of distinct countries present. Editors whose
+            institution is unresolved (empty <code class="font-mono">ror_id</code>) are
+            excluded from both the numerator and the denominator.
+          </p>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            <strong>Use cases.</strong> Compare publishers to see which has the broadest
+            international footprint (MDPI and Frontiers score higher than Elsevier here
+            for editor counts, reflecting their more geographically dispersed boards).
+            Compare scientific fields to see which are more internationally
+            concentrated. For country detail pages this panel is hidden because the
+            country distribution is trivially a single-country point mass.
+          </p>
+          <p class="text-xs text-text-muted">
+            <strong>Limitations.</strong> Dataset-wide publisher bias (the 48 publishers
+            this site covers are not uniformly distributed across countries to begin
+            with) propagates into the country Shannon — a publisher with a US-dominated
+            journal catalog will score low regardless of its editorial policies. Use it
+            as a relative indicator, not an absolute one.
+          </p>
+        </div>
+
+        <div class="bg-white border border-border rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-sm mb-2">Institution-type diversity — how it's calculated</h4>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            Uses the <code class="font-mono">org_type</code> field that ROR assigns to
+            each institution. ROR's taxonomy has seven possible values:
+            <em>education</em> (universities, colleges, and schools),
+            <em>healthcare</em> (hospitals, clinics, and medical networks),
+            <em>government</em> (public research agencies, ministries, and labs),
+            <em>facility</em> (shared research infrastructure: telescopes, synchrotrons,
+            HPC centres), <em>nonprofit</em> (scientific societies, NGOs, foundations),
+            <em>company</em> (private-sector research, pharma, biotech), and
+            <em>archive</em> (libraries, museums, long-term archival institutions).
+          </p>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            The aggregator counts each unique editor's <em>org_type</em> exactly once
+            per entity and then computes Pielou's <em>J</em> over the resulting
+            Counter. A value of <em>J = 0</em> means every editor at this entity is
+            classified into the same ROR type — typically "education", which accounts
+            for about 82% of editors in the whole dataset. A value of <em>J = 1</em>
+            means the entity's editors are perfectly spread across the types that
+            appear at all.
+          </p>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            <strong>Why this matters scientometrically.</strong> Editorial boards drawn
+            exclusively from universities present a specific epistemic stance on
+            what counts as research: they systematically under-represent clinical
+            practitioners (healthcare), public-sector researchers (government labs),
+            applied R&amp;D workers (company), and community-facing disciplines
+            (nonprofit). A medical journal whose board is 98% <em>education</em> has
+            very different biases from one whose board is 60% <em>education</em> +
+            35% <em>healthcare</em>, even if both have the same gender share and the
+            same mean h-index. The <em>institution-type diversity</em> score makes
+            that pattern legible at a glance.
+          </p>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            <strong>How to use it.</strong> Rank a set of journals or publishers by
+            this column to spot editorial boards that reach outside academia.
+            Conversely, a very low institution-type Shannon at a publisher whose
+            journals claim to serve practitioners is a red flag. Use it alongside
+            the <em>country diversity</em> score: some journals are internationally
+            broad but institutionally monochrome (globally sourced academics) while
+            others are the reverse.
+          </p>
+          <p class="text-xs text-text-muted">
+            <strong>Limitations.</strong> ROR <em>org_type</em> is itself a
+            simplification. A university hospital that publishes clinical trials sits
+            at <em>education</em> in ROR even though the relevant institutional
+            identity for editorial work is <em>healthcare</em>. A research institute
+            federated with a university (e.g. Max Planck, CNRS) may be tagged as
+            <em>facility</em> or <em>government</em> depending on ROR's classification.
+            Edge cases push this indicator by a few percentage points in either
+            direction — interpret differences of 0.05 or less as noise.
+          </p>
+        </div>
+
+        <div class="bg-white border border-border rounded-lg p-4 mb-4">
+          <h4 class="font-semibold text-sm mb-2">Seniority (academic age)</h4>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            Academic age = current year (2026) − year of each editor's first OpenAlex-
+            indexed publication. The panel reports the median age, the interquartile
+            range (IQR = 75th percentile − 25th percentile), and the mean across unique
+            editors at the entity.
+          </p>
+          <p class="text-xs text-text-secondary leading-relaxed mb-2">
+            A low IQR with a low median signals a board dominated by one career
+            stage — typically early-career editors clustered in a narrow age band.
+            A high IQR means the board spans junior and senior editors together,
+            which is what a healthy generational mix looks like. A high median with
+            a large IQR indicates an entrenched senior board with some token
+            early-career presence.
+          </p>
+          <p class="text-xs text-text-muted">
+            <strong>Limitations.</strong> OpenAlex indexing is biased toward STEM and
+            toward English-language publishing. Authors who first published in a
+            non-indexed venue appear younger than they are, and entire humanities
+            subfields have lower academic-age figures across the board for reasons
+            that have nothing to do with editorial policy.
+          </p>
+        </div>
+
+        <div class="bg-surface-dim border border-border rounded-lg p-4">
+          <h4 class="font-semibold text-sm mb-2">References</h4>
+          <ul class="text-xs text-text-secondary space-y-1.5 list-disc pl-5">
+            <li>
+              Shannon, C. E. (1948). <em>A Mathematical Theory of Communication.</em>
+              Bell System Technical Journal 27, 379–423. — Original definition of
+              information entropy.
+              <a href="https://people.math.harvard.edu/~ctm/home/text/others/shannon/entropy/entropy.pdf" target="_blank" rel="noopener noreferrer" class="text-brand-600 underline">PDF</a>
+            </li>
+            <li>
+              Pielou, E. C. (1966). <em>The measurement of diversity in different
+              types of biological collections.</em> Journal of Theoretical Biology
+              13, 131–144. — Introduced the <em>J = H / ln(k)</em> normalisation used
+              here.
+              <a href="https://doi.org/10.1016/0022-5193(66)90013-0" target="_blank" rel="noopener noreferrer" class="text-brand-600 underline">doi:10.1016/0022-5193(66)90013-0</a>
+              · alternate sources:
+              <a href="https://scholar.google.com/scholar?q=Pielou+1966+measurement+of+diversity+biological+collections" target="_blank" rel="noopener noreferrer" class="text-brand-600 underline">Google Scholar</a>
+              ·
+              <a href="https://en.wikipedia.org/wiki/Species_evenness" target="_blank" rel="noopener noreferrer" class="text-brand-600 underline">Wikipedia summary</a>.
+            </li>
+            <li>
+              Jost, L. (2006). <em>Entropy and diversity.</em> Oikos 113, 363–375. —
+              Modern reference on why Shannon is the right functional form for
+              diversity comparisons and how to interpret the normalised value.
+              <a href="https://doi.org/10.1111/j.2006.0030-1299.14714.x" target="_blank" rel="noopener noreferrer" class="text-brand-600 underline">doi:10.1111/j.2006.0030-1299.14714.x</a>
+            </li>
+            <li>
+              <a href="https://en.wikipedia.org/wiki/Diversity_index#Shannon_index" target="_blank" rel="noopener noreferrer" class="text-brand-600 underline">Wikipedia — Shannon diversity index</a>
+              (accessible introduction with worked examples).
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Disclaimers -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Limitations and disclaimers</h2>
+
+        <div class="space-y-4">
+          <div id="gender-coverage" class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h3 class="font-semibold text-amber-900 text-sm mb-1">Gender inference and coverage bias</h3>
+            <p class="text-xs text-amber-800 mb-2">
+              Gender is algorithmically inferred from the editor's first name <em>combined with their country of affiliation</em> using <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a> (the World Gender Name Dictionary by Raffo &amp; Lax-Martinez, WIPO 2021). The country signal disambiguates names whose gender flips across cultures — e.g. "Andrea" is male in Italy but female in the United States. The legacy <code class="bg-amber-100 px-1 rounded">gender-guesser</code> library is retained as a tertiary fallback for names absent from WGND. Gender is <strong>not</strong> self-reported gender identity. <code class="bg-amber-100 px-1 rounded">gender_prob</code> carries the WGND weight in [0,1]; <code class="bg-amber-100 px-1 rounded">gender_nobs</code> the WGND sample size; <code class="bg-amber-100 px-1 rounded">gender_source</code> the provenance (<code>wgnd_country</code> / <code>wgnd_global</code> / <code>gender_guesser</code> / <code>unknown</code>).
+            </p>
+            <p class="text-xs text-amber-800 mb-2">
+              Crucially, coverage is not uniform across countries. WGND 2.0 covers ~3.5M unique first names across 195 countries, materially improving coverage on Slavic, Arabic, South Asian, and African names compared to the older Latin-script-centric gender-guesser dictionary. The largest gain is on East Asian editorial-board members: classification of editors affiliated to Chinese institutions rose from 8.0% under the v2.6 gender-guesser pipeline to <strong>44.6%</strong> under the v2.7 WGND pipeline, and South Korea from 11.6% to <strong>40.2%</strong> (after applying the <code class="bg-amber-100 px-1 rounded">gender_prob ≥ 0.75</code> confidence floor described below). Transliterated CJK-script names from Taiwan (19.2%) and Hong Kong (59.4%) remain the principal residual gap. Every per-entity page on this site reports <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> alongside the female share, and entities below 60% coverage display a prominent warning band: the reported female share is then a fraction of the classifiable minority, not of the whole board.
+            </p>
+            <p class="text-xs text-amber-800 mb-2">
+              Concretely in the current release:
+            </p>
+            <ul class="text-xs text-amber-800 list-disc ml-5 space-y-0.5">
+              <li>Italy, Germany, UK, US, France: 80–95% classified — the female share is trustworthy</li>
+              <li>Japan: around 80% classified — reasonably trustworthy</li>
+              <li>China: around 34% classified — two-thirds of Chinese editors' names are unclassified and the displayed female share only covers the 34%</li>
+              <li>South Korea, Taiwan, India: 16–41% classified — treat per-country female shares as indicative at best</li>
+            </ul>
+            <p class="text-xs text-amber-800 mt-2">
+              When comparing countries, compare the <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> values first; gaps in coverage often explain away apparent gender imbalances. The global <code class="bg-amber-100 px-1 rounded">pct_female</code> headline (currently 33.0% of unique editors with a resolved gender; 82.0% of unique editors are gender-classified) is computed the same way and inherits the same bias — it is a lower bound on the share in well-covered regions and a less meaningful number in poorly-covered ones.
+            </p>
+          </div>
+
+          <div id="gender-threshold" class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h3 class="font-semibold text-amber-900 text-sm mb-1">Confidence floor: gender_prob ≥ 0.75</h3>
+            <p class="text-amber-900 text-sm leading-relaxed">
+              v2.7 applies a confidence floor of <code class="bg-amber-100 px-1 rounded">gender_prob ≥ 0.75</code> at WGND lookup time. Matches with weights below the floor are demoted to <code class="bg-amber-100 px-1 rounded">gender = 'unknown'</code>, <code class="bg-amber-100 px-1 rounded">gender_source = 'unknown'</code>, while the raw <code class="bg-amber-100 px-1 rounded">gender_prob</code> and <code class="bg-amber-100 px-1 rounded">gender_nobs</code> stay populated for transparency. The threshold was set empirically from a 100-row manual validation sample drawn from v2.7 (50 records from <code>gender_source = wgnd_country</code> and 50 from <code>wgnd_global</code>): pre-threshold precision was <strong>97/100 (97.0%)</strong>, with 3 mis-classifications all on the <code>wgnd_global</code> layer at probabilities 0.50, 0.52 and 0.71. Applying the gender_prob ≥ 0.75 floor demotes those 3 wrong calls to <code>gender = 'unknown'</code>, leaving the resolved post-threshold subset at <strong>95/95 = 100.0% precision</strong> on this sample at a coverage cost of ~5 pp. Researchers who want the raw v2.7 inferences (no floor) can recover them by filtering the master parquet on the unmodified <code class="bg-amber-100 px-1 rounded">gender_prob</code> column or by calling the lookup with <code class="bg-amber-100 px-1 rounded">wgnd.annotate(..., min_prob=0.0)</code>.
+            </p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="font-semibold text-blue-900 text-sm mb-1">Indexing as quality proxy</h3>
+            <p class="text-xs text-blue-800">
+              Indexing columns (indexed_pubmed, indexed_scopus, etc.) reflect database membership status at collection time. Absence from an index does not necessarily indicate low quality — new, regional, or specialized journals may not yet be indexed.
+            </p>
+          </div>
+
+          <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 class="font-semibold text-gray-900 text-sm mb-1">Affiliation currency</h3>
+            <p class="text-xs text-gray-700">
+              Affiliations were collected from publisher websites and may not reflect editors' current institutional appointments.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Data sources -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Data sources</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          This project relies on several open data sources and APIs. We are grateful to the teams behind each of these resources:
+        </p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="border-b-2 border-border">
+                <th class="text-left py-3 pr-4 font-semibold">Source</th>
+                <th class="text-left py-3 pr-4 font-semibold">Used for</th>
+                <th class="text-left py-3 font-semibold">License</th>
+              </tr>
+            </thead>
+            <tbody class="text-text-secondary">
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://openalex.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">OpenAlex</a></td>
+                <td class="py-3 pr-4">Bibliometrics (h-index, citations), journal classification, journal metrics, funding sources</td>
+                <td class="py-3">CC0</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://ror.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">ROR (Research Organization Registry)</a></td>
+                <td class="py-3 pr-4">Institution canonicalization, geolocation (country, city, coordinates)</td>
+                <td class="py-3">CC0</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">WGND 2.0 (Raffo &amp; Lax-Martinez, WIPO)</a></td>
+                <td class="py-3 pr-4">Country-aware gender inference from first names (~3.5M unique names, 195 countries)</td>
+                <td class="py-3">CC0</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://pypi.org/project/gender-guesser/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">gender-guesser</a></td>
+                <td class="py-3 pr-4">Tertiary gender-inference fallback for names absent from WGND</td>
+                <td class="py-3">GPL-3.0</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://www.elsevier.com/products/scopus/content" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Scopus Source List</a></td>
+                <td class="py-3 pr-4">Journal indexing status (indexed_scopus)</td>
+                <td class="py-3">Publicly available list</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://mjl.clarivate.com/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Web of Science Master Journal List</a></td>
+                <td class="py-3 pr-4">Journal indexing status (indexed_wos)</td>
+                <td class="py-3">Publicly available list</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://pubmed.ncbi.nlm.nih.gov/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">PubMed / NLM Catalog</a></td>
+                <td class="py-3 pr-4">Journal indexing status (indexed_pubmed)</td>
+                <td class="py-3">Public domain</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://doaj.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">DOAJ (Directory of Open Access Journals)</a></td>
+                <td class="py-3 pr-4">Open access status, journal indexing</td>
+                <td class="py-3">CC-BY-SA</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://publicationethics.org/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">COPE (Committee on Publication Ethics)</a></td>
+                <td class="py-3 pr-4">Publisher ethics membership</td>
+                <td class="py-3">Public list</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://kanalregister.hkdir.no/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Norwegian Register for Scientific Journals (NPI/NSD)</a></td>
+                <td class="py-3 pr-4">Norwegian Publishing Indicator level and classification</td>
+                <td class="py-3">Open data</td>
+              </tr>
+              <tr class="border-b border-border/50">
+                <td class="py-3 pr-4"><a href="https://orcid.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">ORCID</a></td>
+                <td class="py-3 pr-4">Editor unique identifiers</td>
+                <td class="py-3">CC0 (public data)</td>
+              </tr>
+              <tr>
+                <td class="py-3 pr-4"><a href="https://pypi.org/project/probablepeople/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">probablepeople</a></td>
+                <td class="py-3 pr-4">Name parsing and validation</td>
+                <td class="py-3">MIT</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Acknowledgements -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Acknowledgements</h2>
+        <p class="text-text-secondary leading-relaxed">
+          Open Editors Plus builds upon and is inspired by the original
+          <a href="https://openeditors.ooir.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Open Editors</a>
+          project by Nishikawa-Pacher, Heck, and Schoch.
+          We are deeply grateful to the teams behind
+          <a href="https://openalex.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>,
+          <a href="https://ror.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">ROR</a>,
+          <a href="https://doaj.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">DOAJ</a>,
+          <a href="https://orcid.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">ORCID</a>,
+          and all the other open data initiatives that make this work possible.
+          Open science infrastructure is a public good, and this project exists because of their commitment to open data.
+        </p>
+      </section>
+
+      <!-- Legal basis -->
+      <section id="legal-basis">
+        <h2 class="text-2xl font-bold mt-10 mb-4">Legal basis</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Collection and publication take place in France (EU), where the
+          maintainer carries out this work as a researcher within the Neuropresage
+          Team (Normandie Université, UNICAEN, INSERM, PhIND, UMR-S U1237, Caen).
+          The basis for the two distinct activities — gathering the pages, and
+          holding personal data about the people on them — is as follows:
+        </p>
+        <ul class="list-disc pl-5 text-text-secondary space-y-2 text-sm mb-4">
+          <li>
+            <strong>Collection (text-and-data mining).</strong> Editorial-board
+            pages are gathered under the <strong>scientific-research
+            text-and-data-mining exception</strong> introduced by Article 3 of the
+            EU Copyright-in-the-Digital-Single-Market Directive
+            (2019/790) and transposed into French law in the
+            <em>Code de la propriété intellectuelle</em>
+            (<strong>Art. L.122-5-3</strong> for copyright and
+            <strong>Art. L.342-3</strong> for the <em>sui generis</em> database
+            right). It permits reproduction and extraction, for the purposes of
+            scientific research, of works and databases to which a research
+            organisation has lawful access; it applies to research organisations,
+            cannot be overridden by contract, and here covers only publicly
+            accessible pages.
+          </li>
+          <li>
+            <strong>Facts are not copyrightable — but databases can be
+            protected.</strong> The content the dataset actually retains — names,
+            roles, affiliations — is factual and not protected by copyright.
+            Unlike some jurisdictions, the EU also recognises a <em>sui
+            generis</em> database right over publishers' compilations; extracting
+            from them for scientific research is nonetheless permitted by the
+            TDM exception cited above (Art. L.342-3), so the extraction is not
+            restricted on database-right grounds.
+          </li>
+          <li>
+            <strong>Public pages only.</strong> Only publicly accessible
+            editorial-board pages are used; no login-gated, paywalled, or licensed
+            content is collected.
+          </li>
+          <li>
+            <strong>Personal data (GDPR).</strong> Because the records identify
+            people, the processing is governed by the EU General Data Protection
+            Regulation (2016/679) and the French <em>loi Informatique et
+            Libertés</em>. The data — professional information about people acting
+            in a public scholarly role — are processed for scientific research on
+            the basis of the controller's legitimate interests
+            (<strong>Art. 6(1)(f)</strong>) together with the research safeguards
+            of <strong>Art. 89(1)</strong>; sex/gender is not special-category
+            data under Art. 9. Full details, data-subject rights, and the
+            supervisory authority (the French CNIL) are set out in the
+            privacy notice.
+          </li>
+        </ul>
+        <p class="text-text-secondary leading-relaxed">
+          The full data-protection notice — named data controller, contact,
+          inferred-gender caveat, licence limits, and how to correct or remove a
+          record — is on the
+          <a href="/privacy" class="text-brand-600 hover:underline">Privacy &amp; Data Protection</a>
+          page.
+        </p>
+      </section>
+
+      <!-- Ethics -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Ethics statement</h2>
+        <p class="text-text-secondary leading-relaxed">
+          This dataset contains only publicly available information from journal editorial board pages. No private or restricted data sources were used. The automated collection respects publisher rate limits and robots.txt directives. Race/ethnicity inference data was computed for internal analysis only and is not included in the public release. Gender inference is provided with full methodology transparency and confidence scores to enable responsible use. Listed individuals can correct or remove their record at any time — see
+          <a href="/privacy" class="text-brand-600 hover:underline">Privacy &amp; Data Protection</a>
+          and
+          <a href="/corrections" class="text-brand-600 hover:underline">Corrections &amp; data rights</a>.
+        </p>
+      </section>
+    </div>
+  </div>
+</Base>

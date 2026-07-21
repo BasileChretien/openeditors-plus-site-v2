@@ -1,0 +1,272 @@
+---
+import Base from "../../layouts/Base.astro";
+import summary from "../../../public/api/summary.json";
+import { slugify } from "../../lib/slugify";
+
+const topPublishers = [
+  "SpringerNature", "Elsevier", "MDPI", "TaylorAndFrancis", "SAGE", "Frontiers", "Wiley", "OxfordUniversityPress"
+];
+---
+
+<Base title="Journal Statistics — Open Editors Plus" path="journals" description="Per-journal statistics: board size, gender balance, geographic diversity, indexing, and impact for 15,000+ academic journals.">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold">Journal statistics</h1>
+        <p class="text-text-secondary text-sm mt-1">Board composition, diversity, and quality indicators for each journal</p>
+      </div>
+    </div>
+
+    <noscript>
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-sm text-amber-800">
+        This page requires JavaScript. <a href="/download" class="underline">Download the dataset</a> instead.
+      </div>
+    </noscript>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 border-b border-border bg-surface-dim flex flex-wrap items-center gap-3">
+        <span id="journal-count" class="text-xs text-text-muted"></span>
+        <div class="ml-auto flex items-center gap-2">
+          <!-- Column picker -->
+          <div class="relative">
+            <button id="jcol-picker-btn" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-surface-dim transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+              Columns
+            </button>
+            <div id="jcol-picker-menu" class="hidden absolute right-0 top-full mt-1 bg-white border border-border rounded-lg shadow-lg z-50 p-3 w-56 max-h-80 overflow-y-auto">
+              <p class="text-xs text-text-muted mb-2 font-medium">Toggle visible columns</p>
+              <div id="jcol-checkboxes" class="space-y-1.5"></div>
+            </div>
+          </div>
+        </div>
+        <div class="relative">
+          <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input id="search" type="text" placeholder="Search journals..." class="pl-9 pr-4 py-2 text-sm border border-border rounded-lg w-64 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500" />
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs sm:text-sm">
+          <thead>
+            <tr class="bg-surface-dim/80" id="header-row"></tr>
+            <tr class="bg-surface-dim/40 border-b border-border" id="filter-row"></tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="14" class="py-12 text-center text-text-muted">
+              <svg class="w-6 h-6 animate-spin text-brand-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              Loading journal data...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="px-4 py-2.5 border-t border-border bg-surface-dim flex items-center justify-between">
+        <span id="page-info" class="text-xs text-text-muted"></span>
+        <div class="flex items-center gap-2">
+          <button id="prev" class="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-white transition-colors disabled:opacity-40" disabled>Previous</button>
+          <button id="next" class="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-white transition-colors disabled:opacity-40" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="mt-4 p-4 bg-surface-dim rounded-xl border border-border text-xs text-text-muted space-y-1">
+      <p><strong>Board size:</strong> Total editorial positions collected for this journal (one person may hold multiple roles).</p>
+      <p><strong>% Female:</strong> Percentage of board members with inferred female gender (algorithmically inferred from first names, not self-reported).</p>
+      <p><strong>Countries:</strong> Number of distinct countries represented on the editorial board. Higher = more geographically diverse.</p>
+      <p><strong>OA:</strong> Open Access status. Indicates whether the journal is listed in the <a href="https://doaj.org/" target="_blank" rel="noopener" class="underline">Directory of Open Access Journals (DOAJ)</a>, meaning all content is freely available without subscription.</p>
+      <p><strong>Scopus:</strong> Indexed in <a href="https://www.elsevier.com/products/scopus" target="_blank" rel="noopener" class="underline">Scopus</a>, Elsevier's abstract and citation database covering 27,000+ journals. Scopus indexing is a widely used quality indicator.</p>
+      <p><strong>WoS:</strong> Indexed in <a href="https://clarivate.com/products/scientific-and-academic-research/research-discovery-and-workflow-solutions/webofscience-platform/" target="_blank" rel="noopener" class="underline">Web of Science</a>, Clarivate's citation index. WoS is one of the most selective indexing services and a traditional benchmark for journal quality.</p>
+      <p><strong>PubMed:</strong> Indexed in <a href="https://pubmed.ncbi.nlm.nih.gov/" target="_blank" rel="noopener" class="underline">PubMed</a>, the US National Library of Medicine's database of biomedical and life sciences literature. Primarily relevant for health and biomedical journals.</p>
+      <p><strong>NPI:</strong> Level in the <a href="https://kanalregister.hkdir.no/" target="_blank" rel="noopener" class="underline">Norwegian Register for Scientific Journals, Series and Publishers</a> (Kanalregisteret), maintained by the Norwegian Directorate for Higher Education and Skills. Used across Nordic countries as a quality indicator. Level 2 = leading/prestigious (top ~20% within each field), Level 1 = recognized scientific channel, Level 0 = not recognized. Blank = not in the register.</p>
+      <p><strong>Citedness Q*:</strong> Computed locally <strong>per field</strong> from OpenAlex 2-year mean citedness using quartile binning. Q1 = top 25% most cited within the same scientific field. This accounts for different citation norms across disciplines. <strong>This is NOT the Clarivate JIF quartile or Scopus CiteScore quartile</strong> — it is an independent computation from open data. Blank = insufficient data or field has fewer than 4 journals.</p>
+      <p><strong>EIC / Associate / Section / Board member / Guest / Deputy / Reviewing / Editor (generic) / Other:</strong> Per-journal position counts broken out by the standardised role classification (<code class="font-mono">role_std</code>). These count positions, not deduped editors — one person can hold two titles on the same board and each is tallied separately. Hidden by default; open the column picker to show them. The exact string-to-role mapping is documented on the <a href="/methodology#role-taxonomy" class="underline">methodology page</a>.</p>
+    </div>
+  </div>
+
+  <script>
+    const COLS = [
+      { key: 0,  label: "Journal",       sortable: true,  filterable: true,  visible: true },
+      { key: 1,  label: "Publisher",      sortable: true,  filterable: true,  visible: true },
+      { key: 2,  label: "Board size",     sortable: true,  filterable: false, numeric: true, visible: true },
+      { key: 3,  label: "Countries",      sortable: true,  filterable: false, numeric: true, visible: true },
+      { key: 4,  label: "% Female*",      sortable: true,  filterable: false, numeric: true, visible: true },
+      { key: 5,  label: "Mean h-index",   sortable: true,  filterable: false, numeric: true, visible: true },
+      { key: 6,  label: "Field",          sortable: true,  filterable: true,  visible: true },
+      { key: 7,  label: "OA",             sortable: true,  filterable: false, visible: true },
+      { key: 8,  label: "Scopus",         sortable: true,  filterable: false, visible: true },
+      { key: 9,  label: "WoS",            sortable: true,  filterable: false, visible: true },
+      { key: 10, label: "PubMed",         sortable: true,  filterable: false, visible: true },
+      { key: 11, label: "NPI",            sortable: true,  filterable: true,  visible: true },
+      { key: 12, label: "Citedness Q*",   sortable: true,  filterable: true,  visible: true },
+      // Role breakdown columns (positions, not unique editors). Hidden
+      // by default so the default journals view stays readable; users
+      // can toggle them on via the column picker.
+      { key: 14, label: "EIC",            sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 15, label: "Associate",      sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 16, label: "Section",        sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 17, label: "Board member",   sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 18, label: "Guest",          sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 19, label: "Deputy",         sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 20, label: "Reviewing",      sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 21, label: "Editor (generic)", sortable: true,  filterable: false, numeric: true, visible: false },
+      { key: 22, label: "Other",          sortable: true,  filterable: false, numeric: true, visible: false },
+    ];
+
+    // Column picker
+    const jcolBtn = document.getElementById("jcol-picker-btn")!;
+    const jcolMenu = document.getElementById("jcol-picker-menu")!;
+    const jcolCbs = document.getElementById("jcol-checkboxes")!;
+
+    function buildJColPicker() {
+      jcolCbs.innerHTML = COLS.map((c, i) =>
+        `<label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" data-jci="${i}" ${c.visible ? 'checked' : ''} class="rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+          <span class="text-xs">${c.label.replace("*", "")}</span>
+        </label>`
+      ).join("");
+    }
+    buildJColPicker();
+    jcolBtn.addEventListener("click", (e) => { e.stopPropagation(); jcolMenu.classList.toggle("hidden"); });
+    document.addEventListener("click", () => jcolMenu.classList.add("hidden"));
+    jcolMenu.addEventListener("click", (e) => e.stopPropagation());
+    jcolCbs.addEventListener("change", (e) => {
+      const input = e.target as HTMLInputElement;
+      COLS[parseInt(input.dataset.jci!)].visible = input.checked;
+      buildHeaders(); render();
+    });
+
+    const PAGE_SIZE = 50;
+    let allRows: any[][] = [];
+    let filtered: any[][] = [];
+    let page = 0;
+    let sortCol = 2; // default sort by board size
+    let sortAsc = false;
+    let colFilters: Record<number, string> = {};
+
+    function esc(s: string): string { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+    function buildHeaders() {
+      const hr = document.getElementById("header-row")!;
+      const fr = document.getElementById("filter-row")!;
+      let hHTML = "", fHTML = "";
+
+      for (const col of COLS) {
+        if (!col.visible) continue;
+        const arrow = sortCol === col.key
+          ? (sortAsc ? '<span class="text-brand-500">&#9650;</span>' : '<span class="text-brand-500">&#9660;</span>')
+          : '<span class="text-text-muted/30">&#9650;</span>';
+        hHTML += `<th data-sort="${col.key}" class="text-left py-2 px-2 font-semibold text-[10px] sm:text-xs uppercase tracking-wide text-text-muted whitespace-nowrap cursor-pointer hover:text-brand-600 select-none">${col.label} ${col.sortable ? arrow : ''}</th>`;
+        fHTML += col.filterable
+          ? `<th class="px-2 py-1"><input type="text" data-fk="${col.key}" placeholder="Filter..." class="w-full text-xs border border-border rounded px-1.5 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500/30" value="${colFilters[col.key] || ''}"></th>`
+          : '<th class="px-2 py-1"></th>';
+      }
+      hr.innerHTML = hHTML;
+      fr.innerHTML = fHTML;
+
+      hr.querySelectorAll("[data-sort]").forEach(th => {
+        th.addEventListener("click", () => {
+          const k = parseInt((th as HTMLElement).dataset.sort!);
+          if (sortCol === k) sortAsc = !sortAsc; else { sortCol = k; sortAsc = true; }
+          doSort(); buildHeaders(); render();
+        });
+      });
+      fr.querySelectorAll("input[data-fk]").forEach(inp => {
+        inp.addEventListener("input", (e) => {
+          colFilters[parseInt((e.target as HTMLInputElement).dataset.fk!)] = (e.target as HTMLInputElement).value;
+          doFilter();
+        });
+      });
+    }
+
+    function doFilter() {
+      page = 0;
+      const searchQ = (document.getElementById("search") as HTMLInputElement).value.toLowerCase().trim();
+      filtered = allRows.filter(row => {
+        if (searchQ && !row.some((c: any) => String(c).toLowerCase().includes(searchQ))) return false;
+        for (const [kStr, val] of Object.entries(colFilters)) {
+          if (!val) continue;
+          const k = parseInt(kStr);
+          if (!String(row[k]).toLowerCase().includes(val.toLowerCase())) return false;
+        }
+        return true;
+      });
+      doSort();
+      render();
+    }
+
+    function doSort() {
+      const col = COLS.find(c => c.key === sortCol);
+      const isNum = col?.numeric;
+      filtered.sort((a, b) => {
+        let va: any = a[sortCol], vb: any = b[sortCol];
+        if (isNum) { va = parseFloat(va) || 0; vb = parseFloat(vb) || 0; }
+        else { va = String(va).toLowerCase(); vb = String(vb).toLowerCase(); }
+        return sortAsc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+      });
+    }
+
+    function render() {
+      const start = page * PAGE_SIZE;
+      const end = Math.min(start + PAGE_SIZE, filtered.length);
+      const rows = filtered.slice(start, end);
+      const tbody = document.getElementById("tbody")!;
+
+      const bool = (v: any) => v === true || v === "True" || v === "true"
+        ? '<span class="text-green-600 font-bold">&#10003;</span>'
+        : '<span class="text-gray-300">&#10005;</span>';
+
+      const cellRenderers: Record<number, (row: any) => string> = {
+        0: (r) => `<td class="py-1.5 px-2 font-medium max-w-[200px] truncate" title="${esc(r[0])}"><a href="https://duckduckgo.com/?q=${encodeURIComponent(r[0] + ' ' + r[1] + ' journal official site')}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(r[0])}</a></td>`,
+        1: (r) => `<td class="py-1.5 px-2 text-xs"><a href="/publisher/${r[1].normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(r[1])}</a></td>`,
+        2: (r) => `<td class="py-1.5 px-2 text-center tabular-nums font-medium">${r[2]}</td>`,
+        3: (r) => `<td class="py-1.5 px-2 text-center tabular-nums">${r[3]}</td>`,
+        4: (r) => `<td class="py-1.5 px-2 text-center tabular-nums ${r[4] < 20 ? 'text-red-500' : r[4] > 40 ? 'text-green-600' : ''}">${r[4]}%</td>`,
+        5: (r) => `<td class="py-1.5 px-2 text-center tabular-nums">${r[5] || '—'}</td>`,
+        6: (r) => `<td class="py-1.5 px-2 text-text-secondary text-xs max-w-[120px] truncate" title="${esc(r[6])}">${esc(r[6])}</td>`,
+        7: (r) => `<td class="py-1.5 px-2 text-center">${bool(r[7])}</td>`,
+        8: (r) => `<td class="py-1.5 px-2 text-center">${bool(r[8])}</td>`,
+        9: (r) => `<td class="py-1.5 px-2 text-center">${bool(r[9])}</td>`,
+        10: (r) => `<td class="py-1.5 px-2 text-center">${bool(r[10])}</td>`,
+        11: (r) => `<td class="py-1.5 px-2 text-center"><span class="${r[11] === '2' ? 'text-green-700 font-bold' : r[11] === '1' ? 'text-blue-600' : r[11] === '0' ? 'text-red-500' : 'text-text-muted'}">${r[11] || '—'}</span></td>`,
+        12: (r) => `<td class="py-1.5 px-2 text-center"><span class="${r[12] === 'Q1' ? 'text-green-700 font-bold' : r[12] === 'Q2' ? 'text-blue-600' : 'text-text-muted'}">${r[12] || '—'}</span></td>`,
+      };
+
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="14" class="py-8 text-center text-text-muted">No results</td></tr>';
+      } else {
+        tbody.innerHTML = rows.map((row, ri) => {
+          const cells = COLS.filter(c => c.visible).map(c => cellRenderers[c.key](row)).join("");
+          return `<tr class="${ri % 2 ? 'bg-gray-50/40' : ''} hover:bg-brand-50/20">${cells}</tr>`;
+        }).join("");
+      }
+
+      document.getElementById("journal-count")!.textContent = `${filtered.length.toLocaleString()} journals`;
+      document.getElementById("page-info")!.textContent = filtered.length > 0 ? `${start + 1}–${end} of ${filtered.length.toLocaleString()}` : "";
+      (document.getElementById("prev") as HTMLButtonElement).disabled = page === 0;
+      (document.getElementById("next") as HTMLButtonElement).disabled = end >= filtered.length;
+    }
+
+    // Load data
+    const res = await fetch("/api/journals.json");
+    const data = await res.json();
+    allRows = data.rows;
+    filtered = [...allRows];
+
+    // Pre-fill search from URL ?q= parameter
+    const urlQ = new URLSearchParams(window.location.search).get("q");
+    if (urlQ) {
+      (document.getElementById("search") as HTMLInputElement).value = urlQ;
+    }
+
+    doSort();
+    buildHeaders();
+    if (urlQ) doFilter(); else render();
+
+    // Events
+    document.getElementById("search")!.addEventListener("input", () => doFilter());
+    document.getElementById("prev")!.addEventListener("click", () => { page--; render(); });
+    document.getElementById("next")!.addEventListener("click", () => { page++; render(); });
+  </script>
+</Base>

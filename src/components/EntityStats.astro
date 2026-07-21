@@ -1,0 +1,265 @@
+---
+import { slugify } from "../lib/slugify";
+import summary from "../../public/api/summary.json";
+
+const { name, records, editors, journals, extraLabel, extraValue, gd, topEntries, topType, mean_h_index, rank, rankTotal, globalShare, oaPct, entityType, entityValue } = Astro.props;
+const exploreUrl = "/explore?" + (entityType || "publisher") + "=" + encodeURIComponent(entityValue || name);
+
+// Gender buckets — sourced from the per-entity aggregate in the parent
+// page. Each value is a UNIQUE-editor count (once per composite id at
+// the entity), not a row count.
+const male = gd?.male || 0;
+const female = gd?.female || 0;
+const unknownG = gd?.unknown || 0;
+const andy = gd?.andy || 0;
+const genderTotal = male + female + unknownG + andy;
+
+// pctFemale / pctMale use the RESOLVED denominator (male + female only)
+// so the value isn't artificially depressed for entities with many
+// unknown / andy editors. This matches aggregate_data.resolved_pct_female.
+const resolved = male + female;
+const pctFemale = resolved > 0 ? (female / resolved * 100).toFixed(1) : "N/A";
+const pctMale = resolved > 0 ? (male / resolved * 100).toFixed(1) : "N/A";
+
+// Bar-chart percentages use the FULL denominator (all four buckets)
+// because the chart is a stacked breakdown — it must cover 100% of
+// known editors, or the viewer sees missing bars and assumes the
+// numbers don't add up.
+const malePct = genderTotal > 0 ? (male / genderTotal * 100).toFixed(0) : "0";
+const femalePct = genderTotal > 0 ? (female / genderTotal * 100).toFixed(0) : "0";
+const unkPct = genderTotal > 0 ? (unknownG / genderTotal * 100).toFixed(0) : "0";
+const andyPct = genderTotal > 0 ? (andy / genderTotal * 100).toFixed(0) : "0";
+
+// Global benchmarks live in summary.json — NEVER hardcode these values
+// in prose. Every new release of the dataset may shift them, and they
+// have to stay in lockstep with the homepage and with each per-entity
+// page. The current dataset sits around 33.7 % female (resolved) and
+// a mean h-index of 22.7 per unique editor.
+const GLOBAL_PCT_FEMALE = summary.pct_female ?? 0;
+const GLOBAL_MEAN_H = summary.mean_h_index ?? 0;
+const femaleComp = Number(pctFemale) < GLOBAL_PCT_FEMALE ? "below" : "above";
+const hComp = (mean_h_index || 0) > GLOBAL_MEAN_H ? "above" : "below";
+
+// Gender classification coverage — what share of this entity's editors
+// has ANY inferred gender (male / female / andy). When this is low
+// (typically because the entity has many CJK-script names that
+// gender-guesser can't handle), pctFemale is computed over a small
+// classifiable minority and should be treated with suspicion.
+//
+// Prop name: pct_gender_classified. Parent pages pass it through when
+// available; older callers can still omit it and the warning band
+// simply doesn't render.
+const { pct_gender_classified } = Astro.props as { pct_gender_classified?: number };
+const coveragePct = typeof pct_gender_classified === "number" ? pct_gender_classified : null;
+const COVERAGE_THRESHOLD = 60;   // below this we show a prominent warning
+const COVERAGE_CAUTION   = 80;   // below this we show a softer note
+const coverageState = coveragePct === null
+  ? "unknown"
+  : coveragePct < COVERAGE_THRESHOLD ? "warn"
+  : coveragePct < COVERAGE_CAUTION ? "caution"
+  : "ok";
+
+// ── Board diversity indices ─────────────────────────────────────
+// All three props are optional — slug pages pass them through when
+// the underlying aggregate has them, and the UI just skips the panel
+// if nothing is supplied.
+//
+//   org_type_shannon   normalized Shannon (0-1) over institution
+//                      types (education / healthcare / facility / ...)
+//   country_shannon    normalized Shannon over editor countries
+//                      (not meaningful for country pages themselves)
+//   academic_age_stats {mean, median, q1, q3, iqr, count} for the
+//                      per-editor academic age distribution
+//
+// Shannon is a generic evenness metric and needs a caption to be
+// legible. We spell it out inline rather than force readers to know
+// information theory.
+type AgeStats = { mean: number; median: number; q1: number; q3: number; iqr: number; count: number };
+const {
+  country_shannon,
+  field_shannon,
+  org_type_shannon,
+  academic_age_stats,
+} = Astro.props as {
+  country_shannon?: number | null;
+  field_shannon?: number | null;
+  org_type_shannon?: number | null;
+  academic_age_stats?: AgeStats | null;
+};
+
+// For institution pages, country_shannon and org_type_shannon are
+// trivially 0 (all editors at one institution share the same country
+// and the same ROR org_type). Hide those cards in that case but keep
+// field_shannon, which IS meaningful (a university's editors can
+// serve boards across Medicine, Engineering, Social Sciences etc.).
+const showCountryS = typeof country_shannon === "number" && country_shannon > 0;
+const showFieldS   = typeof field_shannon === "number" && field_shannon > 0;
+const showOrgS     = typeof org_type_shannon === "number" && org_type_shannon > 0;
+const showAge      = !!(academic_age_stats && academic_age_stats.count > 0);
+const diversityCardCount =
+  (showCountryS ? 1 : 0) + (showFieldS ? 1 : 0) + (showOrgS ? 1 : 0) + (showAge ? 1 : 0);
+const hasDiversity = diversityCardCount > 0;
+
+// Intro wording adapts to which cards are actually shown. Calling the
+// panel "two Shannon columns" when only one renders is false.
+const shannonCount = (showCountryS ? 1 : 0) + (showFieldS ? 1 : 0) + (showOrgS ? 1 : 0);
+const diversityIntro =
+  shannonCount >= 2
+    ? "Per-editor diversity indicators. Each editor is counted once (composite identity key). The Shannon columns use Pielou's normalisation J = H / ln(k) so values are comparable across entities with different numbers of categories."
+    : shannonCount === 1
+    ? "Per-editor diversity indicators. Each editor is counted once (composite identity key). The Shannon column uses Pielou's normalisation J = H / ln(k), bounded in [0, 1]."
+    : "Per-editor seniority indicator, counted once per unique editor at this entity.";
+---
+
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
+  <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm"><div class="text-xl font-bold text-brand-800">{records.toLocaleString()}</div><div class="text-[10px] text-text-muted mt-1">Positions</div></div>
+  <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm"><div class="text-xl font-bold text-brand-800">{editors.toLocaleString()}</div><div class="text-[10px] text-text-muted mt-1">Editors</div></div>
+  <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm"><div class="text-xl font-bold text-brand-800">{journals.toLocaleString()}</div><div class="text-[10px] text-text-muted mt-1">Journals</div></div>
+  <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm"><div class="text-xl font-bold text-brand-800">{extraValue}</div><div class="text-[10px] text-text-muted mt-1">{extraLabel}</div></div>
+  <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm"><div class="text-xl font-bold text-brand-800">{mean_h_index || "N/A"}</div><div class="text-[10px] text-text-muted mt-1">Mean h-index</div></div>
+  {oaPct !== undefined && (
+    <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm"><div class="text-xl font-bold text-brand-800">{oaPct}%</div><div class="text-[10px] text-text-muted mt-1">Open access</div></div>
+  )}
+</div>
+
+<div class="prose max-w-none mb-10"><p class="text-text-secondary leading-relaxed">
+  {name} {rank ? "ranks #" + rank + " among " + rankTotal + "." : ""} {records.toLocaleString()} positions across {journals.toLocaleString()} journals. {editors.toLocaleString()} editors. {pctFemale}% female ({femaleComp} avg {GLOBAL_PCT_FEMALE}%). Mean h-index: {mean_h_index || "N/A"} ({hComp} avg {GLOBAL_MEAN_H}). {globalShare ? globalShare + "% of global positions." : ""} {oaPct ? oaPct + "% open access." : ""}
+</p></div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+  <div class="bg-white rounded-xl border border-border p-6 shadow-sm">
+    <h2 class="font-bold text-lg mb-4">Gender distribution</h2>
+    {coverageState === "warn" && (
+      <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 flex items-start gap-2">
+        <svg class="w-4 h-4 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a1 1 0 011 1v3a1 1 0 11-2 0V7a1 1 0 011-1zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+        <span>
+          <strong>Low gender-inference coverage: only {coveragePct}% of editors here have an inferred gender.</strong>{" "}
+          The {pctFemale}% figure is a share of the classifiable minority, not of the whole board. Typically caused by CJK-script names (Chinese / Korean / Taiwanese) that the <a href="/methodology#gender-coverage" class="underline">WGND 2.0 dictionary cannot disambiguate</a>.
+        </span>
+      </div>
+    )}
+    {coverageState === "caution" && (
+      <p class="mb-3 text-[11px] text-text-muted">
+        Gender-inference coverage: {coveragePct}% of editors here have an inferred gender — the {pctFemale}% figure understates uncertainty for the unclassified remainder.
+      </p>
+    )}
+    <div class="space-y-3">
+      <div class="flex items-center gap-3"><span class="w-24 text-sm font-medium text-blue-600">Male</span><div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden"><div class="h-full bg-blue-500 rounded-full" style={"width:" + malePct + "%"}></div></div><span class="text-xs w-20 text-right">{male.toLocaleString()}</span></div>
+      <div class="flex items-center gap-3"><span class="w-24 text-sm font-medium text-pink-600">Female</span><div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden"><div class="h-full bg-pink-500 rounded-full" style={"width:" + femalePct + "%"}></div></div><span class="text-xs w-20 text-right">{female.toLocaleString()}</span></div>
+      {andy > 0 && (
+        <div class="flex items-center gap-3"><span class="w-24 text-sm font-medium text-amber-600">Androgynous</span><div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden"><div class="h-full bg-amber-400 rounded-full" style={"width:" + andyPct + "%"}></div></div><span class="text-xs w-20 text-right">{andy.toLocaleString()}</span></div>
+      )}
+      <div class="flex items-center gap-3"><span class="w-24 text-sm font-medium text-gray-400">Unknown</span><div class="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden"><div class="h-full bg-gray-300 rounded-full" style={"width:" + unkPct + "%"}></div></div><span class="text-xs w-20 text-right">{unknownG.toLocaleString()}</span></div>
+    </div>
+    <p class="text-xs text-text-muted mt-4">
+      {pctFemale}% female &middot; {pctMale}% male (of {resolved.toLocaleString()} resolved; global avg {GLOBAL_PCT_FEMALE}%)
+    </p>
+    <p class="text-[10px] text-text-muted mt-1">
+      Each editor counted once at this entity (composite identity key). Gender is inferred from the first name — not self-reported — and coverage drops for non-Latin-script names, which inflates the "unknown" bar in some countries.
+    </p>
+  </div>
+
+  {topEntries && topEntries.length > 0 && (
+    <div class="bg-white rounded-xl border border-border p-6 shadow-sm">
+      <h2 class="font-bold text-lg mb-4">{topType === "countries" ? "Top countries" : "Top scientific fields"}</h2>
+      <div class="space-y-2.5">
+        {topEntries.map(([entity, count]) => {
+          // topEntries is now keyed on unique editors per (country|field)
+          // at this entity (per-editor dedup). The correct denominator is
+          // therefore the entity's unique-editor count, NOT its records.
+          // Dividing by records under-states the shares (e.g. 17% drops
+          // to 14% for USA on the homepage).
+          const pct = (Number(count) / editors * 100).toFixed(1);
+          const prefix = topType === "countries" ? "/country/" : "/field/";
+          const barColor = topType === "countries" ? "bg-brand-500" : "bg-purple-500";
+          return (
+            <div class="flex items-center gap-2">
+              <a href={prefix + slugify(String(entity))} target="_blank" class={"w-28 text-sm text-brand-600 hover:underline truncate"}>{entity}</a>
+              <div class="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden"><div class={"h-full rounded-full " + barColor} style={"width:" + Math.max(parseFloat(pct)*2,3) + "%"}></div></div>
+              <span class="text-xs font-semibold text-brand-700 w-10 text-right">{pct + "%"}</span>
+              <span class="text-xs text-text-muted w-14 text-right">{Number(count).toLocaleString()}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  )}
+</div>
+
+{hasDiversity && (
+  <div class="bg-white rounded-xl border border-border p-6 shadow-sm mb-10">
+    <h2 class="font-bold text-lg mb-1">Board diversity</h2>
+    <p class="text-[11px] text-text-muted mb-5">
+      {diversityIntro} See the <a href="/methodology#board-diversity" class="underline hover:text-brand-700">methodology</a> for full definitions, use cases, and references (Shannon 1948; Pielou 1966; Jost 2006).
+    </p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {showCountryS && (
+        <div class="rounded-lg border border-border p-4">
+          <div class="text-[10px] uppercase tracking-wide text-text-muted">
+            <a href="/methodology#board-diversity" class="hover:text-brand-700">Country diversity</a>
+          </div>
+          <div class="text-2xl font-bold text-brand-800 mt-1">{country_shannon.toFixed(3)}</div>
+          <div class="text-[11px] text-text-muted mt-1">
+            Pielou's <em>J</em> over ROR country distribution. 0 = all editors from
+            one country, 1 = perfectly even across every country present. MDPI sits
+            higher than Elsevier here; compare against the top-countries bar to see
+            <em>which</em> countries drive the spread.
+          </div>
+        </div>
+      )}
+      {showFieldS && (
+        <div class="rounded-lg border border-border p-4">
+          <div class="text-[10px] uppercase tracking-wide text-text-muted">
+            <a href="/methodology#board-diversity" class="hover:text-brand-700">Field diversity</a>
+          </div>
+          <div class="text-2xl font-bold text-brand-800 mt-1">{field_shannon.toFixed(3)}</div>
+          <div class="text-[11px] text-text-muted mt-1">
+            Pielou's <em>J</em> over OpenAlex scientific fields. High values mean
+            this entity's editors span many disciplines (a broad multidisciplinary
+            footprint); low values mean they cluster in one field. Especially
+            informative for institution pages, where the country and org_type
+            Shannons are trivially zero.
+          </div>
+        </div>
+      )}
+      {showOrgS && (
+        <div class="rounded-lg border border-border p-4">
+          <div class="text-[10px] uppercase tracking-wide text-text-muted">
+            <a href="/methodology#board-diversity" class="hover:text-brand-700">Institution-type diversity</a>
+          </div>
+          <div class="text-2xl font-bold text-brand-800 mt-1">{org_type_shannon.toFixed(3)}</div>
+          <div class="text-[11px] text-text-muted mt-1">
+            Pielou's <em>J</em> over the ROR <code class="font-mono">org_type</code>
+            field (education, healthcare, facility, government, nonprofit, company,
+            archive). Low values mean editors come overwhelmingly from one kind of
+            institution — usually universities, which account for about 82% of
+            editors dataset-wide. Higher values indicate editorial boards that reach
+            into clinical practice, public labs, industry, or scientific societies.
+          </div>
+        </div>
+      )}
+      {showAge && academic_age_stats && (
+        <div class="rounded-lg border border-border p-4">
+          <div class="text-[10px] uppercase tracking-wide text-text-muted">
+            <a href="/methodology#board-diversity" class="hover:text-brand-700">Seniority (academic age)</a>
+          </div>
+          <div class="text-2xl font-bold text-brand-800 mt-1">{academic_age_stats.median} yr</div>
+          <div class="text-[11px] text-text-muted mt-1">
+            Median years since first OpenAlex-indexed publication, per unique editor.
+            IQR {academic_age_stats.q1}–{academic_age_stats.q3} yr
+            (spread {academic_age_stats.iqr} yr), mean {academic_age_stats.mean} yr,
+            n = {academic_age_stats.count.toLocaleString()}. A low median with a small
+            IQR indicates a board clustered in one career stage; a large IQR signals
+            generational mix.
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
+<div class="flex flex-wrap gap-4 mb-10">
+  <a href={exploreUrl} class="px-5 py-2.5 bg-brand-600 text-white rounded-lg hover:bg-brand-700 text-sm">{"Explore " + name + " editors"}</a>
+  <a href="/journals" class="px-5 py-2.5 border border-border text-text-secondary rounded-lg hover:bg-surface-dim text-sm">Journal statistics</a>
+  <a href="/download" class="px-5 py-2.5 border border-border text-text-secondary rounded-lg hover:bg-surface-dim text-sm">Download full dataset</a>
+</div>

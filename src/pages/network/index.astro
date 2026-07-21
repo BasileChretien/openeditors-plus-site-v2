@@ -1,0 +1,340 @@
+---
+import Base from "../../layouts/Base.astro";
+import net from "../../../public/api/editor_network.json";
+import { slugify } from "../../lib/slugify";
+
+type PowerEditor = {
+  name: string;
+  ror_id: string;
+  ror_name: string;
+  ror_country: string;
+  gender: string;
+  h_index: number | null;
+  boards_count: number;
+  publishers_count: number;
+  power: number;
+  weighted_boards: number;
+  power_quality: number;
+  top_field: string;
+  top_role: string;
+  publishers: string[];
+  orcid: string;
+};
+
+const c = net.concentration;
+const powerEditors = net.power_editors as PowerEditor[];
+const overlap = net.publisher_overlap;
+
+// Fraction of the gender column heat map (light → dark) scales markers
+// relative to the highest off-diagonal count, NOT the diagonal, so the
+// visualization isn't swamped by the "editors at publisher X" totals.
+const diag = overlap.publishers.map((_: string, i: number) => overlap.matrix[i][i]);
+let maxOff = 0;
+for (let i = 0; i < overlap.publishers.length; i++) {
+  for (let j = 0; j < overlap.publishers.length; j++) {
+    if (i !== j && overlap.matrix[i][j] > maxOff) maxOff = overlap.matrix[i][j];
+  }
+}
+
+function heatColor(value: number): string {
+  if (value <= 0 || maxOff === 0) return "#f9fafb"; // near-white
+  const t = Math.min(1, value / maxOff);
+  // brand-50 (242, 247, 255) → brand-700 (30, 64, 175). Simple linear ramp.
+  const r = Math.round(242 + (30 - 242) * t);
+  const g = Math.round(247 + (64 - 247) * t);
+  const b = Math.round(255 + (175 - 255) * t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+const roleLabels: Record<string, string> = {
+  editor_in_chief: "Editor-in-Chief",
+  associate_editor: "Assoc. Editor",
+  editorial_board_member: "Board Member",
+  section_editor: "Section Editor",
+  reviewing_editor: "Reviewing Editor",
+  deputy_editor: "Deputy Editor",
+  guest_editor: "Guest Editor",
+  editor: "Editor",
+  other: "Other",
+};
+---
+
+<Base
+  title="Editor Network — Open Editors Plus"
+  description="Cross-board editorial network for Open Editors Plus: power editors ranked by distinct boards × publishers, publisher overlap matrix, and concentration statistics."
+  path="network"
+>
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <nav class="text-xs text-text-muted mb-6">
+      <a href="/">Home</a> / <span class="text-text-primary font-medium">Network</span>
+    </nav>
+    <h1 class="text-3xl sm:text-4xl font-bold mb-2">Editor Network</h1>
+    <p class="text-text-secondary text-lg mb-10 max-w-3xl">
+      Who holds the most editorial influence across the dataset? This page reports
+      three cross-board views: a concentration summary, a leaderboard of
+      ORCID-verified power editors, and a publisher × publisher overlap matrix.
+    </p>
+
+    <!-- Concentration stats -->
+    <section class="mb-12">
+      <h2 class="text-xl font-bold mb-4">Concentration of editorial seats</h2>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm">
+          <div class="text-2xl font-bold text-brand-800">{c.total_editors.toLocaleString()}</div>
+          <div class="text-[10px] text-text-muted mt-1">Distinct editors</div>
+        </div>
+        <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm">
+          <div class="text-2xl font-bold text-brand-800">{c.total_seats.toLocaleString()}</div>
+          <div class="text-[10px] text-text-muted mt-1">Total board seats</div>
+        </div>
+        <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm">
+          <div class="text-2xl font-bold text-brand-800">{c.multi_board_share}%</div>
+          <div class="text-[10px] text-text-muted mt-1">Serve ≥ 2 boards</div>
+        </div>
+        <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm group relative">
+          <div class="text-2xl font-bold text-brand-800">{c.gini}</div>
+          <div class="text-[10px] text-text-muted mt-1 inline-flex items-center gap-1">
+            <a href="#gini-explain" class="underline decoration-dotted hover:text-brand-700">Gini of seats</a>
+            <span class="inline-block w-3.5 h-3.5 rounded-full bg-brand-50 border border-brand-200 text-brand-700 text-[9px] leading-[13px] font-semibold cursor-help" title="Click for full definition">ⓘ</span>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-surface-dim rounded-xl border border-border p-4 text-center">
+          <div class="text-xl font-bold text-text-primary">{c.mean_boards}</div>
+          <div class="text-[10px] text-text-muted mt-1">Mean boards / editor</div>
+        </div>
+        <div class="bg-surface-dim rounded-xl border border-border p-4 text-center">
+          <div class="text-xl font-bold text-text-primary">{c.max_boards}</div>
+          <div class="text-[10px] text-text-muted mt-1">Max boards (one editor)</div>
+        </div>
+        <div class="bg-surface-dim rounded-xl border border-border p-4 text-center">
+          <div class="text-xl font-bold text-text-primary">{c.top_1pct_seat_share}%</div>
+          <div class="text-[10px] text-text-muted mt-1">Top 1% hold</div>
+        </div>
+        <div class="bg-surface-dim rounded-xl border border-border p-4 text-center">
+          <div class="text-xl font-bold text-text-primary">{c.top_10pct_seat_share}%</div>
+          <div class="text-[10px] text-text-muted mt-1">Top 10% hold</div>
+        </div>
+      </div>
+      <p class="text-xs text-text-muted mt-3 leading-relaxed max-w-3xl">
+        Editors are identified by a composite key (ORCID when present, otherwise
+        <code class="font-mono">ror_id</code> + lowercased name, otherwise affiliation + lowercased name) so
+        that one real person serving multiple boards collapses to one entry and
+        different people sharing a name at different institutions stay separate.
+        Seats are distinct
+        (<code class="font-mono">editor</code>, <code class="font-mono">journal</code>) pairs.
+      </p>
+
+      <!-- Gini explanation + reference -->
+      <details id="gini-explain" class="mt-4 bg-surface-dim border border-border rounded-lg px-4 py-3 text-xs text-text-secondary">
+        <summary class="cursor-pointer font-semibold text-text-primary">What does the <em>Gini of seats</em> mean?</summary>
+        <p class="mt-3 leading-relaxed">
+          The Gini coefficient measures how unequally editorial seats are distributed
+          across individual editors. Each editor has a seat count
+          (<em>distinct journals they sit on</em>), and the Gini summarises the whole
+          population with a single number in [0, 1]:
+        </p>
+        <ul class="mt-2 space-y-1 list-disc pl-5">
+          <li><strong>Gini = 0</strong> — everyone holds the same number of seats (perfect equality).</li>
+          <li><strong>Gini ≈ 0.3–0.5</strong> — moderate concentration: a long tail of single-board editors plus a small group with many.</li>
+          <li><strong>Gini → 1</strong> — a tiny elite holds virtually all the seats and most editors hold one or zero.</li>
+        </ul>
+        <p class="mt-3 leading-relaxed">
+          Formally, with seat counts <em>x<sub>1</sub>, x<sub>2</sub>, …, x<sub>n</sub></em>
+          sorted ascending, we compute
+          <code class="font-mono">G = 1 + 1/n − 2·(Σ<sub>i</sub> Σ<sub>j≤i</sub> x<sub>j</sub>) / (n·Σx)</code>
+          — the standard Lorenz-curve identity. The observed value
+          (<strong>{c.gini}</strong>) therefore reflects how skewed the seat-holding
+          distribution is: {c.total_editors.toLocaleString()} distinct editors hold
+          {c.total_seats.toLocaleString()} seats between them, with a long tail dominated
+          by single-board editors and a small head of prolific multi-board editors.
+        </p>
+        <p class="mt-3 leading-relaxed">
+          <strong>How to use it.</strong> Track this number across releases: if it rises,
+          editorial seats are becoming more concentrated in fewer hands. Compare it
+          across slices of the data (e.g. compute it within a single publisher or
+          field) to see which sub-communities are more concentrated. A value below
+          0.3 is roughly "broadly shared" and a value above 0.5 is "highly unequal"
+          by the conventions of income-inequality literature — but note that the
+          underlying distribution here is editorial seats, not income, so direct
+          comparison to country-level Gini values (0.25–0.60 range) is only a
+          loose intuition pump.
+        </p>
+        <p class="mt-3 leading-relaxed">
+          <strong>Reference.</strong> Gini, C. (1912).
+          <em>Variabilità e mutabilità: Contributo allo studio delle distribuzioni
+          e delle relazioni statistiche.</em> Studi Economico-Giuridici
+          dell'Università di Cagliari, 3, 3–159. — Original definition of the
+          coefficient. See also the
+          <a href="https://en.wikipedia.org/wiki/Gini_coefficient" target="_blank" rel="noopener noreferrer" class="underline hover:text-brand-700">Wikipedia entry</a>
+          for the Lorenz-curve formulation used here, and
+          <a href="https://en.wikipedia.org/wiki/Lorenz_curve" target="_blank" rel="noopener noreferrer" class="underline hover:text-brand-700">Lorenz (1905)</a>
+          for the graphical construction behind it.
+        </p>
+      </details>
+    </section>
+
+    <!-- Power editors table -->
+    <section class="mb-12">
+      <div class="flex items-end justify-between gap-4 mb-3">
+        <div>
+          <h2 class="text-xl font-bold">Power editors</h2>
+          <p class="text-xs text-text-muted mt-1 max-w-3xl">
+            Top 200 individuals ranked by <strong>weighted power</strong> =
+            <code class="font-mono">weighted boards × publishers</code>. Filtered to
+            records with an ORCID so each row is a verifiable individual.
+          </p>
+        </div>
+        <div class="text-xs text-text-muted whitespace-nowrap">{powerEditors.length} rows</div>
+      </div>
+
+      <!-- Experimental caveat for the power score. The raw score (boards × -->
+      <!-- publishers) dramatically over-weighted editors at single-publisher -->
+      <!-- non-indexed outlets (e.g. an Inderscience founder showing 92 boards). -->
+      <!-- The weighted variant discounts un-indexed journals, but the exact -->
+      <!-- mapping is a first draft and hasn't been validated against an -->
+      <!-- independent editorial-influence benchmark. -->
+      <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900 flex items-start gap-2">
+        <svg class="w-4 h-4 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a1 1 0 011 1v3a1 1 0 11-2 0V7a1 1 0 011-1zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+        </svg>
+        <div>
+          <strong>Experimental score — not yet validated.</strong> The <em>weighted power</em>
+          column multiplies an editor's distinct publishers by their
+          quality-adjusted board count. Each distinct (editor, journal) pair
+          contributes
+          <code class="font-mono">1.0</code> if the journal is indexed in ≥ 3 of
+          PubMed / Scopus / Web of Science / DOAJ / COPE,
+          <code class="font-mono">0.75</code> at 2,
+          <code class="font-mono">0.5</code> at 1,
+          <code class="font-mono">0.25</code> at 0. This discounts single-publisher
+          clusters at non-indexed outlets (the M.A. Dorgham / Inderscience case) but
+          the exact weights are a first draft and have not been benchmarked against
+          an external editorial-influence reference. Treat the ranking as directional,
+          not authoritative. The raw <code class="font-mono">boards × publishers</code>
+          score is still shown next to it for transparency.
+        </div>
+      </div>
+
+      <div class="overflow-x-auto bg-white rounded-xl border border-border shadow-sm">
+        <table class="w-full text-xs">
+          <thead class="bg-surface-dim text-text-secondary sticky top-0">
+            <tr>
+              <th class="text-left py-2 px-3 font-semibold w-10">#</th>
+              <th class="text-left py-2 px-3 font-semibold">Editor</th>
+              <th class="text-left py-2 px-3 font-semibold">Institution</th>
+              <th class="text-left py-2 px-3 font-semibold">Country</th>
+              <th class="text-left py-2 px-3 font-semibold">Field</th>
+              <th class="text-right py-2 px-3 font-semibold">Boards</th>
+              <th class="text-right py-2 px-3 font-semibold" title="Indexing-weighted sum of distinct journals">Weighted boards</th>
+              <th class="text-right py-2 px-3 font-semibold">Publishers</th>
+              <th class="text-right py-2 px-3 font-semibold text-text-muted" title="Raw power = boards × publishers (not quality-adjusted)">Raw power</th>
+              <th class="text-right py-2 px-3 font-semibold" title="Weighted power = weighted boards × publishers (experimental)">Weighted power</th>
+              <th class="text-right py-2 px-3 font-semibold">h-index</th>
+              <th class="text-left py-2 px-3 font-semibold">ORCID</th>
+            </tr>
+          </thead>
+          <tbody>
+            {powerEditors.map((e, idx) => (
+              <tr class="border-t border-border hover:bg-brand-50">
+                <td class="py-1.5 px-3 text-text-muted">{idx + 1}</td>
+                <td class="py-1.5 px-3 font-medium text-text-primary">
+                  <a href={"/explore?orcid=" + e.orcid} class="text-brand-700 hover:underline">{e.name}</a>
+                </td>
+                <td class="py-1.5 px-3 text-text-secondary truncate max-w-[180px]" title={e.ror_name}>
+                  {e.ror_id ? (
+                    <a href={"/institution/" + e.ror_id} class="text-brand-600 hover:underline">{e.ror_name}</a>
+                  ) : (
+                    e.ror_name || "—"
+                  )}
+                </td>
+                <td class="py-1.5 px-3 text-text-secondary">{e.ror_country || "—"}</td>
+                <td class="py-1.5 px-3 text-text-secondary truncate max-w-[160px]">
+                  {e.top_field ? (
+                    <a href={"/field/" + slugify(e.top_field)} class="text-brand-600 hover:underline">{e.top_field}</a>
+                  ) : "—"}
+                </td>
+                <td class="py-1.5 px-3 text-right">{e.boards_count}</td>
+                <td class="py-1.5 px-3 text-right">{typeof e.weighted_boards === "number" ? e.weighted_boards.toFixed(1) : "—"}</td>
+                <td class="py-1.5 px-3 text-right">{e.publishers_count}</td>
+                <td class="py-1.5 px-3 text-right text-text-muted">{e.power}</td>
+                <td class="py-1.5 px-3 text-right font-semibold text-brand-700">{typeof e.power_quality === "number" ? e.power_quality.toFixed(1) : "—"}</td>
+                <td class="py-1.5 px-3 text-right text-text-muted">{e.h_index ?? "—"}</td>
+                <td class="py-1.5 px-3">
+                  <a href={"https://orcid.org/" + e.orcid} target="_blank" rel="noopener noreferrer" class="font-mono text-[10px] text-brand-600 hover:underline">
+                    {e.orcid}
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Publisher overlap heatmap -->
+    <section class="mb-16">
+      <h2 class="text-xl font-bold mb-2">Publisher overlap</h2>
+      <p class="text-xs text-text-muted mb-4 max-w-3xl">
+        How many distinct editors appear on boards at BOTH publishers? Diagonal
+        cells show the number of editors on each publisher's boards; off-diagonal
+        cells show the shared-editor count. Darker = more overlap. Limited to the
+        top 25 publishers by editor count.
+      </p>
+      <div class="overflow-x-auto bg-white rounded-xl border border-border shadow-sm p-3">
+        <table class="text-[10px] font-mono border-separate" style="border-spacing:2px">
+          <thead>
+            <tr>
+              <th></th>
+              {overlap.publishers.map((p: string) => (
+                <th class="px-1 py-1 text-text-muted font-normal align-bottom" style="writing-mode:vertical-rl;transform:rotate(180deg);height:90px;min-width:16px">
+                  {p}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {overlap.publishers.map((rowPub: string, i: number) => (
+              <tr>
+                <td class="text-right pr-2 text-text-muted whitespace-nowrap">{rowPub}</td>
+                {overlap.publishers.map((_colPub: string, j: number) => {
+                  const v = overlap.matrix[i][j];
+                  const isDiag = i === j;
+                  const bg = isDiag ? "#fef3c7" : heatColor(v);
+                  const label = isDiag ? `${rowPub}: ${v.toLocaleString()} editors` : `${rowPub} ∩ ${_colPub}: ${v.toLocaleString()}`;
+                  return (
+                    <td
+                      class="text-center text-[9px] text-text-primary"
+                      style={`width:16px;height:16px;background:${bg};min-width:16px`}
+                      title={label}
+                    >
+                      {isDiag ? "·" : (v > 0 ? "" : "")}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-[11px] text-text-muted mt-3 leading-relaxed max-w-3xl">
+        The diagonal cells are highlighted yellow — they carry the per-publisher
+        editor counts, not overlap values. The biggest overlaps concentrate among
+        the largest commercial publishers, reflecting the fact that the most
+        prolific editors sit on boards at SpringerNature, Elsevier, MDPI, and
+        Taylor &amp; Francis simultaneously.
+      </p>
+    </section>
+
+    <div class="border-t border-border pt-8">
+      <h2 class="font-bold text-lg mb-4">Browse more</h2>
+      <div class="flex flex-wrap gap-2">
+        <a href="/institution" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Institutions</a>
+        <a href="/publisher" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Publishers</a>
+        <a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Fields</a>
+        <a href="/explore" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Explore full dataset</a>
+      </div>
+    </div>
+  </div>
+</Base>

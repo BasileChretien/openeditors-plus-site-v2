@@ -1,0 +1,300 @@
+---
+import Base from "../../layouts/Base.astro";
+import ContactEmail from "../../components/ContactEmail.astro";
+
+// Last substantive review of this notice. Update when the legal basis,
+// controller, or contact details change.
+const lastUpdated = "21 July 2026";
+---
+
+<Base
+  title="Privacy & Data Protection — Open Editors Plus"
+  path="privacy"
+  description="How Open Editors Plus handles the personal data of the editorial-board members it lists: data controller, legal basis, who receives the data, inferred-gender caveat, licence limits, and your rights."
+  breadcrumbs={[{ name: "Privacy & Data Protection", url: "privacy" }]}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+    <h1 class="text-3xl sm:text-4xl font-bold mb-4">Privacy &amp; Data Protection</h1>
+    <p class="text-text-secondary text-lg mb-3">
+      Open Editors Plus lists named individuals and an algorithmically inferred
+      attribute about them, so it processes personal data. Its purpose is
+      academic research — a scientometric study of the composition of academic
+      editorial boards. This page explains what the dataset contains, who is
+      responsible for it, the legal basis for collecting and publishing it, who
+      receives the data, and how a listed person can correct or remove their
+      record.
+    </p>
+    <p class="text-xs text-text-muted mb-10">Last updated: {lastUpdated}</p>
+
+    <div class="prose prose-slate max-w-none space-y-8">
+      <!-- What the dataset contains -->
+      <section>
+        <h2 class="text-2xl font-bold mt-6 mb-4">What data Open Editors Plus contains</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Each record describes one editorial-board position and the person who
+          holds it. Almost every source field is <strong>information the journals
+          themselves have already published</strong> on their public
+          editorial-board pages — professional information about people acting in a
+          public scholarly role, not private or contact data. (A few values, such
+          as some ORCID iDs, instead come from public researcher registries.) The
+          personal fields are:
+        </p>
+        <ul class="list-disc pl-5 text-text-secondary space-y-1.5 text-sm mb-4">
+          <li>Name (and a parsed first/last name), editorial role, and the journal and publisher.</li>
+          <li>Institutional affiliation as listed, canonicalised against the <a href="https://ror.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Research Organization Registry</a> (institution, country, city, coordinates).</li>
+          <li>ORCID iD, where the journal published one or a public registry supplied it.</li>
+          <li>Public bibliometric indicators (h-index, publication and citation counts, academic age) from <a href="https://openalex.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>.</li>
+          <li>An <strong>inferred</strong> gender attribute (see the caveat below).</li>
+        </ul>
+        <p class="text-text-secondary leading-relaxed">
+          The dataset does <strong>not</strong> collect private contact details,
+          home addresses, dates of birth, or any special-category data such as
+          health, ethnicity, religion, or political opinion. Race/ethnicity
+          inference was computed for internal validation only and is deliberately
+          excluded from the public release. The full column-by-column
+          documentation is in the <a href="/codebook" class="text-brand-600 hover:underline">codebook</a>,
+          and every collection and enrichment step is described in the
+          <a href="/methodology" class="text-brand-600 hover:underline">methodology</a>.
+        </p>
+      </section>
+
+      <!-- Data controller & contact -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Data controller &amp; contact</h2>
+        <div class="bg-surface-dim border border-border rounded-lg p-5">
+          <p class="text-text-secondary leading-relaxed mb-3">
+            Open Editors Plus is an independent research project. The data
+            controller — the person who determines why and how the data are
+            processed, and who is <strong>solely responsible</strong> for this
+            dataset — is:
+          </p>
+          <p class="text-text-primary leading-relaxed mb-3">
+            <strong>Basile Chrétien</strong> (PharmD, MSc, MPH)<br />
+            ORCID <a href="https://orcid.org/0000-0002-7483-2489" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">0000-0002-7483-2489</a><br />
+            Neuropresage Team (PhIND, UMR-S U1237), Normandie Université, UNICAEN, INSERM, GIP Cyceron, Caen, France
+          </p>
+          <p class="text-text-secondary leading-relaxed mb-3">
+            Basile Chrétien carries out this work as a researcher within the
+            Neuropresage Team, which grounds its academic-research purpose and legal
+            basis. He determines the purposes and means of the processing and acts
+            as the <strong>data controller</strong> within the meaning of
+            <strong>Art. 4(7) GDPR</strong>. This is an independent, personal
+            research project: it is not an official output of, and is not published
+            by, Normandie Université, UNICAEN, INSERM or GIP Cyceron. Correction,
+            removal, and objection requests should be sent to the contact below.
+          </p>
+          <p class="text-text-secondary leading-relaxed">
+            Data-protection contact:
+            <ContactEmail subject="Open Editors Plus — data protection enquiry" />
+          </p>
+        </div>
+        <p class="text-text-secondary leading-relaxed mt-4 text-sm">
+          The dataset is deposited permanently on Zenodo (<a href="https://doi.org/10.5281/zenodo.19590816" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">DOI 10.5281/zenodo.19590816</a>).
+          A working contact address will be kept published here for the life of
+          that public deposit, so the route to correction or removal outlives any
+          single account.
+        </p>
+      </section>
+
+      <!-- Legal basis -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Legal basis</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Collection and publication take place in France (EU), where Basile
+          Chrétien is a researcher within the Neuropresage Team (Normandie
+          Université, UNICAEN, INSERM).
+        </p>
+
+        <h3 class="font-semibold text-lg mt-6 mb-2">Collection (copyright &amp; text-and-data mining)</h3>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Editorial-board pages are gathered under the <strong>scientific-research
+          text-and-data-mining (TDM) exception</strong> introduced by
+          <strong>Article 3 of the EU Directive on Copyright in the Digital Single
+          Market (2019/790)</strong> and transposed into French law in the
+          <em>Code de la propriété intellectuelle</em> —
+          <strong>Art. L.122-5-3</strong> for copyright and
+          <strong>Art. L.342-3</strong> for the <em>sui generis</em> database right.
+          This exception lets a research organisation reproduce and extract, for the
+          purposes of scientific research, works and databases to which it has
+          lawful access; it cannot be set aside by contract. The factual content the
+          dataset actually retains — names, roles, and affiliations — is moreover
+          <strong>not protected by copyright</strong>; the EU does recognise a
+          <em>sui generis</em> database right over publishers' compilations, but
+          extracting from them for scientific research is permitted by the TDM
+          exception above, so the extraction is not restricted on database-right
+          grounds. Only publicly accessible pages are used; no login-gated,
+          paywalled, or licensed content is collected.
+        </p>
+
+        <h3 class="font-semibold text-lg mt-6 mb-2">Personal data (GDPR)</h3>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Because the records identify people, the processing is also governed by
+          the <strong>EU General Data Protection Regulation (GDPR)</strong> and the
+          French <em>loi n° 78-17 Informatique et Libertés</em>. The data are
+          processed for <strong>scientific research</strong> — a scientometric study
+          of editorial-board composition. The lawful basis is the controller's
+          <strong>legitimate interests</strong> in carrying out and publishing that
+          research (<strong>Art. 6(1)(f)</strong>), balanced against the interests
+          of the people described; that balance is favourable here because the
+          records contain only professional information about people acting in a
+          public scholarly role, already published by the journals themselves. The
+          processing applies the research safeguards of <strong>Art. 89(1)</strong>
+          — data minimisation, no automated decisions about individuals, and
+          exclusion of special-category data.
+        </p>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Because the data are not obtained directly from the individuals, this
+          notice — together with the public codebook and dataset — provides the
+          <strong>Art. 14 transparency information</strong>. Publishing the dataset
+          openly is the communication of academic-research results (a versioned,
+          DOI-cited scientometric dataset); the accompanying duty of care toward the
+          people listed is met by using professional information only, excluding
+          special-category data, flagging inferred fields with per-record
+          confidence, and offering the free correction, objection, and removal route
+          below.
+        </p>
+        <p class="text-text-secondary leading-relaxed">
+          For the collection and enrichment methods this legal basis applies to,
+          see the <a href="/methodology" class="text-brand-600 hover:underline">methodology</a>.
+        </p>
+      </section>
+
+      <!-- Inferred gender -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">The inferred-gender attribute</h2>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p class="text-sm text-amber-800 leading-relaxed mb-2">
+            The <code class="bg-amber-100 px-1 rounded">gender</code> field is
+            <strong>algorithmically inferred</strong> from the editor's first name
+            and country of affiliation using the World Gender Name Dictionary 2.0
+            (<a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="text-brand-700 underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a>).
+            It resolves to <em>female</em>, <em>male</em>, or <em>unknown</em> for
+            editors in this release (the schema also carries a legacy
+            <em>androgynous</em> code that the current method does not emit); it is
+            <strong>not self-reported</strong> gender identity, and it can be wrong
+            for any given individual.
+          </p>
+          <p class="text-sm text-amber-800 leading-relaxed">
+            Under the GDPR, sex/gender is <strong>not</strong> "special-category
+            data" within the meaning of <strong>Art. 9</strong> (which covers data
+            such as health, ethnic origin, religion, or sexual orientation), so the
+            attribute does not trigger the special-category regime. We nonetheless flag it as inferred throughout
+            the dataset (with a per-record confidence weight, sample size, and
+            provenance) and treat it as <strong>correctable and removable on
+            request</strong> like any other field. The coverage and accuracy limits
+            of this method are documented in the
+            <a href="/methodology#gender-coverage" class="text-brand-700 underline">methodology</a>.
+          </p>
+        </div>
+      </section>
+
+      <!-- Open release & licence -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Open release &amp; licence</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Open Editors Plus is released into the public domain under
+          <a href="https://creativecommons.org/publicdomain/zero/1.0/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">CC0 1.0</a>.
+          It is important to be precise about what that does and does not do:
+        </p>
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p class="text-sm text-blue-900 leading-relaxed">
+            <strong>CC0 waives copyright and database rights only.</strong> It does
+            not — and legally cannot — waive the data-protection rights of the
+            individuals the records describe. Anyone who reuses the data remains
+            responsible for complying with the data-protection law that applies to
+            them (in particular the EU's GDPR). CC0 removes the licensing friction of reuse; it
+            does not remove a downstream user's own legal obligations toward the
+            people in the data.
+          </p>
+        </div>
+        <p class="text-text-secondary leading-relaxed mt-4 text-sm">
+          The GDPR governs this publication directly (see the legal-basis section
+          above): the processing relies on the controller's legitimate interests in
+          academic research (Art. 6(1)(f)) together with the research safeguards in
+          Art. 89(1), and this notice serves as the Art. 14 transparency information.
+        </p>
+        <p class="text-text-secondary leading-relaxed mt-4 text-sm">
+          Open Editors Plus extends the peer-reviewed
+          <a href="https://openeditors.ooir.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Open Editors</a>
+          dataset (Nishikawa-Pacher, Heck &amp; Schoch), which was likewise released
+          under CC0.
+        </p>
+      </section>
+
+      <!-- Who receives the data, retention, transfers -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Who receives the data, and for how long</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          <strong>Enrichment queries.</strong> To build each record, names and
+          affiliation strings are sent to public third-party APIs — the
+          <a href="https://ror.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Research Organization Registry (ROR)</a>
+          and <a href="https://openalex.org" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">OpenAlex</a> —
+          which return institutional and bibliometric metadata; journal titles and
+          ISSNs are matched against public indexing lists.
+        </p>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          <strong>Open redistribution.</strong> The finished dataset is published
+          openly on Zenodo under CC0, from which anyone worldwide may download and
+          redistribute it. Personal data therefore crosses borders by design: the
+          controller is in France (EU), the enrichment APIs are US-based (so
+          building a record can involve a transfer of already-public professional
+          data outside the EU, under Chapter V of the GDPR), the Zenodo archive is
+          hosted in the EU (CERN), and the files are downloadable globally.
+        </p>
+        <p class="text-text-secondary leading-relaxed">
+          <strong>Retention.</strong> Records are kept for as long as the project is
+          maintained. Because Zenodo is a permanent, versioned public archive,
+          published versions persist indefinitely; a correction or removal takes
+          effect from the next version onward. See the honest note on the
+          <a href="/corrections" class="text-brand-600 hover:underline">corrections</a>
+          page about copies that others may already have downloaded.
+        </p>
+      </section>
+
+      <!-- Your rights -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">Your rights</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          If you are listed in Open Editors Plus, you can ask us to
+          <strong>correct</strong> your record, <strong>remove</strong> it entirely,
+          <strong>object</strong> to (or request that we cease) the processing, or
+          <strong>ask what we hold</strong> about you — though every field is
+          already public in the open dataset and codebook. No reason is required and
+          there is no charge. Under the GDPR these are the rights of access
+          (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction
+          (Art. 18), and objection (Art. 21).
+        </p>
+        <a
+          href="/corrections"
+          class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors text-sm"
+        >
+          Corrections, removal &amp; data rights
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+        </a>
+        <p class="text-text-secondary leading-relaxed mt-4 text-sm">
+          You may also raise a request or a data-accuracy report directly with the
+          data-protection contact:
+          <ContactEmail subject="Open Editors Plus — data request" />.
+        </p>
+        <p class="text-text-secondary leading-relaxed mt-4 text-sm">
+          If you are not satisfied with how a request is handled, you can complain to
+          a data-protection authority — in France, the
+          <a href="https://www.cnil.fr" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Commission Nationale de l'Informatique et des Libertés (CNIL)</a>
+          (Art. 77 GDPR); EU residents may also contact their own national
+          supervisory authority.
+        </p>
+      </section>
+
+      <!-- About this website -->
+      <section>
+        <h2 class="text-2xl font-bold mt-10 mb-4">About this website</h2>
+        <p class="text-text-secondary leading-relaxed text-sm">
+          This notice concerns the <em>dataset</em>. The website itself uses
+          <a href="https://www.goatcounter.com/" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">GoatCounter</a>,
+          a cookieless, privacy-friendly analytics service — no cookies, no
+          cross-site tracking, only aggregate visit counts.
+        </p>
+      </section>
+    </div>
+  </div>
+</Base>

@@ -1,0 +1,31 @@
+---
+import Base from "../../layouts/Base.astro";
+import EntityStats from "../../components/EntityStats.astro";
+import { slugify } from "../../lib/slugify";
+
+export async function getStaticPaths() {
+  const { default: fields } = await import("../../../public/api/fields.json");
+  const sorted = [...fields].sort((a, b) => b.records - a.records);
+  return fields.map((f) => {
+    const rank = sorted.findIndex(s => s.field === f.field) + 1;
+    return { params: { slug: slugify(f.field) }, props: { data: f, rank } };
+  });
+}
+
+const { data, rank } = Astro.props;
+const slug = slugify(data.field);
+const topCountries = Object.entries(data.top_countries || {}).slice(0, 10);
+---
+
+<Base title={data.field + " Journal Editors - Open Editors Plus"} description={data.records.toLocaleString() + " positions in " + data.field} path={"field/" + slug}>
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <nav class="text-xs text-text-muted mb-6"><a href="/">Home</a> / <a href="/field">Fields</a> / <span class="text-text-primary font-medium">{data.field}</span></nav>
+    <div class="flex items-start justify-between mb-2">
+      <h1 class="text-3xl sm:text-4xl font-bold">{data.field}</h1>
+      <span class="text-sm text-text-muted bg-surface-dim px-3 py-1 rounded-full">{"#" + rank + " of 26"}</span>
+    </div>
+    <p class="text-text-secondary text-lg mb-8">Editorial board composition</p>
+    <EntityStats name={data.field} records={data.records} editors={data.editors} journals={data.journals} extraLabel="Countries" extraValue={data.countries} gd={data.gender_distribution} pct_gender_classified={data.pct_gender_classified} country_shannon={data.country_shannon} field_shannon={data.field_shannon} org_type_shannon={data.org_type_shannon} academic_age_stats={data.academic_age_stats} topEntries={topCountries} topType="countries" mean_h_index={data.mean_h_index} rank={rank} rankTotal="26 fields" entityType="scientific_field" entityValue={data.field} />
+    <div class="border-t border-border pt-8"><h2 class="font-bold text-lg mb-4">Browse more</h2><div class="flex flex-wrap gap-2"><a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All fields</a><a href="/publisher" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All publishers</a><a href="/country" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All countries</a></div></div>
+  </div>
+</Base>

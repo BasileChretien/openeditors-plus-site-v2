@@ -1,0 +1,32 @@
+---
+import Base from "../../layouts/Base.astro";
+import EntityStats from "../../components/EntityStats.astro";
+import { slugify } from "../../lib/slugify";
+
+export async function getStaticPaths() {
+  const { default: publishers } = await import("../../../public/api/publishers.json");
+  const sorted = [...publishers].sort((a, b) => b.records - a.records);
+  return publishers.map((p) => {
+    const rank = sorted.findIndex(s => s.publisher === p.publisher) + 1;
+    return { params: { slug: slugify(p.publisher) }, props: { pub: p, rank } };
+  });
+}
+
+const { pub, rank } = Astro.props;
+const slug = slugify(pub.publisher);
+const oaPct = pub.records > 0 ? (pub.oa_records / pub.records * 100).toFixed(0) : "0";
+const topCountries = Object.entries(pub.top_countries || {}).slice(0, 10);
+---
+
+<Base title={pub.publisher + " Editorial Board Data - Open Editors Plus"} description={pub.records.toLocaleString() + " positions at " + pub.publisher} path={"publisher/" + slug}>
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <nav class="text-xs text-text-muted mb-6"><a href="/">Home</a> / <a href="/publisher">Publishers</a> / <span class="text-text-primary font-medium">{pub.publisher}</span></nav>
+    <div class="flex items-start justify-between mb-2">
+      <h1 class="text-3xl sm:text-4xl font-bold">{pub.publisher}</h1>
+      <span class="text-sm text-text-muted bg-surface-dim px-3 py-1 rounded-full">{"#" + rank + " publisher"}</span>
+    </div>
+    <p class="text-text-secondary text-lg mb-8">{pub.journals.toLocaleString() + " journals covered"}</p>
+    <EntityStats name={pub.publisher} records={pub.records} editors={pub.editors} journals={pub.journals} extraLabel="Countries" extraValue={pub.countries} gd={pub.gender_distribution} pct_gender_classified={pub.pct_gender_classified} country_shannon={pub.country_shannon} field_shannon={pub.field_shannon} org_type_shannon={pub.org_type_shannon} academic_age_stats={pub.academic_age_stats} topEntries={topCountries} topType="countries" mean_h_index={pub.mean_h_index} rank={rank} rankTotal="48 publishers" oaPct={oaPct} entityType="publisher" entityValue={pub.publisher} />
+    <div class="border-t border-border pt-8"><h2 class="font-bold text-lg mb-4">Browse more</h2><div class="flex flex-wrap gap-2"><a href="/publisher" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All publishers</a><a href="/country" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All countries</a><a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All fields</a></div></div>
+  </div>
+</Base>

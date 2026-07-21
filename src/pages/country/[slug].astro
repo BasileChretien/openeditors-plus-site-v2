@@ -1,0 +1,33 @@
+---
+import Base from "../../layouts/Base.astro";
+import EntityStats from "../../components/EntityStats.astro";
+import { slugify } from "../../lib/slugify";
+
+export async function getStaticPaths() {
+  const { default: countries } = await import("../../../public/api/countries.json");
+  const sorted = [...countries].sort((a, b) => b.records - a.records);
+  const total = sorted.reduce((s, c) => s + c.records, 0);
+  return countries.map((c) => {
+    const rank = sorted.findIndex(s => s.country === c.country) + 1;
+    const share = (c.records / total * 100).toFixed(1);
+    return { params: { slug: slugify(c.country) }, props: { data: c, rank, share } };
+  });
+}
+
+const { data, rank, share } = Astro.props;
+const slug = slugify(data.country);
+const topFields = Object.entries(data.top_fields || {}).slice(0, 10);
+---
+
+<Base title={data.country + " Editorial Board - Open Editors Plus"} description={data.records.toLocaleString() + " positions in " + data.country} path={"country/" + slug}>
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <nav class="text-xs text-text-muted mb-6"><a href="/">Home</a> / <a href="/country">Countries</a> / <span class="text-text-primary font-medium">{data.country}</span></nav>
+    <div class="flex items-start justify-between mb-2">
+      <h1 class="text-3xl sm:text-4xl font-bold">{data.country}</h1>
+      <span class="text-sm text-text-muted bg-surface-dim px-3 py-1 rounded-full">{"#" + rank + " of 189"}</span>
+    </div>
+    <p class="text-text-secondary text-lg mb-8">{share + "% of editorial positions"}</p>
+    <EntityStats name={data.country} records={data.records} editors={data.editors} journals={data.journals} extraLabel="Publishers" extraValue={data.publishers} gd={data.gender_distribution} pct_gender_classified={data.pct_gender_classified} country_shannon={data.country_shannon} field_shannon={data.field_shannon} org_type_shannon={data.org_type_shannon} academic_age_stats={data.academic_age_stats} topEntries={topFields} topType="fields" mean_h_index={data.mean_h_index} rank={rank} rankTotal="189 countries" globalShare={share} entityType="ror_country" entityValue={data.country} />
+    <div class="border-t border-border pt-8"><h2 class="font-bold text-lg mb-4">Browse more</h2><div class="flex flex-wrap gap-2"><a href="/country" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All countries</a><a href="/publisher" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All publishers</a><a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All fields</a></div></div>
+  </div>
+</Base>

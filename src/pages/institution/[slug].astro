@@ -1,0 +1,65 @@
+---
+import Base from "../../layouts/Base.astro";
+import EntityStats from "../../components/EntityStats.astro";
+
+export async function getStaticPaths() {
+  const { default: institutions } = await import("../../../public/api/institutions.json");
+  const sorted = [...institutions].sort((a, b) => b.records - a.records);
+  const total = sorted.length;
+  return sorted.map((i, idx) => ({
+    params: { slug: i.ror_id },
+    props: { data: i, rank: idx + 1, total },
+  }));
+}
+
+const { data, rank, total } = Astro.props;
+const topFields = Object.entries(data.top_fields || {}).slice(0, 10);
+const rorUrl = "https://ror.org/" + data.ror_id;
+const title = data.name + " - Editorial Board Representation";
+const descr = data.records.toLocaleString() + " editorial positions at " + data.name;
+---
+
+<Base title={title} description={descr} path={"institution/" + data.ror_id}>
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <nav class="text-xs text-text-muted mb-6">
+      <a href="/">Home</a> / <a href="/institution">Institutions</a> / <span class="text-text-primary font-medium">{data.name}</span>
+    </nav>
+    <div class="flex items-start justify-between mb-2 gap-4">
+      <h1 class="text-3xl sm:text-4xl font-bold">{data.name}</h1>
+      <span class="text-sm text-text-muted bg-surface-dim px-3 py-1 rounded-full whitespace-nowrap">#{rank} of {total.toLocaleString()}</span>
+    </div>
+    <p class="text-text-secondary text-lg mb-2">
+      {data.ror_city ? data.ror_city + ", " : ""}{data.ror_country}
+      {data.org_type && <span class="ml-2 text-xs uppercase tracking-wide bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">{data.org_type}</span>}
+    </p>
+    <p class="text-xs text-text-muted mb-8">
+      <a href={rorUrl} target="_blank" rel="noopener" class="text-brand-600 hover:underline">ROR: {data.ror_id}</a>
+    </p>
+
+    <EntityStats
+      name={data.name}
+      records={data.records}
+      editors={data.editors}
+      journals={data.journals}
+      extraLabel="Publishers"
+      extraValue={data.publishers}
+      gd={data.gender_distribution} pct_gender_classified={data.pct_gender_classified} country_shannon={data.country_shannon} field_shannon={data.field_shannon} org_type_shannon={data.org_type_shannon} academic_age_stats={data.academic_age_stats}
+      topEntries={topFields}
+      topType="fields"
+      mean_h_index={data.mean_h_index}
+      rank={rank}
+      rankTotal={total.toLocaleString() + " institutions"}
+      entityType="ror_id"
+      entityValue={data.ror_id}
+    />
+
+    <div class="border-t border-border pt-8">
+      <h2 class="font-bold text-lg mb-4">Browse more</h2>
+      <div class="flex flex-wrap gap-2">
+        <a href="/institution" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All institutions</a>
+        {data.ror_country && <a href={"/country/" + data.ror_country.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")} class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">{data.ror_country} overview</a>}
+        <a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All fields</a>
+      </div>
+    </div>
+  </div>
+</Base>

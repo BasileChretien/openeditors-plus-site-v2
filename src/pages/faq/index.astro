@@ -1,0 +1,111 @@
+---
+import Base from "../../layouts/Base.astro";
+import ContactEmail from "../../components/ContactEmail.astro";
+import summary from "../../../public/api/summary.json";
+import release from "../../../public/api/release_meta.json";
+
+const gd = summary.gender_distribution;
+const resolved = gd.male + gd.female;
+const pctFemale = (gd.female / resolved * 100).toFixed(1);
+
+const faqs = [
+  {
+    q: "What is Open Editors Plus?",
+    a: `Open Editors Plus is the most comprehensive open dataset of academic editorial board composition. It contains ${summary.total_records.toLocaleString()} editorial board positions across ${summary.unique_journals.toLocaleString()} journals from ${summary.unique_publishers} publishers, covering ${summary.unique_editors.toLocaleString()} unique editors in ${summary.unique_countries} countries.`
+  },
+  {
+    q: "How is the data collected?",
+    a: "Editorial board listings are collected from publicly available editorial board pages on publisher websites. Only public pages are used; no login-gated, paywalled, or licensed content is accessed. See the methodology page for details."
+  },
+  {
+    q: "What data is included for each editor?",
+    a: `Each record includes ${release.column_count} columns: editor name, role, affiliation, ORCID, country-aware inferred gender (WGND 2.0 + provenance), institutional geolocation (country, city, coordinates via ROR), bibliometric indicators (h-index, citations, academic age via OpenAlex), journal classification, and journal indexing status (PubMed, Scopus, Web of Science, DOAJ, COPE).`
+  },
+  {
+    q: "How often is the dataset updated?",
+    a: "The dataset is updated annually. The current version (2026) was collected in March-April 2026. Future versions will be released under the same Zenodo concept DOI, enabling longitudinal analysis of editorial board evolution."
+  },
+  {
+    q: "What is the gender gap in editorial boards?",
+    a: `Among editors with gender-resolvable names, ${pctFemale}% are female. The gap is widest among Editors-in-Chief (24.9% female). Gender classification rates vary by region: 97.3% for Italy, 89.7% for the United Kingdom, 86.3% for the United States, 44.6% for China, and 40.2% for South Korea (after applying the v2.7 gender_prob ≥ 0.75 confidence floor). v2.7's switch to country-aware WGND 2.0 dramatically improved coverage for East Asian names — China rose from 8% (v2.6 gender-guesser) to 45% — but Romanised CJK given names remain partially ambiguous.`
+  },
+  {
+    q: "Which country has the most editorial board members?",
+    a: `The United States accounts for 167,255 editorial positions (26.6% of records with country data), followed by China (60,816), the United Kingdom (49,363), Italy (44,150), and Australia (23,597). The top 10 countries hold 71.4% of all positions with country data.`
+  },
+  {
+    q: "What is the average h-index of editorial board members?",
+    a: `The mean h-index of editors in the dataset is ${summary.h_index_stats.mean} (median: ${summary.h_index_stats.median}). Bibliometric data is available for 58% of records, sourced from OpenAlex. The h-index is not field-normalized and should not be compared across disciplines.`
+  },
+  {
+    q: "How can I download the dataset?",
+    a: "The dataset is freely available under CC0 on Zenodo in CSV (690 MB) and Parquet (55 MB) formats. You can also explore all records interactively at openeditors-plus.org/explore using DuckDB-WASM, which runs entirely in your browser."
+  },
+  {
+    q: "How should I cite this dataset?",
+    a: "Chretien, B. (2026). Open Editors Plus 2026: Editorial Board Composition of 15,000+ Academic Journals [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19590816"
+  },
+  {
+    q: "What license is the data released under?",
+    a: "The dataset is released under CC0 1.0 Universal (public domain). You can copy, modify, and distribute the data freely. We kindly ask that you cite the dataset if you use it in your research. One caveat: CC0 waives copyright and database rights only — it does not waive the data-protection rights of the individuals described. If you reuse the records you remain responsible for complying with applicable data-protection law (in particular the EU GDPR). See the Privacy & Data Protection page (openeditors-plus.org/privacy)."
+  },
+  {
+    q: "I'm listed in the dataset. How do I correct or remove my record?",
+    a: "Any listed individual can ask us to correct their record, remove it entirely, or object to processing — no reason required and no charge. Email the data-protection contact (see openeditors-plus.org/corrections) with your name and journal(s). We acknowledge requests within 5 business days and action a correction or removal within 30 days; the change then propagates to the next Zenodo release and the online Explorer. If you just want to flag an inaccuracy rather than be removed, you can use the same address. The Privacy & Data Protection page (openeditors-plus.org/privacy) sets out the named data controller and the legal basis for processing."
+  },
+  {
+    q: "How is gender inferred?",
+    a: "Gender is algorithmically inferred from the editor's first name combined with their country of affiliation, using WGND 2.0 (the World Gender Name Dictionary by Raffo & Lax-Martinez, WIPO 2021 — ~3.5M unique names across 195 countries; Harvard Dataverse DOI 10.7910/DVN/MSEGSJ). The country signal disambiguates names whose gender flips across cultures (e.g. 'Andrea' is male in Italy, female in the US). gender-guesser is used as a tertiary fallback for names absent from WGND. v2.7 applies a confidence floor of gender_prob ≥ 0.75 — matches with sub-floor weights are demoted to gender_source = 'unknown' (raw weight preserved). This is not self-reported gender identity. Classification accuracy varies by cultural context: 82.0% of unique editors receive a resolved label overall, but coverage is uneven (e.g. 97.3% for Italy, 86.3% for the United States, 44.6% for China, 40.2% for South Korea, 19.2% for Taiwan). The residual gaps are concentrated on Romanised CJK-script given names that remain gender-ambiguous even in WGND's per-country tables. Per-record confidence (gender_prob), sample size (gender_nobs), and provenance (gender_source — wgnd_country / wgnd_global / gender_guesser / unknown) are exposed in the dataset."
+  },
+  {
+    q: "What formats is the data available in?",
+    a: "The dataset is available in CSV (comma-separated values, 690 MB) and Apache Parquet (columnar format, 55 MB). Parquet is recommended for analytical use as it is 12x smaller and much faster to query. Pre-aggregated JSON data is also available via the API endpoints on the website."
+  }
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(f => ({
+    "@type": "Question",
+    "name": f.q,
+    "acceptedAnswer": {
+      "@type": "Answer",
+      "text": f.a
+    }
+  }))
+};
+---
+
+<Base
+  title="FAQ - Open Editors Plus"
+  description="Frequently asked questions about Open Editors Plus: dataset coverage, gender analysis, download formats, citation, and methodology."
+  path="faq"
+  schemaJson={faqSchema}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h1 class="text-3xl sm:text-4xl font-bold mb-4">Frequently Asked Questions</h1>
+    <p class="text-text-secondary text-lg mb-10">Everything you need to know about Open Editors Plus</p>
+
+    <div class="space-y-6">
+      {faqs.map((faq, i) => (
+        <div class="bg-white rounded-xl border border-border p-6 shadow-sm">
+          <h2 class="text-lg font-bold text-text-primary mb-3">{faq.q}</h2>
+          <p class="text-text-secondary leading-relaxed">{faq.a}</p>
+        </div>
+      ))}
+    </div>
+
+    <div class="mt-12 text-center">
+      <p class="text-text-muted mb-4">Still have questions?</p>
+      <p class="text-text-secondary">
+        Email the data-protection contact:
+        <ContactEmail subject="Open Editors Plus — question" />
+      </p>
+      <p class="text-sm text-text-muted mt-4">
+        Listed in the data and want to correct or remove your record? Please use
+        <a href="/corrections" class="text-brand-600 hover:underline">Corrections &amp; data rights</a>.
+      </p>
+    </div>
+  </div>
+</Base>

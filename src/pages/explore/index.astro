@@ -1,0 +1,1152 @@
+---
+import Base from "../../layouts/Base.astro";
+import summary from "../../../public/api/summary.json";
+import { slugify } from "../../lib/slugify";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+
+const topCountries = Object.entries(summary.top_countries).slice(0, 10);
+const topFields = Object.entries(summary.top_fields).slice(0, 10);
+
+// Content-hash the browser parquet at build time so the URL changes when
+// the file changes. Without this, DuckDB-WASM's HTTP range requests can
+// mix cached bytes from an old file with fresh bytes from a new one and
+// fail with "No magic bytes found at end of file".
+const parquetPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public/data/editors.parquet");
+const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest("hex").slice(0, 10);
+---
+
+<Base title="Explore — Open Editors Plus" path="explore" description="Interactive dashboard: explore editorial board composition with maps, charts, and a searchable table.">
+  <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold">Explore the data</h1>
+        <p class="text-text-secondary text-sm mt-1" id="load-status">Initializing database engine...</p>
+        <p class="text-xs text-text-muted mt-2 flex items-start gap-1.5 max-w-3xl">
+          <svg class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Heads up — records are collected from public editorial pages and enriched with automated inference (gender, institutions, fields). Some entries may contain errors. See the <a href="/methodology" class="underline hover:text-brand-700">methodology</a> for known limitations.</span>
+        </p>
+      </div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <button id="reset-filters" class="hidden items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-red-200">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+          Clear all filters
+        </button>
+        <button
+          id="export-csv"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-brand-200 text-brand-700 font-medium rounded-lg hover:bg-brand-50 transition-colors text-sm"
+          title="Export the current filtered view as a CSV (browser-side, no server round-trip)"
+          disabled
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span id="export-csv-label">Export filtered CSV</span>
+        </button>
+        <a href="/download" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          Full dataset
+        </a>
+      </div>
+    </div>
+
+    <!-- Noscript fallback -->
+    <noscript>
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6 text-sm text-amber-800">
+        This page requires JavaScript. <a href="/download" class="underline">Download the dataset</a> or browse by <a href="/publisher" class="underline">publisher</a>, <a href="/country" class="underline">country</a>, or <a href="/field" class="underline">field</a>.
+      </div>
+    </noscript>
+
+    <!-- Active filter chips -->
+    <div id="filter-chips" class="hidden flex flex-wrap gap-2 mb-4"></div>
+
+    <!-- Dashboard -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+      <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-border bg-surface-dim flex items-center justify-between">
+          <h2 class="font-semibold text-sm">Geographic distribution</h2>
+          <span class="text-[10px] text-text-muted">Click a city to filter</span>
+        </div>
+        <div id="map" class="h-[300px] sm:h-[380px]"></div>
+      </div>
+      <div class="space-y-4 sm:space-y-6">
+        <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-border bg-surface-dim flex items-center gap-2">
+            <h2 class="font-semibold text-sm">Gender distribution</h2>
+            <span class="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200" title="Algorithmically inferred from first names, not self-reported">inferred</span>
+          </div>
+          <div id="gender-chart" class="p-3 sm:p-4"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div class="px-4 py-2.5 border-b border-border bg-surface-dim">
+            <h2 class="font-semibold text-sm">Top publishers</h2>
+          </div>
+          <div id="publisher-chart" class="p-3 sm:p-4"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 border-b border-border bg-surface-dim flex flex-wrap items-center gap-3">
+        <h2 class="font-semibold text-sm">Editor positions</h2>
+        <span id="result-count" class="text-xs text-text-muted"></span>
+        <div class="ml-auto flex items-center gap-2">
+          <div class="relative">
+            <button id="col-picker-btn" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-surface-dim transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+              Columns
+            </button>
+            <div id="col-picker-menu" class="hidden absolute right-0 top-full mt-1 bg-white border border-border rounded-lg shadow-lg z-50 p-3 w-56 max-h-80 overflow-y-auto">
+              <div id="col-checkboxes" class="space-y-1.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs sm:text-sm">
+          <thead>
+            <tr class="bg-surface-dim/80 border-b border-border" id="header-row"></tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="14" class="py-12 text-center text-text-muted">
+              <svg class="w-6 h-6 animate-spin text-brand-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              Loading 920,000+ records...
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="px-4 py-2.5 border-t border-border bg-surface-dim flex items-center justify-between flex-wrap gap-2">
+        <span id="page-info" class="text-xs text-text-muted"></span>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs text-text-muted">Show</span>
+            <select id="page-size-select" class="text-xs border border-border rounded px-1.5 py-1 bg-white">
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <span class="text-xs text-text-muted">per page</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="prev-page" class="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-white transition-colors disabled:opacity-40" disabled>Previous</button>
+            <button id="next-page" class="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-white transition-colors disabled:opacity-40" disabled>Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="mt-4 p-4 bg-surface-dim rounded-xl border border-border text-xs text-text-muted space-y-1">
+      <p><strong>Gender (inferred*):</strong> Country-aware inference from first name + country of affiliation using <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a> (Raffo &amp; Lax-Martinez, WIPO 2021), with <a href="https://pypi.org/project/gender-guesser/" class="underline" target="_blank" rel="noopener noreferrer">gender-guesser</a> as a tertiary fallback. Not self-reported gender identity. Values are <code>male</code>, <code>female</code>, or <code>unknown</code>. (The legacy <code>andy</code>/androgynous category from v2.6 is gone — WGND 2.0 does not emit it.)</p>
+      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text.</p>
+      <p><strong>h-index:</strong> From <a href="https://openalex.org" class="underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>. Missing when no author profile was matched.</p>
+      <p><strong>Roles:</strong> Standardized from publisher-specific titles.</p>
+      <p><strong>Powered by <a href="https://duckdb.org/docs/api/wasm/overview" class="underline" target="_blank" rel="noopener noreferrer">DuckDB-WASM</a></strong> — all 920K+ records queried locally in your browser. No server needed.</p>
+    </div>
+  </div>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    /* Trap Leaflet's internal z-indexes (tiles ~200-400, controls up to
+       ~1000, popups ~700) inside their own stacking context. Without this
+       they escape to the root stacking context and paint over the sticky
+       nav (z-50) when the map card scrolls underneath it. */
+    #map {
+      position: relative;
+      z-index: 0;
+    }
+  </style>
+
+  <script type="module" define:vars={{ parquetHash }}>
+    import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm";
+
+    // ─── Column config ───
+    const COLUMNS = [
+      { key: "editor",    label: "Name",              filterable: true,  visible: true,  sortable: true },
+      { key: "journal",   label: "Journal",           filterable: true,  visible: true,  sortable: true },
+      { key: "publisher", label: "Publisher",          filterable: true,  visible: true,  sortable: true },
+      { key: "role_std",  label: "Role",              filterable: true,  visible: true,  sortable: true },
+      { key: "affiliation", label: "Affiliation",     filterable: true,  visible: true,  sortable: false, special: "affiliation" },
+      { key: "ror_country", label: "Country",         filterable: true,  visible: true,  sortable: true },
+      { key: "ror_city",  label: "City",              filterable: true,  visible: true,  sortable: true },
+      { key: "ror_state", label: "State/Province",    filterable: true,  visible: false, sortable: true },
+      { key: "scientific_field", label: "Field",      filterable: true,  visible: true,  sortable: true },
+      { key: "h_index",  label: "h-index",            filterable: false, visible: true,  sortable: true },
+      { key: "gender",   label: "Gender (inferred*)", filterable: true,  visible: true,  sortable: true },
+      { key: "orcid",    label: "ORCID",              filterable: false, visible: true,  sortable: false, special: "orcid" },
+      { key: "ror_id",   label: "ROR ID",             filterable: false, visible: false, sortable: false },
+      { key: "ror_name", label: "ROR Institution",    filterable: true,  visible: false, sortable: true },
+      { key: "latitude", label: "Latitude",           filterable: false, visible: false, sortable: false },
+      { key: "longitude",label: "Longitude",          filterable: false, visible: false, sortable: false },
+    ];
+
+    const ROLE_LABELS = {
+      "editor_in_chief": "Editor-in-Chief", "associate_editor": "Associate Editor",
+      "editorial_board_member": "Board Member", "section_editor": "Section Editor",
+      "reviewing_editor": "Reviewing Editor", "deputy_editor": "Deputy Editor",
+      "guest_editor": "Guest Editor", "editor": "Editor", "other": "Other",
+    };
+    const formatRole = (r) => ROLE_LABELS[r] || r.replace(/_/g, " ");
+    const esc = (s) => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+    // ─── State ───
+    let pageSize = 25;
+    let db, conn;
+    let page = 0;
+    let totalCount = 0;
+    let sortCol = "";
+    let sortAsc = true;
+    // Filter model: columnFilters[key] describes ONE column's filter as an
+    // object, so a column can hold several selected values at once:
+    //   { mode: "in",       values: ["Oxford University", ...] }  -> col IN (...)
+    //   { mode: "contains", contains: "Oxford" }                  -> col ILIKE '%..%'
+    // A missing key means the column is unfiltered. filterTerms[key] holds
+    // the text currently typed in an autocomplete input (separate from the
+    // applied filter, so it survives header re-renders).
+    let columnFilters = {};
+    let filterTerms = {};
+    let mapCountryFilter = "";
+    let mapCityFilter = "";
+    let visibleCols = COLUMNS.map(c => c.visible);
+
+    // Distinct role/gender values, filled from the data at init so the
+    // fixed-choice dropdowns always list exactly what's present.
+    let roleOptions = [];
+    let genderOptions = [];
+
+    // Which kind of filter control a column gets.
+    const CHOICE_COLS = new Set(["role_std", "gender"]);
+    function filterKind(col) {
+      if (!col.filterable) return null;
+      return CHOICE_COLS.has(col.key) ? "choice" : "auto";
+    }
+    function choiceOptions(key) {
+      return key === "role_std" ? roleOptions : genderOptions;
+    }
+
+    // Is a column's filter object actually constraining anything?
+    function filterActive(f) {
+      if (!f) return false;
+      if (f.mode === "contains") return !!(f.contains && f.contains.trim());
+      if (f.mode === "in") return Array.isArray(f.values) && f.values.length > 0;
+      return false;
+    }
+    function anyColumnFilter() {
+      return Object.values(columnFilters).some(filterActive);
+    }
+    // Short human summary of a column's active filter (for chips + controls).
+    function filterSummary(key) {
+      const f = columnFilters[key];
+      if (!filterActive(f)) return "";
+      if (f.mode === "contains") return `contains “${f.contains.trim()}”`;
+      const labelOf = (v) => key === "role_std" ? formatRole(v)
+        : (key === "gender" ? (v.charAt(0).toUpperCase() + v.slice(1)) : v);
+      if (f.values.length === 1) return labelOf(f.values[0]);
+      return `${f.values.length} selected`;
+    }
+    // Mutate a column's IN-set by toggling one exact value on/off.
+    function toggleInValue(key, value, on) {
+      const cur = (columnFilters[key] && columnFilters[key].mode === "in")
+        ? [...columnFilters[key].values] : [];
+      const idx = cur.indexOf(value);
+      if (on && idx < 0) cur.push(value);
+      if (!on && idx >= 0) cur.splice(idx, 1);
+      if (cur.length) columnFilters[key] = { mode: "in", values: cur };
+      else delete columnFilters[key];
+    }
+
+    // ─── Filter dropdown element (portal) ───
+    // A single menu element attached to <body> and positioned under the
+    // active control. Living on the body (not inside the table's
+    // overflow-x-auto wrapper) keeps it from being clipped, and a high
+    // z-index keeps it above the sticky nav. Created up front so the header
+    // controls' listeners (attached during async init) can reference it
+    // even if the user clicks before the module finishes evaluating.
+    let activeFilterKey = null;
+    let activeAnchor = null;
+    const filterMenu = document.createElement("div");
+    filterMenu.id = "oep-filter-menu";
+    filterMenu.className = "hidden fixed z-[9999] bg-white border border-border rounded-lg shadow-xl p-1.5 text-xs overflow-y-auto";
+    filterMenu.style.maxHeight = "min(340px, 60vh)";
+    document.body.appendChild(filterMenu);
+
+    // Close when clicking outside the menu and its anchor.
+    document.addEventListener("click", (e) => {
+      if (!activeFilterKey) return;
+      if (filterMenu.contains(e.target)) return;
+      if (activeAnchor && activeAnchor.contains(e.target)) return;
+      closeFilterMenu();
+    });
+    // Any scroll (page or table) or resize closes the menu — cheaper and
+    // less error-prone than continuously repositioning it. Scrolling *inside*
+    // the menu (long value lists exceed its max-height) must NOT close it, so
+    // ignore scroll events that originate within the menu itself. This is a
+    // capturing listener, so e.target is the actual scrolled element.
+    window.addEventListener("scroll", (e) => {
+      if (!activeFilterKey) return;
+      if (filterMenu.contains(e.target)) return;
+      closeFilterMenu();
+    }, true);
+    window.addEventListener("resize", () => { if (activeFilterKey) closeFilterMenu(); });
+
+    // ─── Init DuckDB ───
+    const statusEl = document.getElementById("load-status");
+    try {
+      statusEl.textContent = "Loading DuckDB engine...";
+      const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+      const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+      const worker = await duckdb.createWorker(bundle.mainWorker);
+      const logger = new duckdb.ConsoleLogger();
+      db = new duckdb.AsyncDuckDB(logger, worker);
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      conn = await db.connect();
+
+      statusEl.textContent = "Loading dataset (27 MB)...";
+      // parquetHash is injected at build time (see frontmatter) and changes
+      // whenever editors.parquet changes, so a new URL defeats HTTP range
+      // caches that would otherwise mix stale bytes with fresh ones.
+      const parquetUrl = new URL("/data/editors.parquet?v=" + parquetHash, window.location.origin).href;
+      await db.registerFileURL("editors.parquet", parquetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
+      await conn.query("CREATE TABLE editors AS SELECT * FROM 'editors.parquet'");
+
+      const countResult = await conn.query("SELECT COUNT(*) as n FROM editors");
+      totalCount = Number(countResult.toArray()[0].n);
+      statusEl.textContent = `${totalCount.toLocaleString()} editor positions loaded. Use filters to explore.`;
+
+      // Enumerate the fixed-choice columns from the data so their dropdowns
+      // list exactly the values that exist (and their frequencies).
+      // role_std is nominally standardized but the raw data still carries a
+      // long tail of publisher-specific junk titles (and even a stray bio).
+      // Restrict the picker to the canonical roles (ROLE_LABELS), which
+      // cover ~99.6% of positions, so it stays a clean "pick a role" list.
+      const roleRes = await conn.query("SELECT role_std AS v, COUNT(*) AS n FROM editors WHERE role_std IS NOT NULL AND role_std <> '' GROUP BY role_std ORDER BY n DESC");
+      roleOptions = roleRes.toArray()
+        .map(r => ({ value: String(r.v), label: formatRole(String(r.v)), n: Number(r.n) }))
+        .filter(o => ROLE_LABELS[o.value]);
+      const genderRes = await conn.query("SELECT gender AS v, COUNT(*) AS n FROM editors WHERE gender IS NOT NULL AND gender <> '' GROUP BY gender ORDER BY n DESC");
+      genderOptions = genderRes.toArray().map(r => ({ value: String(r.v), label: (String(r.v).charAt(0).toUpperCase() + String(r.v).slice(1)), n: Number(r.n) }));
+
+      // Read URL params for pre-filtering (e.g., ?country=Japan&publisher=Elsevier).
+      // Deep links carry exact canonical values, so map each to an exact-match
+      // selection (mode "in") rather than a substring search.
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("country")) { mapCountryFilter = urlParams.get("country"); }
+      if (urlParams.get("city")) { mapCityFilter = urlParams.get("city"); }
+      for (const key of ["publisher", "ror_country", "scientific_field", "editor", "journal", "role_std", "ror_city", "gender", "ror_id", "ror_name", "orcid"]) {
+        const val = urlParams.get(key);
+        if (val) {
+          columnFilters[key] = { mode: "in", values: [val] };
+          filterTerms[key] = val;
+        }
+      }
+      // Also treat ror_country param as map country filter for map centering
+      if (!mapCountryFilter && urlParams.get("ror_country")) {
+        mapCountryFilter = urlParams.get("ror_country");
+      }
+      if (mapCountryFilter || mapCityFilter || anyColumnFilter()) {
+        showResetButton();
+        updateFilterChips();
+      }
+
+      buildTableHeaders();
+      await runQuery();
+      await updateCharts();
+
+    } catch (e) {
+      statusEl.textContent = `Error: ${e.message}. Try refreshing.`;
+      console.error(e);
+    }
+
+    // ─── Build SQL WHERE clause ───
+    function buildWhere() {
+      const conditions = [];
+      if (mapCountryFilter) {
+        conditions.push(`ror_country = '${mapCountryFilter.replace(/'/g, "''")}'`);
+      }
+      if (mapCityFilter) {
+        conditions.push(`ror_city = '${mapCityFilter.replace(/'/g, "''")}'`);
+      }
+      const sq = (s) => String(s).replace(/'/g, "''");
+      for (const [key, f] of Object.entries(columnFilters)) {
+        if (!filterActive(f)) continue;
+        if (f.mode === "contains") {
+          const t = sq(f.contains.trim());
+          if (key === "affiliation") {
+            conditions.push(`(affiliation ILIKE '%${t}%' OR ror_name ILIKE '%${t}%')`);
+          } else {
+            conditions.push(`${key} ILIKE '%${t}%'`);
+          }
+        } else {
+          const list = f.values.map(v => `'${sq(v)}'`).join(", ");
+          if (key === "affiliation") {
+            // Suggestions come from ROR canonical names; also match the raw
+            // affiliation text so a selected name catches unmatched rows too.
+            conditions.push(`(ror_name IN (${list}) OR affiliation IN (${list}))`);
+          } else {
+            conditions.push(`${key} IN (${list})`);
+          }
+        }
+      }
+      return conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+    }
+
+    function buildOrderBy() {
+      if (!sortCol) return "ORDER BY editor";
+      const dir = sortAsc ? "ASC" : "DESC";
+      if (sortCol === "h_index") return `ORDER BY TRY_CAST(h_index AS INTEGER) ${dir} NULLS LAST`;
+      return `ORDER BY ${sortCol} ${dir}`;
+    }
+
+    // ─── Run query ───
+    async function runQuery() {
+      if (!conn) return;
+      const where = buildWhere();
+      const orderBy = buildOrderBy();
+      const offset = page * pageSize;
+
+      // Count
+      const countRes = await conn.query(`SELECT COUNT(*) as n FROM editors ${where}`);
+      const filteredCount = Number(countRes.toArray()[0].n);
+
+      // Data
+      const cols = COLUMNS.map(c => c.key).join(", ");
+      const dataRes = await conn.query(`SELECT ${cols} FROM editors ${where} ${orderBy} LIMIT ${pageSize} OFFSET ${offset}`);
+      const rows = dataRes.toArray().map(r => {
+        const obj = {};
+        COLUMNS.forEach(c => { obj[c.key] = r[c.key] ?? ""; });
+        return obj;
+      });
+
+      renderTable(rows, filteredCount, offset);
+    }
+
+    // ─── Update charts from filtered data ───
+    async function updateCharts() {
+      if (!conn) return;
+      const where = buildWhere();
+
+      // Gender
+      const gWhere = where ? `${where} AND gender != ''` : "WHERE gender != ''";
+      const gRes = await conn.query(`SELECT gender, COUNT(*) as n FROM editors ${gWhere} GROUP BY gender ORDER BY n DESC`);
+      const gData = {};
+      gRes.toArray().forEach(r => { gData[r.gender] = Number(r.n); });
+      renderGenderChart(gData);
+
+      // Publishers
+      const pRes = await conn.query(`SELECT publisher, COUNT(*) as n FROM editors ${where} GROUP BY publisher ORDER BY n DESC LIMIT 8`);
+      const pData = pRes.toArray().map(r => ({ publisher: r.publisher, count: Number(r.n) }));
+      renderPublisherChart(pData);
+    }
+
+    // ─── Re-query city-level aggregates for the map ───
+    // Called whenever filters change so the map reflects the same subset
+    // as the table and charts. On an unfiltered view we could use the
+    // pre-built /api/map.json, but once any filter is active (column,
+    // map, or URL-param) the map has to come from DuckDB. Capped at 2000
+    // cities so the marker layer stays responsive.
+    async function queryFilteredMapPoints() {
+      if (!conn) return null;
+      const where = buildWhere();
+      // latitude/longitude are stored as DOUBLE in the parquet (they get
+      // inferred from the CSV by pandas). Use IS NOT NULL rather than
+      // a string-empty check or we get a type-mismatch and zero rows.
+      const whereGeo = where
+        ? `${where} AND latitude IS NOT NULL AND longitude IS NOT NULL`
+        : "WHERE latitude IS NOT NULL AND longitude IS NOT NULL";
+      const sql = `
+        SELECT ror_city AS city, ror_country AS country,
+               MAX(latitude)  AS lat,
+               MAX(longitude) AS lon,
+               COUNT(*) AS records,
+               COUNT(DISTINCT editor) AS editors
+        FROM editors
+        ${whereGeo}
+        GROUP BY ror_city, ror_country
+        ORDER BY records DESC
+        LIMIT 2000`;
+      const res = await conn.query(sql);
+      return res.toArray().map(r => ({
+        city: r.city || "",
+        country: r.country || "",
+        lat: Number(r.lat),
+        lon: Number(r.lon),
+        records: Number(r.records),
+        editors: Number(r.editors),
+      })).filter(d => Number.isFinite(d.lat) && Number.isFinite(d.lon) && d.lat !== 0 && d.lon !== 0);
+    }
+
+    // ─── Charts ───
+    function renderGenderChart(dist) {
+      const total = Object.values(dist).reduce((a, b) => a + b, 0);
+      const colors = { male: "#4c6ef5", female: "#e64980", andy: "#fab005", unknown: "#adb5bd" };
+      const labels = { male: "Male", female: "Female", andy: "Androgynous", unknown: "Unknown" };
+      document.getElementById("gender-chart").innerHTML = '<div class="space-y-1.5">' +
+        Object.entries(dist).filter(([,v]) => v > 0).map(([k, v]) => {
+          const pct = total > 0 ? ((v / total) * 100).toFixed(1) : "0";
+          return `<div class="flex items-center gap-2">
+            <span class="w-20 text-xs font-medium" style="color:${colors[k]||'#999'}">${labels[k] || k}</span>
+            <div class="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+              <div class="h-full rounded-full" style="width:${pct}%;background:${colors[k]||'#999'}"></div>
+            </div>
+            <span class="text-xs text-gray-500 w-12 text-right">${pct}%</span>
+          </div>`;
+        }).join("") + '</div>';
+    }
+
+    function jsSlugify(name) {
+      return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+
+    function renderPublisherChart(items) {
+      const maxVal = items[0]?.count || 1;
+      document.getElementById("publisher-chart").innerHTML = '<div class="space-y-1">' +
+        items.map(p => `<div class="flex items-center gap-2">
+          <a href="/publisher/${jsSlugify(p.publisher)}" target="_blank" rel="noopener" class="w-28 text-xs font-medium truncate text-brand-600 hover:underline" title="${esc(p.publisher)}">${esc(p.publisher)}</a>
+          <div class="flex-1 bg-gray-100 rounded-full h-3.5 overflow-hidden">
+            <div class="h-full bg-brand-500 rounded-full" style="width:${((p.count / maxVal) * 100).toFixed(0)}%"></div>
+          </div>
+          <span class="text-xs text-gray-500 w-14 text-right">${p.count.toLocaleString()}</span>
+        </div>`).join("") + '</div>';
+    }
+
+    // ─── Map ───
+    const [mapRes, summaryRes] = await Promise.all([
+      fetch("/api/map.json").then(r => r.json()),
+      fetch("/api/summary.json").then(r => r.json()),
+    ]);
+
+    const L = await import("https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js");
+    const map = L.map("map", { scrollWheelZoom: false, tap: true }).setView([20, 0], 2);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a>', maxZoom: 18,
+    }).addTo(map);
+
+    // ``maxR`` drives marker sizing. Computed from the unfiltered dataset
+    // so that markers in filtered views stay visually comparable to the
+    // unfiltered baseline (a single institution's city doesn't balloon
+    // to the max radius just because it's the largest in its subset).
+    const maxR = Math.max(...mapRes.map(d => d.records));
+    const markers = [];
+    function markerRadius(records, zoom) {
+      const base = Math.max(1, Math.sqrt(records / maxR) * 18);
+      const zoomScale = Math.max(1, (zoom - 1) * 0.7);
+      return Math.max(3, base * zoomScale);
+    }
+
+    function addMarker(d) {
+      if (!d.lat || !d.lon) return;
+      const r = markerRadius(d.records, map.getZoom());
+      const marker = L.circleMarker([d.lat, d.lon], {
+        radius: r, fillColor: "#4c6ef5", color: "#3b5bdb", weight: 1, fillOpacity: 0.45,
+      }).addTo(map);
+      marker._oepRecords = d.records;
+      marker._oepCountry = d.country;
+      markers.push(marker);
+      const label = d.city ? `${d.city}, ${d.country}` : d.country;
+      marker.bindPopup(`<strong>${label}</strong><br>${d.records.toLocaleString()} positions<br>${d.editors.toLocaleString()} editors`);
+      marker.on("click", () => {
+        if (d.city) {
+          mapCityFilter = d.city;
+          mapCountryFilter = d.country;
+        } else {
+          mapCityFilter = "";
+          mapCountryFilter = d.country;
+        }
+        page = 0;
+        showResetButton();
+        updateFilterChips();
+        runQuery();
+        updateCharts();
+        // Map-only drill-down: keep all markers so the user can click
+        // another city to switch the filter. Don't redrawMap() here.
+      });
+    }
+
+    function clearMarkers() {
+      for (const m of markers) m.remove();
+      markers.length = 0;
+    }
+
+    // Initial unfiltered draw from the pre-built JSON (fast first paint).
+    mapRes.forEach(addMarker);
+
+    // Re-query DuckDB for city-level aggregates and replace markers.
+    // Called whenever a non-map filter changes so the map stays in sync
+    // with the table and charts. Skipped for pure map-click drill-downs.
+    async function redrawMap() {
+      const pts = await queryFilteredMapPoints();
+      if (!pts) return;
+      clearMarkers();
+      pts.forEach(addMarker);
+      if (pts.length === 0) return;
+      // Fit the view to whatever's left after filtering.
+      const bounds = L.latLngBounds(pts.map(p => [p.lat, p.lon]));
+      map.flyToBounds(bounds, { padding: [40, 40], maxZoom: 8, duration: 0.8 });
+    }
+
+    function hasNonMapFilter() {
+      return anyColumnFilter();
+    }
+
+    // Resize markers on zoom
+    map.on("zoomend", () => {
+      const z = map.getZoom();
+      markers.forEach(m => m.setRadius(markerRadius(m._oepRecords, z)));
+    });
+
+    // Center map on a country
+    function centerMapOnCountry(countryName) {
+      if (!countryName) return;
+      const countryMarkers = markers.filter(m => m._oepCountry === countryName);
+      if (countryMarkers.length > 0) {
+        const bounds = L.latLngBounds(countryMarkers.map(m => m.getLatLng()));
+        map.flyToBounds(bounds, { padding: [40, 40], maxZoom: 6, duration: 1 });
+      }
+    }
+
+    // If URL params introduced a non-map filter (e.g. ?ror_id=...), the
+    // initial marker set from /api/map.json doesn't reflect that filter.
+    // Redraw from DuckDB now that the map is ready. A pure country/city
+    // URL filter doesn't need a redraw — centerMapOnCountry handles it.
+    if (hasNonMapFilter()) {
+      redrawMap();
+    } else if (mapCountryFilter) {
+      centerMapOnCountry(mapCountryFilter);
+    }
+
+    // ─── Filter chips ───
+    function updateFilterChips() {
+      const container = document.getElementById("filter-chips");
+      const chips = [];
+      if (mapCityFilter || mapCountryFilter) {
+        const mapLabel = mapCityFilter ? `${mapCityFilter}, ${mapCountryFilter}` : mapCountryFilter;
+        chips.push(`<span class="inline-flex items-center gap-1 px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-full border border-brand-200">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <strong>${esc(mapLabel)}</strong>
+          <button data-clear="map" class="hover:text-red-600 ml-1">&times;</button>
+        </span>`);
+      }
+      for (const [key, f] of Object.entries(columnFilters)) {
+        if (!filterActive(f)) continue;
+        const col = COLUMNS.find(c => c.key === key);
+        const label = (col?.label || key).replace(/\(inferred\*\)/, "").trim();
+        chips.push(`<span class="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-text-secondary text-xs rounded-full border border-border">
+          <strong>${esc(label)}:</strong> ${esc(filterSummary(key))}
+          <button data-clear-col="${key}" class="hover:text-red-600">&times;</button>
+        </span>`);
+      }
+      container.innerHTML = chips.join("");
+      container.classList.toggle("hidden", chips.length === 0);
+      container.querySelectorAll("[data-clear='map']").forEach(b =>
+        b.addEventListener("click", () => {
+          mapCountryFilter = ""; mapCityFilter = ""; page = 0;
+          updateFilterChips(); showResetButton(); runQuery(); updateCharts();
+          // If any column filter is still active, keep the map in sync
+          // with it; otherwise reset to the full unfiltered marker set.
+          if (hasNonMapFilter()) redrawMap();
+          else resetMapToUnfiltered();
+        })
+      );
+      container.querySelectorAll("[data-clear-col]").forEach(b =>
+        b.addEventListener("click", () => {
+          const k = b.dataset.clearCol;
+          delete columnFilters[k]; delete filterTerms[k]; page = 0;
+          updateFilterChips(); showResetButton(); buildTableHeaders();
+          runQuery(); updateCharts();
+          if (hasNonMapFilter() || mapCityFilter || mapCountryFilter) redrawMap();
+          else resetMapToUnfiltered();
+        })
+      );
+    }
+
+    // Restore the pre-built unfiltered marker set (used when every
+    // filter has been cleared). Avoids an extra DuckDB round-trip.
+    function resetMapToUnfiltered() {
+      clearMarkers();
+      mapRes.forEach(addMarker);
+      map.flyTo([20, 0], 2, { duration: 0.6 });
+    }
+
+    function showResetButton() {
+      const has = mapCountryFilter || mapCityFilter || anyColumnFilter();
+      document.getElementById("reset-filters").classList.toggle("hidden", !has);
+      document.getElementById("reset-filters").classList.toggle("inline-flex", !!has);
+    }
+
+    // ─── Column picker ───
+    const colPickerBtn = document.getElementById("col-picker-btn");
+    const colPickerMenu = document.getElementById("col-picker-menu");
+    document.getElementById("col-checkboxes").innerHTML = COLUMNS.map((c, i) =>
+      `<label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" data-ci="${i}" ${visibleCols[i] ? 'checked' : ''} class="rounded border-gray-300 text-brand-600">
+        <span class="text-xs">${c.label.replace(/\(inferred\*\)/, "").trim()}</span>
+      </label>`
+    ).join("");
+    colPickerBtn.addEventListener("click", (e) => { e.stopPropagation(); colPickerMenu.classList.toggle("hidden"); });
+    document.addEventListener("click", () => colPickerMenu.classList.add("hidden"));
+    colPickerMenu.addEventListener("click", (e) => e.stopPropagation());
+    document.getElementById("col-checkboxes").addEventListener("change", (e) => {
+      visibleCols[parseInt(e.target.dataset.ci)] = e.target.checked;
+      buildTableHeaders(); runQuery();
+    });
+
+    // ─── Table headers (combined label + filter in one row) ───
+    function buildTableHeaders() {
+      let hHTML = "";
+      COLUMNS.forEach((col, i) => {
+        if (!visibleCols[i]) return;
+        const isSorted = sortCol === col.key;
+        const arrow = col.sortable
+          ? (isSorted ? (sortAsc ? ' &#9650;' : ' &#9660;') : '')
+          : '';
+        const sortClass = col.sortable ? 'cursor-pointer hover:text-brand-600' : '';
+        const sortedClass = isSorted ? 'text-brand-600' : 'text-text-muted';
+        const kind = filterKind(col);
+        const active = filterActive(columnFilters[col.key]);
+        let filterControl = "";
+        if (kind === "choice") {
+          // Fixed-choice column (Role, Gender): a button that opens a
+          // checkbox dropdown of the actual distinct values.
+          const summary = active ? filterSummary(col.key) : "All";
+          const activeCls = active ? "text-brand-700 border-brand-300 bg-brand-50" : "text-text-secondary";
+          filterControl = `<button type="button" data-fk="${col.key}" data-ftype="choice" class="mt-1 w-full flex items-center justify-between gap-1 text-[11px] border border-border rounded px-1.5 py-1 bg-white hover:bg-surface-dim font-normal normal-case tracking-normal ${activeCls}">
+            <span data-fdisplay class="truncate">${esc(summary)}</span>
+            <svg class="w-3 h-3 flex-shrink-0 text-text-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+          </button>`;
+        } else if (kind === "auto") {
+          // Free-text column: type to get matching-value suggestions.
+          const term = filterTerms[col.key] || "";
+          const f = columnFilters[col.key];
+          const badge = active
+            ? `<span data-fbadge="${col.key}" class="absolute right-1 top-1/2 -translate-y-1/2 min-w-[15px] h-[15px] px-1 flex items-center justify-center text-[9px] font-semibold text-white bg-brand-600 rounded-full">${f.mode === "in" ? f.values.length : "✓"}</span>`
+            : `<span data-fbadge="${col.key}" class="hidden absolute right-1 top-1/2 -translate-y-1/2 min-w-[15px] h-[15px] px-1 items-center justify-center text-[9px] font-semibold text-white bg-brand-600 rounded-full"></span>`;
+          filterControl = `<div class="relative mt-1">
+            <input type="text" data-fk="${col.key}" data-ftype="auto" placeholder="Filter..." autocomplete="off" class="w-full text-[11px] border ${active ? 'border-brand-300' : 'border-border'} rounded px-1.5 py-1 pr-5 bg-white focus:outline-none focus:ring-1 focus:ring-brand-500/30 font-normal normal-case tracking-normal" value="${esc(term)}">
+            ${badge}
+          </div>`;
+        }
+        hHTML += `<th class="text-left py-1.5 px-2 align-top">
+          <div ${col.sortable ? `data-sk="${col.key}"` : ''} class="text-[10px] sm:text-xs uppercase tracking-wide font-semibold whitespace-nowrap select-none ${sortedClass} ${sortClass}">${col.label}${arrow}</div>
+          ${filterControl}
+        </th>`;
+      });
+      document.getElementById("header-row").innerHTML = hHTML;
+
+      // Sort click handlers
+      document.querySelectorAll("[data-sk]").forEach(div => {
+        div.addEventListener("click", () => {
+          const k = div.dataset.sk;
+          if (sortCol === k) sortAsc = !sortAsc; else { sortCol = k; sortAsc = true; }
+          page = 0; buildTableHeaders(); runQuery();
+        });
+      });
+
+      // Fixed-choice controls (open the checkbox dropdown)
+      document.querySelectorAll('button[data-ftype="choice"]').forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const key = btn.dataset.fk;
+          if (activeFilterKey === key) { closeFilterMenu(); return; }
+          openFilterMenu(key, btn);
+          renderChoiceMenu(key);
+        });
+      });
+
+      // Autocomplete controls (type to search for matching values)
+      document.querySelectorAll('input[data-ftype="auto"]').forEach(inp => {
+        const key = inp.dataset.fk;
+        inp.addEventListener("click", (e) => e.stopPropagation());
+        inp.addEventListener("focus", () => {
+          openFilterMenu(key, inp);
+          renderAutoMenu(key, inp.value);
+        });
+        inp.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") { inp.blur(); closeFilterMenu(); }
+          // Enter = "select all matching" the typed term (contains filter).
+          if (e.key === "Enter" && inp.value.trim()) {
+            columnFilters[key] = { mode: "contains", contains: inp.value.trim() };
+            filterTerms[key] = inp.value;
+            onFilterChanged(); updateFilterControlDisplay(key);
+            if (activeFilterKey === key) renderAutoMenu(key, inp.value);
+          }
+        });
+        let dt;
+        inp.addEventListener("input", () => {
+          filterTerms[key] = inp.value;
+          openFilterMenu(key, inp);
+          clearTimeout(dt);
+          dt = setTimeout(() => { if (activeFilterKey === key) renderAutoMenu(key, inp.value); }, 250);
+        });
+      });
+    }
+
+    // ─── Filter dropdown (portal) ───
+    function positionFilterMenu(anchor) {
+      const r = anchor.getBoundingClientRect();
+      const width = Math.min(360, Math.max(220, r.width));
+      let left = r.left;
+      // Clamp so the menu never overflows the right edge of the viewport.
+      left = Math.min(left, window.innerWidth - width - 8);
+      left = Math.max(8, left);
+      filterMenu.style.left = left + "px";
+      filterMenu.style.top = (r.bottom + 4) + "px";
+      filterMenu.style.width = width + "px";
+    }
+    function openFilterMenu(key, anchor) {
+      activeFilterKey = key;
+      activeAnchor = anchor;
+      positionFilterMenu(anchor);
+      filterMenu.classList.remove("hidden");
+    }
+    function closeFilterMenu() {
+      filterMenu.classList.add("hidden");
+      activeFilterKey = null;
+      activeAnchor = null;
+    }
+    function menuHeader(key, label) {
+      return `<div class="flex items-center justify-between gap-2 px-1 pb-1 mb-1 border-b border-border">
+        <span class="font-semibold text-[11px] text-text-secondary uppercase tracking-wide">${esc(label)}</span>
+        <button type="button" data-act="clear" class="text-[10px] text-brand-600 hover:underline">Clear</button>
+      </div>`;
+    }
+
+    // Fixed-choice dropdown (Role / Gender): one checkbox per distinct value.
+    function renderChoiceMenu(key) {
+      const col = COLUMNS.find(c => c.key === key);
+      const opts = choiceOptions(key);
+      const f = columnFilters[key];
+      const sel = new Set(f && f.mode === "in" ? f.values : []);
+      const label = (col.label || key).replace(/\(inferred\*\)/, "").trim();
+      let html = menuHeader(key, label);
+      if (opts.length === 0) {
+        html += `<div class="px-1 py-2 text-text-muted">No values</div>`;
+      } else {
+        html += opts.map(o => `<label class="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-dim cursor-pointer">
+          <input type="checkbox" data-val="${esc(o.value)}" ${sel.has(o.value) ? "checked" : ""} class="rounded border-gray-300 text-brand-600">
+          <span class="flex-1 truncate" title="${esc(o.label)}">${esc(o.label)}</span>
+          <span class="text-[10px] text-text-muted tabular-nums">${o.n.toLocaleString()}</span>
+        </label>`).join("");
+      }
+      filterMenu.innerHTML = html;
+      wireMenuClear(key);
+      filterMenu.querySelectorAll("input[data-val]").forEach(inp => {
+        inp.addEventListener("change", () => {
+          toggleInValue(key, inp.dataset.val, inp.checked);
+          onFilterChanged(); updateFilterControlDisplay(key);
+        });
+      });
+    }
+
+    // Autocomplete dropdown: distinct matching values queried live from DuckDB.
+    async function renderAutoMenu(key, term) {
+      const col = COLUMNS.find(c => c.key === key);
+      const t = (term || "").trim();
+      const f = columnFilters[key];
+      const selValues = new Set(f && f.mode === "in" ? f.values : []);
+      const containsActive = !!(f && f.mode === "contains" && f.contains.trim().toLowerCase() === t.toLowerCase());
+      const label = (col.label || key).replace(/\(inferred\*\)/, "").trim();
+
+      filterMenu.innerHTML = menuHeader(key, label) + `<div class="px-1 py-2 text-text-muted">Searching…</div>`;
+      const sugg = await fetchSuggestions(key, t);
+      // Bail out if the user moved on to another control meanwhile.
+      if (activeFilterKey !== key) return;
+
+      let html = menuHeader(key, label);
+      if (t) {
+        html += `<label class="flex items-center gap-2 px-1 py-1 mb-1 rounded hover:bg-brand-50 cursor-pointer border-b border-border">
+          <input type="checkbox" data-selall ${containsActive ? "checked" : ""} class="rounded border-gray-300 text-brand-600">
+          <span class="font-medium">Select all matching “${esc(t)}”</span>
+        </label>`;
+      }
+      if (sugg.length === 0) {
+        html += `<div class="px-1 py-2 text-text-muted">${t ? "No matches" : "Type to search…"}</div>`;
+      } else {
+        html += sugg.map(s => `<label class="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-dim cursor-pointer">
+          <input type="checkbox" data-val="${esc(s.v)}" ${(!containsActive && selValues.has(s.v)) ? "checked" : ""} ${containsActive ? "disabled" : ""} class="rounded border-gray-300 text-brand-600">
+          <span class="flex-1 truncate" title="${esc(s.v)}">${esc(s.v)}</span>
+          <span class="text-[10px] text-text-muted tabular-nums">${s.n.toLocaleString()}</span>
+        </label>`).join("");
+      }
+      filterMenu.innerHTML = html;
+      wireMenuClear(key);
+
+      const selAll = filterMenu.querySelector("input[data-selall]");
+      if (selAll) {
+        selAll.addEventListener("change", () => {
+          if (selAll.checked) columnFilters[key] = { mode: "contains", contains: t };
+          else delete columnFilters[key];
+          onFilterChanged(); updateFilterControlDisplay(key);
+          renderAutoMenu(key, term); // refresh so per-value boxes enable/disable
+        });
+      }
+      filterMenu.querySelectorAll("input[data-val]").forEach(inp => {
+        inp.addEventListener("change", () => {
+          toggleInValue(key, inp.dataset.val, inp.checked);
+          onFilterChanged(); updateFilterControlDisplay(key);
+        });
+      });
+    }
+
+    function wireMenuClear(key) {
+      const btn = filterMenu.querySelector("[data-act=clear]");
+      if (!btn) return;
+      btn.addEventListener("click", () => {
+        delete columnFilters[key];
+        onFilterChanged(); updateFilterControlDisplay(key);
+        if (CHOICE_COLS.has(key)) renderChoiceMenu(key);
+        else renderAutoMenu(key, filterTerms[key] || "");
+      });
+    }
+
+    // Distinct values for a column matching `term` (LIMIT 50, most frequent
+    // first). Affiliation suggests from ROR canonical names.
+    async function fetchSuggestions(key, term) {
+      if (!conn) return [];
+      const src = key === "affiliation" ? "ror_name" : key;
+      const like = term ? `AND ${src} ILIKE '%${term.replace(/'/g, "''")}%'` : "";
+      const sql = `SELECT ${src} AS v, COUNT(*) AS n FROM editors
+        WHERE ${src} IS NOT NULL AND ${src} <> '' ${like}
+        GROUP BY ${src} ORDER BY n DESC LIMIT 50`;
+      try {
+        const res = await conn.query(sql);
+        return res.toArray().map(r => ({ v: String(r.v), n: Number(r.n) }));
+      } catch (err) {
+        console.error("suggestion query failed:", err);
+        return [];
+      }
+    }
+
+    // Reflect a column's active selection back onto its header control
+    // without rebuilding the whole header row.
+    function updateFilterControlDisplay(key) {
+      const active = filterActive(columnFilters[key]);
+      const btn = document.querySelector(`button[data-fk="${key}"][data-ftype="choice"]`);
+      if (btn) {
+        const disp = btn.querySelector("[data-fdisplay]");
+        if (disp) disp.textContent = active ? filterSummary(key) : "All";
+        btn.classList.toggle("text-brand-700", active);
+        btn.classList.toggle("border-brand-300", active);
+        btn.classList.toggle("bg-brand-50", active);
+        btn.classList.toggle("text-text-secondary", !active);
+        return;
+      }
+      const badge = document.querySelector(`[data-fbadge="${key}"]`);
+      const input = document.querySelector(`input[data-fk="${key}"][data-ftype="auto"]`);
+      if (badge) {
+        if (active) {
+          const f = columnFilters[key];
+          badge.textContent = f.mode === "in" ? String(f.values.length) : "✓";
+          badge.classList.remove("hidden");
+          badge.classList.add("flex");
+        } else {
+          badge.classList.add("hidden");
+          badge.classList.remove("flex");
+        }
+      }
+      if (input) input.classList.toggle("border-brand-300", active);
+    }
+
+    // Shared post-filter-change work: reset paging, refresh chips/table/
+    // charts, and keep the map in sync.
+    function onFilterChanged() {
+      page = 0;
+      updateFilterChips(); showResetButton(); runQuery(); updateCharts();
+      if (hasNonMapFilter() || mapCityFilter || mapCountryFilter) redrawMap();
+      else resetMapToUnfiltered();
+    }
+
+    // ─── Render table ───
+    function renderTable(rows, filteredCount, offset) {
+      const tbody = document.getElementById("table-body");
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="14" class="py-8 text-center text-text-muted text-sm">No results found</td></tr>';
+      } else {
+        tbody.innerHTML = rows.map((row, ri) => {
+          let cells = "";
+          COLUMNS.forEach((col, ci) => {
+            if (!visibleCols[ci]) return;
+            const val = String(row[col.key] || "");
+            if (col.special === "affiliation") {
+              const raw = String(row.affiliation||"");
+              const rorId = String(row.ror_id||"");
+              const rorName = String(row.ror_name||"");
+              const display = rorName || raw;
+              let h = `<span title="${esc(raw)}">${esc(display)}</span>`;
+              const safeRorId = rorId.startsWith("https://ror.org/") ? rorId : "";
+              if (safeRorId) h += ` <a href="${esc(safeRorId)}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-brand-600 hover:underline">[ROR]</a>`;
+              if (rorName && raw && raw !== rorName) {
+                const uid = "r" + offset + ri;
+                h += ` <button class="text-[10px] text-text-muted hover:text-brand-600" onclick="document.getElementById('${uid}').classList.toggle('hidden')">[raw]</button><div id="${uid}" class="hidden text-[10px] text-text-muted mt-0.5">${esc(raw)}</div>`;
+              }
+              cells += `<td class="py-1.5 px-2 text-xs max-w-[220px]">${h}</td>`;
+            } else if (col.special === "orcid") {
+              const safeOrcid = /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(val) ? val : "";
+              cells += `<td class="py-1.5 px-2 text-xs font-mono">${safeOrcid ? `<a href="https://orcid.org/${esc(safeOrcid)}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(safeOrcid)}</a>` : (val ? esc(val) : '<span class="text-text-muted">—</span>')}</td>`;
+            } else if (col.key === "role_std") {
+              cells += `<td class="py-1.5 px-2 text-xs"><span class="inline-block px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 text-[10px] font-medium" title="${esc(val)}">${esc(formatRole(val))}</span></td>`;
+            } else if (col.key === "gender") {
+              const gc = { male: "text-blue-600", female: "text-pink-600", andy: "text-amber-600", unknown: "text-gray-400" };
+              cells += `<td class="py-1.5 px-2 text-xs ${gc[val]||''}">${val ? val.charAt(0).toUpperCase() + val.slice(1) : '—'}</td>`;
+            } else if (col.key === "h_index") {
+              cells += `<td class="py-1.5 px-2 text-xs text-center tabular-nums">${val || '<span class="text-text-muted">—</span>'}</td>`;
+            } else if (col.key === "ror_country" && val) {
+              cells += `<td class="py-1.5 px-2 text-xs"><a href="/country/${jsSlugify(val)}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(val)}</a></td>`;
+            } else if (col.key === "publisher" && val) {
+              cells += `<td class="py-1.5 px-2 text-xs"><a href="/publisher/${jsSlugify(val)}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(val)}</a></td>`;
+            } else if (col.key === "journal" && val) {
+              const journalUrl = "/journals?q=" + encodeURIComponent(val);
+              cells += `<td class="py-1.5 px-2 text-xs"><a href="${journalUrl}" target="_blank" rel="noopener" class="text-brand-600 hover:underline" title="View journal statistics">${esc(val)}</a></td>`;
+            } else if (col.key === "scientific_field" && val) {
+              cells += `<td class="py-1.5 px-2 text-xs"><a href="/field/${jsSlugify(val)}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(val)}</a></td>`;
+            } else {
+              cells += `<td class="py-1.5 px-2 text-xs text-text-secondary whitespace-nowrap max-w-[180px] truncate" title="${esc(val)}">${esc(val)}</td>`;
+            }
+          });
+          return `<tr class="${ri % 2 ? 'bg-gray-50/40' : ''} hover:bg-brand-50/20 transition-colors">${cells}</tr>`;
+        }).join("");
+      }
+
+      document.getElementById("result-count").textContent = `${filteredCount.toLocaleString()} editor positions`;
+      document.getElementById("page-info").textContent =
+        filteredCount > 0 ? `${offset + 1}–${offset + rows.length} of ${filteredCount.toLocaleString()}` : "";
+      document.getElementById("prev-page").disabled = page === 0;
+      document.getElementById("next-page").disabled = (offset + pageSize) >= filteredCount;
+    }
+
+    // ─── Pagination ───
+    document.getElementById("prev-page").addEventListener("click", () => { page--; runQuery(); });
+    document.getElementById("next-page").addEventListener("click", () => { page++; runQuery(); });
+
+    // ─── Page size ───
+    document.getElementById("page-size-select").addEventListener("change", (e) => {
+      pageSize = parseInt(e.target.value);
+      page = 0;
+      runQuery();
+    });
+
+    // ─── Reset ───
+    document.getElementById("reset-filters").addEventListener("click", () => {
+      mapCountryFilter = ""; mapCityFilter = ""; columnFilters = {}; filterTerms = {}; page = 0; sortCol = ""; sortAsc = true;
+      closeFilterMenu();
+      document.getElementById("reset-filters").classList.add("hidden");
+      document.getElementById("reset-filters").classList.remove("inline-flex");
+      updateFilterChips(); buildTableHeaders(); runQuery(); updateCharts();
+      resetMapToUnfiltered();
+    });
+
+    // ─── Export filtered CSV ───
+    // Runs the same WHERE clause as the table query but over ALL columns
+    // at no row limit, converts the result to RFC-4180 CSV, and triggers
+    // a browser download. Everything happens client-side via the DuckDB
+    // WASM connection — no server round-trip, no backend endpoint.
+    //
+    // Safety rail: if the filtered set is larger than EXPORT_HARD_CAP,
+    // we warn the user and let them confirm. At 500k rows × 16 columns
+    // the CSV is around 45 MB and the browser handles it fine, but
+    // anything larger risks running out of memory on low-end devices.
+    const EXPORT_HARD_CAP = 500_000;
+
+    function csvEscape(value) {
+      if (value === null || value === undefined) return "";
+      const s = String(value);
+      // Quote fields that contain a comma, quote, CR, or LF; double any
+      // internal quotes per RFC 4180.
+      if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    }
+
+    async function exportFilteredCSV() {
+      if (!conn) return;
+      const btn = document.getElementById("export-csv");
+      const label = document.getElementById("export-csv-label");
+      const originalLabel = label.textContent;
+      btn.disabled = true;
+      label.textContent = "Counting rows…";
+
+      try {
+        const where = buildWhere();
+        const countRes = await conn.query(`SELECT COUNT(*) AS n FROM editors ${where}`);
+        const n = Number(countRes.toArray()[0].n);
+
+        if (n === 0) {
+          label.textContent = "No rows match";
+          setTimeout(() => { label.textContent = originalLabel; btn.disabled = false; }, 1500);
+          return;
+        }
+
+        if (n > EXPORT_HARD_CAP) {
+          const ok = confirm(
+            `The current filter matches ${n.toLocaleString()} rows. ` +
+            `Exports larger than ${EXPORT_HARD_CAP.toLocaleString()} rows can be slow ` +
+            `or crash the browser tab on low-memory devices.\n\n` +
+            `Continue anyway?\n\n` +
+            `Tip: narrow the filter first, or grab the full 922k-row dataset from /download.`
+          );
+          if (!ok) {
+            label.textContent = originalLabel;
+            btn.disabled = false;
+            return;
+          }
+        }
+
+        label.textContent = `Exporting ${n.toLocaleString()} rows…`;
+        // Pull every column the explore table knows about (16 cols in
+        // the browser parquet) — not just the visible ones, since the
+        // user presumably wants the raw data for downstream analysis.
+        const cols = COLUMNS.map(c => c.key);
+        const colList = cols.join(", ");
+        const sql = `SELECT ${colList} FROM editors ${where}`;
+        const dataRes = await conn.query(sql);
+        const rows = dataRes.toArray();
+
+        // Build the CSV as a single string. At 500k rows this is about
+        // 45 MB of memory; the browser handles it.
+        const lines = [cols.join(",")];
+        for (const row of rows) {
+          const cells = cols.map(c => csvEscape(row[c] ?? ""));
+          lines.push(cells.join(","));
+        }
+        const csv = lines.join("\r\n") + "\r\n";
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const ts = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `openeditors_plus_filtered_${ts}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // Release the blob URL on next tick so the download dialog
+        // has grabbed its reference first.
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+        label.textContent = `✓ ${n.toLocaleString()} rows exported`;
+        setTimeout(() => { label.textContent = originalLabel; btn.disabled = false; }, 2500);
+      } catch (err) {
+        console.error("CSV export failed:", err);
+        label.textContent = "Export failed — see console";
+        setTimeout(() => { label.textContent = originalLabel; btn.disabled = false; }, 3000);
+      }
+    }
+
+    // Enable the export button once DuckDB is ready + wire the click.
+    const exportBtn = document.getElementById("export-csv");
+    exportBtn.addEventListener("click", exportFilteredCSV);
+    if (conn) {
+      exportBtn.disabled = false;
+    } else {
+      // Poll briefly for the connection to come up — DuckDB-WASM
+      // init happens async and can finish after this listener ran.
+      const t = setInterval(() => {
+        if (conn) {
+          exportBtn.disabled = false;
+          clearInterval(t);
+        }
+      }, 250);
+      setTimeout(() => clearInterval(t), 60_000);
+    }
+  </script>
+</Base>

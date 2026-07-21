@@ -1,0 +1,50 @@
+---
+import Base from "../../layouts/Base.astro";
+import { slugify } from "../../lib/slugify";
+import fields from "../../../public/api/fields.json";
+const bySize = [...fields].sort((a, b) => b.records - a.records);
+const byName = [...fields].sort((a, b) => a.field.localeCompare(b.field));
+---
+<Base title="Scientific Fields - Open Editors Plus" path="field">
+  <div class="max-w-5xl mx-auto px-4 py-12">
+    <div class="flex items-center justify-between mb-8">
+      <h1 class="text-3xl font-bold">Scientific Fields</h1>
+      <div class="flex gap-2">
+        <button id="sort-size" class="px-3 py-1.5 text-xs font-medium border border-brand-500 text-brand-700 bg-brand-50 rounded-lg">By positions</button>
+        <button id="sort-alpha" class="px-3 py-1.5 text-xs font-medium border border-border text-text-secondary rounded-lg hover:bg-surface-dim">A-Z</button>
+      </div>
+    </div>
+    <div id="list-size" class="space-y-2">
+      {bySize.map((f) => (
+        <a href={"/field/" + slugify(f.field)} class="flex justify-between items-center p-3 rounded-lg hover:bg-brand-50 transition-colors border border-border">
+          <span class="font-medium text-brand-700">{f.field}</span>
+          <span class="text-sm text-text-muted">{f.records.toLocaleString() + " positions"}</span>
+        </a>
+      ))}
+    </div>
+    <div id="list-alpha" class="space-y-2 hidden">
+      {byName.map((f) => (
+        <a href={"/field/" + slugify(f.field)} class="flex justify-between items-center p-3 rounded-lg hover:bg-brand-50 transition-colors border border-border">
+          <span class="font-medium text-brand-700">{f.field}</span>
+          <span class="text-sm text-text-muted">{f.records.toLocaleString() + " positions"}</span>
+        </a>
+      ))}
+    </div>
+  </div>
+  <script>
+    const btnSize = document.getElementById("sort-size");
+    const btnAlpha = document.getElementById("sort-alpha");
+    const listSize = document.getElementById("list-size");
+    const listAlpha = document.getElementById("list-alpha");
+    btnSize.addEventListener("click", () => {
+      listSize.classList.remove("hidden"); listAlpha.classList.add("hidden");
+      btnSize.classList.add("border-brand-500","text-brand-700","bg-brand-50"); btnSize.classList.remove("border-border","text-text-secondary");
+      btnAlpha.classList.remove("border-brand-500","text-brand-700","bg-brand-50"); btnAlpha.classList.add("border-border","text-text-secondary");
+    });
+    btnAlpha.addEventListener("click", () => {
+      listAlpha.classList.remove("hidden"); listSize.classList.add("hidden");
+      btnAlpha.classList.add("border-brand-500","text-brand-700","bg-brand-50"); btnAlpha.classList.remove("border-border","text-text-secondary");
+      btnSize.classList.remove("border-brand-500","text-brand-700","bg-brand-50"); btnSize.classList.add("border-border","text-text-secondary");
+    });
+  </script>
+</Base>
