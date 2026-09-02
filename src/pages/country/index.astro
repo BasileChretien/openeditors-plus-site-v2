@@ -300,10 +300,14 @@ const fieldList = [...fields]
         minZoom: 1,
         worldCopyJump: true,
         zoomControl: true,
-        attributionControl: false,
+        attributionControl: true,
       });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png", {
-        subdomains: "abcd",
+      map.attributionControl.setPrefix("");
+      // Esri's Light Gray Canvas: keyless, and visually equivalent to the
+      // CARTO Positron basemap this used to use. CARTO's free CDN started
+      // stamping "API KEY REQUIRED" across unauthenticated tiles.
+      L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Tiles &copy; Esri",
         maxZoom: 10,
       }).addTo(map);
       return map;
