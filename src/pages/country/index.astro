@@ -293,24 +293,26 @@ const fieldList = [...fields]
       return geoJsonCache;
     }
 
+    // These five maps carry no basemap on purpose. Each one paints every
+    // country from world-countries.geojson at fillOpacity 0.85, which erases
+    // essentially all tile detail underneath -- the raster layer cost five
+    // third-party request streams and bought nothing but a label clash: tile
+    // providers bake country names in from z3 up, and those bleed through the
+    // fill as ghosted grey text (worst against the dark ramp stops). The
+    // ocean is the container background, set in the stylesheet below.
+    //
+    // maxZoom lives on the map here rather than on a tile layer, which is
+    // where it used to be inherited from.
     function buildMap(divId) {
-      const map = L.map(divId, {
+      return L.map(divId, {
         center: [20, 10],
         zoom: 1,
         minZoom: 1,
+        maxZoom: 10,
         worldCopyJump: true,
         zoomControl: true,
-        attributionControl: true,
+        attributionControl: false,
       });
-      map.attributionControl.setPrefix("");
-      // Esri's Light Gray Canvas: keyless, and visually equivalent to the
-      // CARTO Positron basemap this used to use. CARTO's free CDN started
-      // stamping "API KEY REQUIRED" across unauthenticated tiles.
-      L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri",
-        maxZoom: 10,
-      }).addTo(map);
-      return map;
     }
 
     // ── Map 1: gender ───────────────────────────────────────────────
