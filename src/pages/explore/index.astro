@@ -139,7 +139,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     <!-- Notes -->
     <div class="mt-4 p-4 bg-surface-dim rounded-xl border border-border text-xs text-text-muted space-y-1">
       <p><strong>Gender (inferred*):</strong> Country-aware inference from first name + country of affiliation using <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a> (Raffo &amp; Lax-Martinez, WIPO 2021), with <a href="https://pypi.org/project/gender-guesser/" class="underline" target="_blank" rel="noopener noreferrer">gender-guesser</a> as a tertiary fallback. Not self-reported gender identity. Values are <code>male</code>, <code>female</code>, or <code>unknown</code>. (The legacy <code>andy</code>/androgynous category from v2.6 is gone — WGND 2.0 does not emit it.)</p>
-      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text.</p>
+      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text. To select one institution exactly, paste its ROR identifier into the Affiliation filter (e.g. <code>003vg9w96</code> or <code>https://ror.org/003vg9w96</code>). Acronyms such as INRAE are not searchable on their own, because the collected affiliation text does not always contain them.</p>
       <p><strong>h-index:</strong> From <a href="https://openalex.org" class="underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>. Missing when no author profile was matched.</p>
       <p><strong>Roles:</strong> Standardized from publisher-specific titles.</p>
       <p><strong>Powered by <a href="https://duckdb.org/docs/api/wasm/overview" class="underline" target="_blank" rel="noopener noreferrer">DuckDB-WASM</a></strong> — all 920K+ records queried locally in your browser. No server needed.</p>
@@ -337,6 +337,13 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       // selection (mode "in") rather than a substring search.
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get("country")) { mapCountryFilter = urlParams.get("country"); }
+      // ror_id is stored as the full "https://ror.org/<id>" URL, but institution
+      // pages (and people pasting an id) pass the bare 9-character identifier.
+      // Normalise so both forms select the same rows.
+      if (urlParams.get("ror_id")) {
+        const norm = normaliseRorId(urlParams.get("ror_id"));
+        if (norm) urlParams.set("ror_id", norm);
+      }
       if (urlParams.get("city")) { mapCityFilter = urlParams.get("city"); }
       for (const key of ["publisher", "ror_country", "scientific_field", "editor", "journal", "role_std", "ror_city", "gender", "ror_id", "ror_name", "orcid"]) {
         const val = urlParams.get(key);
@@ -363,6 +370,14 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       console.error(e);
     }
 
+    // Accept "https://ror.org/003vg9w96", "ror.org/003vg9w96" or the bare
+    // "003vg9w96" and return the canonical URL form stored in ror_id, or null
+    // when the text is not a ROR identifier at all.
+    function normaliseRorId(value) {
+      const v = String(value || "").trim().replace(/^https?:\/\//i, "").replace(/^ror\.org\//i, "").replace(/\/+$/, "");
+      return /^0[a-hj-km-np-tv-z0-9]{6}[0-9]{2}$/i.test(v) ? "https://ror.org/" + v.toLowerCase() : null;
+    }
+
     // ─── Build SQL WHERE clause ───
     function buildWhere() {
       const conditions = [];
@@ -378,7 +393,13 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         if (f.mode === "contains") {
           const t = sq(f.contains.trim());
           if (key === "affiliation") {
-            conditions.push(`(affiliation ILIKE '%${t}%' OR ror_name ILIKE '%${t}%')`);
+            const ror = normaliseRorId(f.contains);
+            if (ror) {
+              // A pasted ROR identifier selects the institution exactly.
+              conditions.push(`ror_id = '${sq(ror)}'`);
+            } else {
+              conditions.push(`(affiliation ILIKE '%${t}%' OR ror_name ILIKE '%${t}%')`);
+            }
           } else {
             conditions.push(`${key} ILIKE '%${t}%'`);
           }
