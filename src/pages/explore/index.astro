@@ -139,7 +139,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     <!-- Notes -->
     <div class="mt-4 p-4 bg-surface-dim rounded-xl border border-border text-xs text-text-muted space-y-1">
       <p><strong>Gender (inferred*):</strong> Country-aware inference from first name + country of affiliation using <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a> (Raffo &amp; Lax-Martinez, WIPO 2021), with <a href="https://pypi.org/project/gender-guesser/" class="underline" target="_blank" rel="noopener noreferrer">gender-guesser</a> as a tertiary fallback. Not self-reported gender identity. Values are <code>male</code>, <code>female</code>, or <code>unknown</code>. (The legacy <code>andy</code>/androgynous category from v2.6 is gone — WGND 2.0 does not emit it.)</p>
-      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text. To select one institution exactly, paste its ROR identifier into the Affiliation filter (e.g. <code>003vg9w96</code> or <code>https://ror.org/003vg9w96</code>). Acronyms such as INRAE are not searchable on their own, because the collected affiliation text does not always contain them.</p>
+      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text. Click the Affiliation filter to find an institution by name, acronym (e.g. INRAE) or ROR identifier, or click an institution name in the table to keep only that institution; [page] opens its page on this site. Institution selections filter on the ROR record, so affiliations that could not be resolved to ROR are only reachable through the text search (<em>Select all matching</em>).</p>
       <p><strong>h-index:</strong> From <a href="https://openalex.org" class="underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>. Missing when no author profile was matched.</p>
       <p><strong>Roles:</strong> Standardized from publisher-specific titles.</p>
       <p><strong>Powered by <a href="https://duckdb.org/docs/api/wasm/overview" class="underline" target="_blank" rel="noopener noreferrer">DuckDB-WASM</a></strong> — all 920K+ records queried locally in your browser. No server needed.</p>
@@ -213,6 +213,81 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     let filterTerms = {};
     let mapCountryFilter = "";
     let mapCityFilter = "";
+
+    // ─── Institution alias index (ROR acronyms + alternate names) ───
+    // Built by scripts/site/build_institution_aliases.py (data repo) from the
+    // ROR records of every institution on the site. Lets the Affiliation
+    // picker find "INRAE" although neither the collected text nor the ROR
+    // display name contains that acronym. Loaded on first use; a missing file
+    // degrades to name-only search.
+    let aliasIndex = null;        // [{ i, n, a?, l?, id, s }]
+    let aliasIndexPromise = null;
+    const rorInfo = new Map();    // full ror_id URL -> { name, country, acronym }
+    const foldText = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    function rememberInstitution(id, info) {
+      rorInfo.set(id, { ...(rorInfo.get(id) || {}), ...Object.fromEntries(Object.entries(info).filter(([, v]) => v)) });
+    }
+    async function loadAliasIndex() {
+      if (aliasIndex) return aliasIndex;
+      if (!aliasIndexPromise) {
+        aliasIndexPromise = fetch("/api/institution_aliases.json")
+          .then(r => (r.ok ? r.json() : []))
+          .then(list => {
+            aliasIndex = list.map(e => ({
+              ...e,
+              id: "https://ror.org/" + e.i,
+              s: foldText([e.n, ...(e.a || []), ...(e.l || [])].join(" | ")),
+            }));
+            for (const e of aliasIndex) rememberInstitution(e.id, { name: e.n, acronym: (e.a || [])[0] || "" });
+            return aliasIndex;
+          })
+          .catch(err => { console.error("alias index unavailable:", err); aliasIndex = []; return aliasIndex; });
+      }
+      return aliasIndexPromise;
+    }
+    // Institutions whose acronym, display name, label or alias matches the
+    // term. Acronym hits come first so "INRAE" surfaces INRAE rather than
+    // every name that happens to contain those letters.
+    function searchAliases(term) {
+      const t = foldText((term || "").trim());
+      if (!aliasIndex || !t) return { acronym: [], other: [] };
+      const acronym = [], other = [];
+      for (const e of aliasIndex) {
+        if ((e.a || []).some(a => foldText(a) === t || foldText(a).startsWith(t))) acronym.push(e.id);
+        else if (e.s.includes(t)) other.push(e.id);
+        if (acronym.length + other.length >= 300) break;
+      }
+      return { acronym, other };
+    }
+    // Short label for a selected institution: name, then acronym and bare id.
+    function institutionLabel(id) {
+      const info = rorInfo.get(id) || {};
+      const bare = String(id).replace("https://ror.org/", "");
+      const name = info.name ? (info.name.length > 48 ? info.name.slice(0, 46).trimEnd() + "…" : info.name) : "";
+      const tail = [info.acronym, bare].filter(Boolean).join(", ");
+      return name ? `${name} (${tail})` : bare;
+    }
+    // Names for institutions selected before any suggestion query ran (URL
+    // deep links), so chips read "INRAE (...)" rather than a bare id.
+    async function primeInstitutionInfo() {
+      const f = columnFilters.affiliation;
+      if (!conn || !f || f.mode !== "in" || !f.values.length) return;
+      const list = f.values.map(v => `'${String(v).replace(/'/g, "''")}'`).join(", ");
+      try {
+        const res = await conn.query(`SELECT ror_id, ror_name, ror_country FROM editors WHERE ror_id IN (${list}) GROUP BY ror_id, ror_name, ror_country`);
+        res.toArray().forEach(r => rememberInstitution(String(r.ror_id), { name: String(r.ror_name || ""), country: String(r.ror_country || "") }));
+      } catch (err) { console.error("institution info query failed:", err); }
+      loadAliasIndex();
+    }
+    // Keep ?ror_id= in the address bar in step with the institution selection
+    // so a filtered view can be shared or bookmarked.
+    function syncRorParam() {
+      const f = columnFilters.affiliation;
+      const url = new URL(window.location.href);
+      if (f && f.mode === "in" && f.values.length) url.searchParams.set("ror_id", f.values.map(v => String(v).replace("https://ror.org/", "")).join(","));
+      else url.searchParams.delete("ror_id");
+      history.replaceState(null, "", url);
+    }
     let visibleCols = COLUMNS.map(c => c.visible);
 
     // Distinct role/gender values, filled from the data at init so the
@@ -245,6 +320,9 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       const f = columnFilters[key];
       if (!filterActive(f)) return "";
       if (f.mode === "contains") return `contains “${f.contains.trim()}”`;
+      if (key === "affiliation") {
+        return f.values.length === 1 ? institutionLabel(f.values[0]) : `${f.values.length} institutions`;
+      }
       const labelOf = (v) => key === "role_std" ? formatRole(v)
         : (key === "gender" ? (v.charAt(0).toUpperCase() + v.slice(1)) : v);
       if (f.values.length === 1) return labelOf(f.values[0]);
@@ -337,15 +415,15 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       // selection (mode "in") rather than a substring search.
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get("country")) { mapCountryFilter = urlParams.get("country"); }
-      // ror_id is stored as the full "https://ror.org/<id>" URL, but institution
-      // pages (and people pasting an id) pass the bare 9-character identifier.
-      // Normalise so both forms select the same rows.
+      // ?ror_id= carries one or several ROR ids, bare or in URL form
+      // (institution pages link with the bare id), and becomes an institution
+      // selection in the Affiliation filter.
       if (urlParams.get("ror_id")) {
-        const norm = normaliseRorId(urlParams.get("ror_id"));
-        if (norm) urlParams.set("ror_id", norm);
+        const ids = urlParams.get("ror_id").split(",").map(normaliseRorId).filter(Boolean);
+        if (ids.length) columnFilters.affiliation = { mode: "in", values: [...new Set(ids)] };
       }
       if (urlParams.get("city")) { mapCityFilter = urlParams.get("city"); }
-      for (const key of ["publisher", "ror_country", "scientific_field", "editor", "journal", "role_std", "ror_city", "gender", "ror_id", "ror_name", "orcid"]) {
+      for (const key of ["publisher", "ror_country", "scientific_field", "editor", "journal", "role_std", "ror_city", "gender", "ror_name", "orcid"]) {
         const val = urlParams.get(key);
         if (val) {
           columnFilters[key] = { mode: "in", values: [val] };
@@ -357,6 +435,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         mapCountryFilter = urlParams.get("ror_country");
       }
       if (mapCountryFilter || mapCityFilter || anyColumnFilter()) {
+        await primeInstitutionInfo();
         showResetButton();
         updateFilterChips();
       }
@@ -406,9 +485,8 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         } else {
           const list = f.values.map(v => `'${sq(v)}'`).join(", ");
           if (key === "affiliation") {
-            // Suggestions come from ROR canonical names; also match the raw
-            // affiliation text so a selected name catches unmatched rows too.
-            conditions.push(`(ror_name IN (${list}) OR affiliation IN (${list}))`);
+            // Values are ROR ids (URL form) chosen in the institution picker.
+            conditions.push(`ror_id IN (${list})`);
           } else {
             conditions.push(`${key} IN (${list})`);
           }
@@ -669,6 +747,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       }
       container.innerHTML = chips.join("");
       container.classList.toggle("hidden", chips.length === 0);
+      syncRorParam();
       container.querySelectorAll("[data-clear='map']").forEach(b =>
         b.addEventListener("click", () => {
           mapCountryFilter = ""; mapCityFilter = ""; page = 0;
@@ -884,16 +963,18 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       if (activeFilterKey !== key) return;
 
       let html = menuHeader(key, label);
+      if (key === "affiliation" && !t) html += affiliationHelp();
       if (t) {
+        const hint = key === "affiliation" ? ` <span class="font-normal text-[10px] text-text-muted">in affiliation text, including unresolved</span>` : "";
         html += `<label class="flex items-center gap-2 px-1 py-1 mb-1 rounded hover:bg-brand-50 cursor-pointer border-b border-border">
           <input type="checkbox" data-selall ${containsActive ? "checked" : ""} class="rounded border-gray-300 text-brand-600">
-          <span class="font-medium">Select all matching “${esc(t)}”</span>
+          <span class="font-medium">Select all matching “${esc(t)}”${hint}</span>
         </label>`;
       }
       if (sugg.length === 0) {
         html += `<div class="px-1 py-2 text-text-muted">${t ? "No matches" : "Type to search…"}</div>`;
       } else {
-        html += sugg.map(s => `<label class="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-dim cursor-pointer">
+        html += sugg.map(s => key === "affiliation" ? institutionRow(s, selValues, containsActive) : `<label class="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-dim cursor-pointer">
           <input type="checkbox" data-val="${esc(s.v)}" ${(!containsActive && selValues.has(s.v)) ? "checked" : ""} ${containsActive ? "disabled" : ""} class="rounded border-gray-300 text-brand-600">
           <span class="flex-1 truncate" title="${esc(s.v)}">${esc(s.v)}</span>
           <span class="text-[10px] text-text-muted tabular-nums">${s.n.toLocaleString()}</span>
@@ -934,7 +1015,8 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     // first). Affiliation suggests from ROR canonical names.
     async function fetchSuggestions(key, term) {
       if (!conn) return [];
-      const src = key === "affiliation" ? "ror_name" : key;
+      if (key === "affiliation") return fetchInstitutionSuggestions(term);
+      const src = key;
       const like = term ? `AND ${src} ILIKE '%${term.replace(/'/g, "''")}%'` : "";
       const sql = `SELECT ${src} AS v, COUNT(*) AS n FROM editors
         WHERE ${src} IS NOT NULL AND ${src} <> '' ${like}
@@ -946,6 +1028,65 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         console.error("suggestion query failed:", err);
         return [];
       }
+    }
+
+    // Affiliation suggestions are ROR institutions, one row per ror_id, found
+    // by canonical name in the data OR by acronym / alternate name in the
+    // alias index. Returns [{ v: ror_id URL, name, country, acronym, n }],
+    // acronym hits first, then by number of positions.
+    async function fetchInstitutionSuggestions(term) {
+      const t = (term || "").trim();
+      await loadAliasIndex();
+      const hits = searchAliases(t);
+      const sq = (v) => String(v).replace(/'/g, "''");
+      const parts = [];
+      if (t) parts.push(`ror_name ILIKE '%${sq(t)}%'`);
+      const typedId = normaliseRorId(t);
+      if (typedId) parts.push(`ror_id = '${sq(typedId)}'`);
+      const aliasIds = [...hits.acronym, ...hits.other];
+      if (aliasIds.length) parts.push(`ror_id IN (${aliasIds.map(id => `'${sq(id)}'`).join(", ")})`);
+      const cond = parts.length ? `AND (${parts.join(" OR ")})` : "";
+      const sql = `SELECT ror_id AS id, ror_name AS name, ror_country AS country, COUNT(*) AS n FROM editors
+        WHERE ror_id IS NOT NULL AND ror_id <> '' ${cond}
+        GROUP BY ror_id, ror_name, ror_country ORDER BY n DESC LIMIT 50`;
+      try {
+        const res = await conn.query(sql);
+        const acr = new Set(typedId ? [typedId, ...hits.acronym] : hits.acronym);
+        const rows = res.toArray().map(r => {
+          const id = String(r.id);
+          rememberInstitution(id, { name: String(r.name || ""), country: String(r.country || "") });
+          const info = rorInfo.get(id) || {};
+          return { v: id, name: info.name || "", country: info.country || "", acronym: info.acronym || "", n: Number(r.n) };
+        });
+        rows.sort((a, b) => (acr.has(b.v) - acr.has(a.v)) || (b.n - a.n));
+        return rows;
+      } catch (err) {
+        console.error("institution suggestion query failed:", err);
+        return [];
+      }
+    }
+
+    // One row of the institution picker: name (+ acronym badge), country and
+    // bare ROR id, and the number of positions.
+    function institutionRow(s, selValues, containsActive) {
+      const bare = s.v.replace("https://ror.org/", "");
+      const badge = s.acronym ? ` <span class="text-[10px] font-medium text-brand-700 bg-brand-50 rounded px-1">${esc(s.acronym)}</span>` : "";
+      return `<label class="flex items-center gap-2 px-1 py-1 rounded hover:bg-surface-dim cursor-pointer">
+          <input type="checkbox" data-val="${esc(s.v)}" ${(!containsActive && selValues.has(s.v)) ? "checked" : ""} ${containsActive ? "disabled" : ""} class="rounded border-gray-300 text-brand-600">
+          <span class="flex-1 min-w-0">
+            <span class="block truncate" title="${esc(s.name)}">${esc(s.name || bare)}${badge}</span>
+            <span class="block text-[10px] text-text-muted truncate">${esc(s.country)}${s.country ? " · " : ""}<span class="font-mono">${esc(bare)}</span></span>
+          </span>
+          <span class="text-[10px] text-text-muted tabular-nums">${s.n.toLocaleString()}</span>
+        </label>`;
+    }
+
+    // Shown at the top of the Affiliation picker until the user types.
+    function affiliationHelp() {
+      return `<div class="px-1 pb-2 mb-1 border-b border-border text-[11px] text-text-secondary leading-snug space-y-1">
+        <p><strong>Find an institution</strong> by name, acronym (e.g. <code>INRAE</code>) or ROR identifier (<code>003vg9w96</code>). Tick one or more to keep only the positions resolved to those ROR records. Clicking an institution name in the table does the same.</p>
+        <p>Affiliations that could not be resolved to ROR are not reached that way. To search the collected text instead, type a term and use <em>Select all matching</em>; the <span class="font-mono">[raw]</span> button in the table shows that text.</p>
+      </div>`;
     }
 
     // Reflect a column's active selection back onto its header control
@@ -1003,9 +1144,18 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
               const rorId = String(row.ror_id||"");
               const rorName = String(row.ror_name||"");
               const display = rorName || raw;
-              let h = `<span title="${esc(raw)}">${esc(display)}</span>`;
               const safeRorId = rorId.startsWith("https://ror.org/") ? rorId : "";
-              if (safeRorId) h += ` <a href="${esc(safeRorId)}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-brand-600 hover:underline">[ROR]</a>`;
+              const bareId = safeRorId.replace("https://ror.org/", "");
+              let h;
+              if (safeRorId) {
+                // Click the name to keep only this institution; [page] opens
+                // its page on this site, [ROR] the registry record.
+                h = `<button type="button" data-pick-ror="${esc(safeRorId)}" data-pick-name="${esc(rorName)}" class="text-left hover:text-brand-700 hover:underline" title="${esc(raw)}&#10;ROR ${esc(bareId)}&#10;Click to keep only this institution">${esc(display)}</button>`;
+                h += ` <a href="/institution/${esc(bareId)}" target="_blank" rel="noopener" class="text-[10px] text-brand-600 hover:underline" title="Institution page on this site">[page]</a>`;
+                h += ` <a href="${esc(safeRorId)}" target="_blank" rel="noopener noreferrer" class="text-[10px] text-brand-600 hover:underline" title="ROR ${esc(bareId)}">[ROR]</a>`;
+              } else {
+                h = `<button type="button" data-pick-text="${esc(raw)}" class="text-left hover:text-brand-700 hover:underline" title="Not resolved to a ROR record.&#10;Click to keep only positions with this affiliation text">${esc(display)}</button>`;
+              }
               if (rorName && raw && raw !== rorName) {
                 const uid = "r" + offset + ri;
                 h += ` <button class="text-[10px] text-text-muted hover:text-brand-600" onclick="document.getElementById('${uid}').classList.toggle('hidden')">[raw]</button><div id="${uid}" class="hidden text-[10px] text-text-muted mt-0.5">${esc(raw)}</div>`;
@@ -1036,6 +1186,18 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
           });
           return `<tr class="${ri % 2 ? 'bg-gray-50/40' : ''} hover:bg-brand-50/20 transition-colors">${cells}</tr>`;
         }).join("");
+        tbody.querySelectorAll("[data-pick-ror]").forEach(b => b.addEventListener("click", () => {
+          const id = b.dataset.pickRor;
+          rememberInstitution(id, { name: b.dataset.pickName });
+          columnFilters.affiliation = { mode: "in", values: [id] };
+          filterTerms.affiliation = "";
+          onFilterChanged(); buildTableHeaders();
+        }));
+        tbody.querySelectorAll("[data-pick-text]").forEach(b => b.addEventListener("click", () => {
+          columnFilters.affiliation = { mode: "contains", contains: b.dataset.pickText };
+          filterTerms.affiliation = b.dataset.pickText;
+          onFilterChanged(); buildTableHeaders();
+        }));
       }
 
       document.getElementById("result-count").textContent = `${filteredCount.toLocaleString()} editor positions`;
