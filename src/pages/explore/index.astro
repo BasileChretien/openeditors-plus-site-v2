@@ -30,10 +30,6 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         </p>
       </div>
       <div class="flex items-center gap-3 flex-wrap">
-        <button id="reset-filters" class="hidden items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-red-200">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
-          Clear all filters
-        </button>
         <button
           id="export-csv"
           class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-brand-200 text-brand-700 font-medium rounded-lg hover:bg-brand-50 transition-colors text-sm"
@@ -92,6 +88,10 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         <h2 class="font-semibold text-sm">Editor positions</h2>
         <span id="result-count" class="text-xs text-text-muted"></span>
         <div class="ml-auto flex items-center gap-2">
+          <button id="reset-filters" class="hidden items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-red-200">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            Clear all filters
+          </button>
           <div class="relative">
             <button id="col-picker-btn" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-border rounded-lg hover:bg-surface-dim transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
