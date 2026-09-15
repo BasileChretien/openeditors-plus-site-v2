@@ -53,9 +53,6 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       </div>
     </noscript>
 
-    <!-- Active filter chips -->
-    <div id="filter-chips" class="hidden flex flex-wrap gap-2 mb-4"></div>
-
     <!-- Dashboard -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
       <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
@@ -87,7 +84,9 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       <div class="px-4 py-2.5 border-b border-border bg-surface-dim flex flex-wrap items-center gap-3">
         <h2 class="font-semibold text-sm">Editor positions</h2>
         <span id="result-count" class="text-xs text-text-muted"></span>
-        <div class="ml-auto flex items-center gap-2">
+        <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <!-- Active filter chips, next to the button that clears them -->
+          <div id="filter-chips" class="hidden flex flex-wrap items-center justify-end gap-2"></div>
           <button id="reset-filters" class="hidden items-center gap-1 px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors border border-red-200">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
             Clear all filters
