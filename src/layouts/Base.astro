@@ -81,7 +81,7 @@ const breadcrumbSchema = breadcrumbs ? {
 
     <!-- Fonts (self-hosted, no external requests) -->
 
-    <!-- Schema.org Dataset — SECURITY: set:html is safe here only because every value is trusted: hardcoded, or read from this repo's own release_meta.json and lib/zenodo.ts. JSON.stringify does NOT escape a closing script tag, so anything else interpolated here must have every less-than sign replaced with its < escape first. -->
+    <!-- Schema.org Dataset — SECURITY: set:html is safe here only because every value is trusted: hardcoded, or read from this repo's own release_meta.json and lib/zenodo.ts. JSON.stringify does NOT escape a closing script tag, so anything else interpolated here must have every less-than sign replaced with the JSON escape \u003c first. -->
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "Dataset",
