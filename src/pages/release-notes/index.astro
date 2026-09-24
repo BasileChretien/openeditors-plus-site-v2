@@ -3,32 +3,99 @@ import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
 
-// Release notes for the current dataset version. The headline counts are
-// read from the generated API JSON rather than typed in, so this page
-// cannot drift from the bytes that were actually published.
+// Release notes, newest version first. The headline counts are read from the
+// generated API JSON, so they cannot drift from the bytes actually published.
+// Figures inside each version's notes are fixed: they describe that version.
 const n = (v: number) => v.toLocaleString("en-US");
+
+const fixed = "bg-red-100 text-red-800 border-red-200";
+const added = "bg-emerald-100 text-emerald-800 border-emerald-200";
+const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 
 const changes = [
   {
+    id: "journal-fields",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Journal fields come from the journal's own articles",
+    body: `v3.0.0 took each journal's field from its most frequent OpenAlex topic. For large general journals that topic is an artefact of OpenAlex's classifier, which files letters, news and obituaries under catch-all topics: The Lancet was classed as Engineering, and Science, JAMA and The BMJ as Economics. The field is now the one held by most of the journal's research articles, used when it covers at least 40% of them or when the old topic was a catch-all; a hand check found thinner majorities unreliable, so those 1,450 journals keep their v3.0.0 field. Journals the Norwegian Register for Scientific Journals files as interdisciplinary are Multidisciplinary.`,
+    stat: "2,572 journals (183,037 positions, 19.9%) change field. The Lancet, JAMA, NEJM and The BMJ are Medicine; Science, Nature, PLOS ONE and Scientific Reports are among 151 Multidisciplinary journals. 536 journals that had no field now have one.",
+  },
+  {
+    id: "impact-quartile",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "oa_impact_quartile is ranked within each field",
+    body: `The codebook has called this a per-field quartile since v2.0.0, but the published files carried one split across all journals: Q1 started at a two-year citedness of 2.75 in every field, so 42% of Engineering journals but 6% of Mathematics journals were Q1. Each field now has its own quartiles, computed from the journal's two-year mean citedness within its (corrected) field; journals with equal citedness share a quartile.`,
+    stat: "5,856 journals change quartile (339,687 positions). Q1 now starts at 1.29 in Mathematics, 2.25 in Medicine and 3.70 in Engineering.",
+  },
+  {
+    id: "ror-repair",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "False institution matches repaired again",
+    body: `v2.0.0 removed false ROR matches on seven organisations, most of them University of California editors matched to California Coast University. A later re-enrichment brought them back, and v3.0.0 carried them on 3,484 rows. The repair is re-applied: University of California rows move to the campus their affiliation names, and rows that name no campus, or sit on the other six organisations, lose the wrong match. The release build now refuses any of the seven organisations.`,
+    stat: "2,496 rows move to their UC campus (UCLA 475, Davis 390, Berkeley 371, …) and 988 lose a wrong match. ROR coverage moves from 68.19% to 68.08% of records.",
+  },
+  {
+    id: "retired-sources",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Retired OpenAlex sources replaced",
+    body: `OpenAlex had retired the source identifier recorded for some journals. Those that resolve through their ISSN-L now carry the current source, and their four journal metrics (two-year citedness, h-index, works and citations) come from it, which also feeds their quartile.`,
+    stat: "152 journals (6,463 positions).",
+  },
+  {
+    id: "recomputed-v4",
+    tag: "Recomputed",
+    tagClass: recomputed,
+    title: "Identity keys and board statistics follow the repairs",
+    body: `editor_key includes the institution, so it changes on the repaired rows, and University of California rows now join the same people's existing records at their campus. Board institution and country statistics, and the multi-board columns, are recomputed for the affected journals and editors. Nothing else changes: the build checks that only these columns differ from v3.0.0.`,
+    stat: "Unique editors: 744,848 (v3.0.0: 745,125). Multi-board share: 15.04% (15.02%).",
+  },
+];
+
+const rerun = [
+  {
+    what: "Anything grouped or filtered by scientific_field",
+    why: "19.9% of positions moved to another field, and a new Multidisciplinary field holds 50,470. Domain, subfield and topic move with it.",
+  },
+  {
+    what: "oa_impact_quartile",
+    why: "It is now a within-field quartile, as documented; 339,687 positions changed value. Results that compared quartiles across fields were driven by field citation norms, not journal standing.",
+  },
+  {
+    what: "Institution-level results",
+    why: "Especially for the University of California campuses, which v3.0.0 undercounted by up to 2,496 positions.",
+  },
+  {
+    what: "Editor counts",
+    why: "Use 744,848 unique editors and the published editor_key.",
+  },
+];
+
+// v3.0.0 (2026-07-27), kept as published. Its figures describe v3.0.0.
+const changesV3 = [
+  {
     id: "board-pct-female",
     tag: "Fixed",
-    tagClass: "bg-red-100 text-red-800 border-red-200",
+    tagClass: fixed,
     title: "board_pct_female was constant at 0",
-    body: `In v2.6.0 and v2.7.0 this column read 0 for every one of the ${n(summary.total_records)} rows, quietly reducing any board-gender analysis to a constant. A gender-wipe regression introduced in v2.6.0 had cleared the per-row gender values that the board-statistics stage reads as its input; because an all-zero result is arithmetically valid, nothing raised an error. The inputs are restored and the denominator now matches the codebook definition: the resolved gender count (male plus female) rather than total board size, so boards carrying many unknown inferences are not artificially depressed.`,
+    body: `In v2.6.0 and v2.7.0 this column read 0 for every one of the 922,097 rows, quietly reducing any board-gender analysis to a constant. A gender-wipe regression introduced in v2.6.0 had cleared the per-row gender values that the board-statistics stage reads as its input; because an all-zero result is arithmetically valid, nothing raised an error. The inputs are restored and the denominator now matches the codebook definition: the resolved gender count (male plus female) rather than total board size, so boards carrying many unknown inferences are not artificially depressed.`,
     stat: "907,086 rows (98.4%) now carry a non-zero value; the mean board is 31.5% female.",
   },
   {
     id: "editor-key",
     tag: "New column",
-    tagClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    tagClass: added,
     title: "editor_key is published",
-    body: `The composite identity key behind the ${n(summary.unique_editors)} unique-editor figure is now a column, so that count is reproducible without reconstructing the key yourself. It resolves in priority order and is prefixed with the tier that produced it: ORCID iD (346,713 records), ROR-resolved institution plus name (294,399), or affiliation plus name (280,985). The ORCID and ROR tiers are the reliable ones; the lowest tier is name-based, so distinct people sharing a name and affiliation string can still collide there.`,
+    body: `The composite identity key behind the 745,125 unique-editor figure is now a column, so that count is reproducible without reconstructing the key yourself. It resolves in priority order and is prefixed with the tier that produced it: ORCID iD (346,713 records), ROR-resolved institution plus name (294,399), or affiliation plus name (280,985). The ORCID and ROR tiers are the reliable ones; the lowest tier is name-based, so distinct people sharing a name and affiliation string can still collide there.`,
     stat: "Requested by a reviewer of the accompanying paper.",
   },
   {
     id: "openalex-author-id",
     tag: "New column",
-    tagClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    tagClass: added,
     title: "openalex_author_id restores OpenAlex interoperability",
     body: `Earlier releases shipped the derived bibliometrics (h-index, publications, citations, academic age) without exposing the identifier they came from, so you could neither audit a match nor join back to OpenAlex. The Author identifier is now published.`,
     stat: "Populated on 531,437 records (57.6%), which is 98.7% of the 538,550 records that matched an OpenAlex author.",
@@ -36,7 +103,7 @@ const changes = [
   {
     id: "provenance",
     tag: "New columns",
-    tagClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    tagClass: added,
     title: "Provenance flags let you see how a record was resolved",
     body: `Three columns replace blind trust with a visible match strength. oa_match_method records how the OpenAlex profile was found: orcid (344,957 records), name_ror (107,173), name_only (86,420) or unmatched (383,547). name_is_initials marks records whose given name is initials only, which blocks gender inference and weakens name matching. orcid_shared_flag marks iDs that map to several distinct name strings, usually a data-entry error at the source. Flagged records are retained, not removed.`,
     stat: "name_is_initials true on 26,763 records (2.9%); orcid_shared_flag true on 239. For bibliometric work, consider restricting to the orcid and name_ror match tiers.",
@@ -44,7 +111,7 @@ const changes = [
   {
     id: "role-std",
     tag: "Fixed",
-    tagClass: "bg-red-100 text-red-800 border-red-200",
+    tagClass: fixed,
     title: "role_std contamination repaired, senior_editor added",
     body: `2,359 IEEE rows carried raw section headings in role_std, a standardized column that should only ever hold canonical values; this inflated the distinct-value count and corrupted any group-by on role. Those rows are re-mapped, and a senior_editor category has been added for 5,005 positions previously absorbed into other.`,
     stat: "role_std now holds exactly ten canonical values.",
@@ -52,14 +119,14 @@ const changes = [
   {
     id: "recomputed",
     tag: "Recomputed",
-    tagClass: "bg-amber-100 text-amber-800 border-amber-200",
+    tagClass: recomputed,
     title: "Downstream statistics recomputed",
     body: `All aggregates were recomputed on the corrected data. The largest movement is multi-board editorship, which drops from 25.3% to 15.0% of editors serving two or more boards. The earlier figure came from exact name matching, which merged distinct homonymous individuals into single editors and so overstated multi-board service by roughly ten percentage points. The new figure uses editor_key, which separates them wherever an ORCID iD or a resolved institution distinguishes the people involved.`,
     stat: "Treat 15.0% as a corrected estimate: the residual name-tier collisions push in the same direction, just far less.",
   },
 ];
 
-const rerun = [
+const rerunV3 = [
   {
     what: "board_pct_female, and anything derived from it",
     why: "It was constant at 0. Every result conditioned on board gender composition from v2.6.0 or v2.7.0 is invalid, not merely imprecise. This is the one that silently produces publishable-looking nonsense.",
@@ -82,24 +149,24 @@ const rerun = [
 <Base
   title="Release notes — Open Editors Plus"
   path="release-notes"
-  description="What changed in Open Editors Plus v3.0.0: the board_pct_female fix, published editor_key and openalex_author_id, new provenance columns, role_std repair, and recomputed statistics."
+  description="What changed in Open Editors Plus v4.0.0: journal fields from each journal's own articles, impact quartiles ranked within each field, repaired institution matches and current OpenAlex sources. Notes for v3.0.0 follow."
 >
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
     <h1 class="text-3xl sm:text-4xl font-bold mb-3">Release notes</h1>
     <div class="flex flex-wrap items-center gap-3 mb-6">
       <span class="inline-flex items-center px-3 py-1 rounded-full bg-brand-50 text-brand-700 border border-brand-200 text-sm font-semibold">
-        v{release.version ?? "3.0.0"}
+        v{release.version}
       </span>
       <span class="text-sm text-text-muted">
-        released {release.release_date ?? ""} &middot; data_version {release.data_version ?? "2026.2"}
+        released {release.release_date} &middot; data_version {release.data_version}
       </span>
     </div>
 
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v3.0.0 is a <strong>corrected</strong> release. It changes values in existing
-      columns, not just the schema, so analyses built on v2.6.0 or v2.7.0 need to be
-      re-run. It is the version described in the accompanying paper, and the first
-      whose published bytes match that manuscript.
+      v4.0.0 is a <strong>corrected</strong> release. It changes values in existing
+      columns, not the schema, so analyses built on v3.0.0 that use journal fields,
+      impact quartiles, institutions or editor counts need to be re-run. The paper that
+      describes the dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -119,7 +186,7 @@ const rerun = [
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4">What changed</h2>
+    <h2 class="text-2xl font-bold mb-4">What changed in v4.0.0</h2>
     <div class="space-y-5 mb-12">
       {changes.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">
@@ -140,13 +207,13 @@ const rerun = [
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-2">If you used a previous version</h2>
+    <h2 class="text-2xl font-bold mb-2">If you used v3.0.0</h2>
     <p class="text-sm text-text-secondary mb-4">
       Analyses that touch only the collected columns (publisher, journal, editor, role,
-      affiliation, source_url, scraped_at) are unaffected; those values are unchanged
-      since v2.7.0. Re-run anything that touches the following.
+      affiliation, source_url, scraped_at), gender or bibliometrics are unaffected. Re-run
+      anything that touches the following.
     </p>
-    <div class="overflow-x-auto border border-border rounded-lg mb-10">
+    <div class="overflow-x-auto border border-border rounded-lg mb-12">
       <table class="w-full text-sm">
         <thead>
           <tr class="bg-surface-dim border-b border-border">
@@ -164,14 +231,70 @@ const rerun = [
         </tbody>
       </table>
     </div>
-    <p class="text-sm text-text-secondary mb-10">
-      If you used v2.0.0 or earlier, all of the above applies, plus the ISSN resolution
-      fixes in v2.6.0 (71 wrong-ISSN journals) and the WGND 2.0 gender rebuild in v2.7.0.
-    </p>
+
+    <div class="border-t border-border pt-10 mb-10" id="v3.0.0">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <h2 class="text-2xl font-bold">v3.0.0</h2>
+        <span class="text-sm text-text-muted">released 2026-07-27 &middot; data_version 2026.2</span>
+      </div>
+      <p class="text-text-secondary mb-6 leading-relaxed">
+        A corrected release that changed values in existing columns, so analyses built on
+        v2.6.0 or v2.7.0 need to be re-run. It is the version described in the accompanying
+        paper: 922,097 positions held by 745,125 unique editors.
+      </p>
+      <div class="space-y-5 mb-10">
+        {changesV3.map((c, i) => (
+          <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+            <div class="flex items-start gap-3 mb-2">
+              <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+              <div class="min-w-0">
+                <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                  {c.tag}
+                </span>
+                <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+              </div>
+            </div>
+            <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+            <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+              {c.stat}
+            </p>
+          </section>
+        ))}
+      </div>
+
+      <h3 class="text-xl font-bold mb-2">If you used v2.6.0 or v2.7.0</h3>
+      <p class="text-sm text-text-secondary mb-4">
+        Analyses that touch only the collected columns (publisher, journal, editor, role,
+        affiliation, source_url, scraped_at) are unaffected; those values are unchanged
+        since v2.7.0. Re-run anything that touches the following.
+      </p>
+      <div class="overflow-x-auto border border-border rounded-lg mb-6">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-dim border-b border-border">
+              <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Re-run</th>
+              <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rerunV3.map((r, i) => (
+              <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+                <td class="py-2.5 px-3 align-top font-medium whitespace-normal">{r.what}</td>
+                <td class="py-2.5 px-3 align-top text-text-secondary">{r.why}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="text-sm text-text-secondary">
+        If you used v2.0.0 or earlier, all of the above applies, plus the ISSN resolution
+        fixes in v2.6.0 (71 wrong-ISSN journals) and the WGND 2.0 gender rebuild in v2.7.0.
+      </p>
+    </div>
 
     <div class="flex flex-wrap gap-3">
       <a href="/download" class="inline-flex items-center px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors">
-        Download v3.0.0
+        Download v{release.version}
       </a>
       <a href="/codebook" class="inline-flex items-center px-4 py-2 rounded-lg border border-border text-sm font-semibold hover:bg-surface-dim transition-colors">
         Full codebook ({summary.n_columns} columns)

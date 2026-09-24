@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "version": "3.0.0",
-  "data_version": "2026.2",
-  "release_date": "2026-07-27",
-  "exported_at": "2026-07-27T07:23:56+00:00",
+  "version": "4.0.0",
+  "data_version": "2026.3",
+  "release_date": "2026-09-24",
+  "exported_at": "2026-09-24T06:16:17+00:00",
   "row_count": 922097,
   "column_count": 77,
-  "unique_editors": 745125,
+  "unique_editors": 744848,
   "journal_count": 15168,
   "publisher_count": 48,
   "country_count": 189,
@@ -15,13 +15,13 @@
   "files": {
     "csv": {
       "name": "openeditors_plus_2026.csv",
-      "bytes": 843765460,
-      "sha256": "52a0b0c262e26b45872279cebca363f2863c78e087a0b5fe6f6ac012519eee6f"
+      "bytes": 840746678,
+      "sha256": "d5de5ac4eaadcbbe9bfbe101216f87dcb54d535147d27e786691f350dcab88d6"
     },
     "parquet": {
       "name": "openeditors_plus_2026.parquet",
-      "bytes": 98657070,
-      "sha256": "990de81610b5b279de517cc9b9224c9f29aa782c8bb3ea668f6904837a98ee1d"
+      "bytes": 98654560,
+      "sha256": "93c3054c1f67471d5ab01f0729314e85ab33462d46db9c46edbd4c87ac3e7472"
     }
   }
 }

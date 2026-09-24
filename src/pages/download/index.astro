@@ -31,13 +31,22 @@ const parquetShort = parquet.sha256.slice(0, 16);
 // add an entry here AND update CHANGELOG.md in the same commit.
 const versions = [
   {
+    version: "4.0.0",
+    date: "2026-09-24",
+    title: "Corrected release: journal fields, per-field quartiles, ROR repair",
+    summary:
+      "Major release. Changes values in existing columns, not the schema, so analyses built on v3.0.0 that use journal fields, impact quartiles, institutions or editor counts must be re-run. (1) Journal fields now come from each journal's own OpenAlex articles, used when the majority field covers at least 40% of them or the old topic was a catch-all; 2,572 journals (183,037 positions, 19.9%) change field. The Lancet, JAMA, NEJM and The BMJ are Medicine again, and 151 journals the Norwegian register files as interdisciplinary (Science, Nature, PLOS ONE, Scientific Reports) are Multidisciplinary. 536 journals that had no field now have one. (2) oa_impact_quartile is now ranked within each field, as the codebook always said: Q1 starts at a citedness of 1.29 in Mathematics, 2.25 in Medicine and 3.70 in Engineering; 5,856 journals change quartile. (3) The seven false-positive ROR organisations removed in v2.0.0 had come back on 3,484 rows; 2,496 University of California rows move to their campus and the rest lose the wrong match. (4) 152 journals move from retired to current OpenAlex sources, with fresh journal metrics. Unique editors: 744,848 (was 745,125). See the release notes page for the full re-run guidance.",
+    doi: "10.5281/zenodo.22931970",
+    latest: true,
+  },
+  {
     version: "3.0.0",
     date: "2026-07-27",
     title: "Corrected release: board statistics, published identity keys, role repair",
     summary:
       "Major release. Changes values in existing columns, not just the schema, so analyses built on v2.6.0 or v2.7.0 must be re-run. (1) board_pct_female was constant at 0 in v2.6.0 and v2.7.0: a gender-wipe regression introduced in v2.6.0 had cleared the per-row gender values that the board-statistics stage reads as input, and because an all-zero result is arithmetically valid nothing raised an error. The inputs are restored and the denominator now matches the codebook definition, the resolved gender count (male plus female) rather than total board size; 907,086 rows (98.4%) now carry a non-zero value and the mean board is 31.5% female. (2) editor_key, the composite identity key behind the 745,125 unique-editor figure, is now published so that count is reproducible without reconstructing the key: 'orcid:' tier 346,713 records / 250,372 unique editors, 'ror:' tier 294,399 / 236,613, 'aff:' tier 280,985 / 258,140. (3) openalex_author_id is published, restoring direct interoperability with the OpenAlex graph, on 531,437 records (57.6%), which is 98.7% of the 538,550 records that matched an OpenAlex author. (4) Three provenance columns added: oa_match_method (orcid 344,957 / name_ror 107,173 / name_only 86,420 / unmatched 383,547), name_is_initials (26,763 records, 2.9%) and orcid_shared_flag (239 records where one ORCID maps to several distinct name strings); a supporting orcid_n_names column is also published. (5) role_std contamination fixed: 2,359 IEEE rows carried raw section headings, and a senior_editor category was added for 5,005 positions previously absorbed into 'other', leaving exactly ten canonical values. (6) All downstream statistics recomputed; multi-board editorship drops from a name-based 25.3% to 15.0% on two or more boards, because exact name matching had merged distinct homonymous individuals. The legacy 'andy' gender value is retired, leaving male, female and unknown. Public schema widens from 71 to 77 columns over 922,097 positions, 15,168 journals, 48 publishers and 189 countries. See the release notes page for the full re-run guidance.",
     doi: "10.5281/zenodo.21620278",
-    latest: true,
+    latest: false,
   },
   {
     version: "2.7.0",
