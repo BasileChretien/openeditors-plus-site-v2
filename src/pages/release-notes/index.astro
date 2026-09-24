@@ -19,7 +19,7 @@ const changes = [
     tagClass: fixed,
     title: "Journal fields come from the journal's own articles",
     body: `v3.0.0 took each journal's field from its most frequent OpenAlex topic. For large general journals that topic is an artefact of OpenAlex's classifier, which files letters, news and obituaries under catch-all topics: The Lancet was classed as Engineering, and Science, JAMA and The BMJ as Economics. The field is now the one held by most of the journal's research articles, used when it covers at least 40% of them or when the old topic was a catch-all; a hand check found thinner majorities unreliable, so those 1,450 journals keep their v3.0.0 field. Journals the Norwegian Register for Scientific Journals files as interdisciplinary are Multidisciplinary.`,
-    stat: "2,572 journals (183,037 positions, 19.9%) change field. The Lancet, JAMA, NEJM and The BMJ are Medicine; Science, Nature, PLOS ONE and Scientific Reports are among 151 Multidisciplinary journals. 536 journals that had no field now have one.",
+    stat: "2,576 journals (183,173 positions, 19.9%) change field, counting each publisher's copy of a title separately. The Lancet, JAMA, NEJM and The BMJ are Medicine; Science, Nature, PLOS ONE and Scientific Reports are among 151 Multidisciplinary journals. 537 journals that had no field now have one.",
   },
   {
     id: "impact-quartile",
@@ -27,7 +27,7 @@ const changes = [
     tagClass: fixed,
     title: "oa_impact_quartile is ranked within each field",
     body: `The codebook has called this a per-field quartile since v2.0.0, but the published files carried one split across all journals: Q1 started at a two-year citedness of 2.75 in every field, so 42% of Engineering journals but 6% of Mathematics journals were Q1. Each field now has its own quartiles, computed from the journal's two-year mean citedness within its (corrected) field; journals with equal citedness share a quartile.`,
-    stat: "5,856 journals change quartile (339,687 positions). Q1 now starts at 1.29 in Mathematics, 2.25 in Medicine and 3.70 in Engineering.",
+    stat: "5,860 journals change quartile (339,930 positions). Q1 now starts at 1.29 in Mathematics, 2.25 in Medicine and 3.70 in Engineering.",
   },
   {
     id: "ror-repair",
@@ -35,7 +35,7 @@ const changes = [
     tagClass: fixed,
     title: "False institution matches repaired again",
     body: `v2.0.0 removed false ROR matches on seven organisations, most of them University of California editors matched to California Coast University. A later re-enrichment brought them back, and v3.0.0 carried them on 3,484 rows. The repair is re-applied: University of California rows move to the campus their affiliation names, and rows that name no campus, or sit on the other six organisations, lose the wrong match. The release build now refuses any of the seven organisations.`,
-    stat: "2,496 rows move to their UC campus (UCLA 475, Davis 390, Berkeley 371, …) and 988 lose a wrong match. ROR coverage moves from 68.19% to 68.08% of records.",
+    stat: "2,496 rows move to their UC campus (UCLA 474, Davis 391, Berkeley 389, …) and 988 lose a wrong match. ROR coverage moves from 68.19% to 68.08% of records.",
   },
   {
     id: "retired-sources",
@@ -50,7 +50,7 @@ const changes = [
     tag: "Recomputed",
     tagClass: recomputed,
     title: "Identity keys and board statistics follow the repairs",
-    body: `editor_key includes the institution, so it changes on the repaired rows, and University of California rows now join the same people's existing records at their campus. Board institution and country statistics, and the multi-board columns, are recomputed for the affected journals and editors. Nothing else changes: the build checks that only these columns differ from v3.0.0.`,
+    body: `editor_key includes the institution, so it changes on the repaired rows, and University of California rows now join the same people's existing records at their campus. Board institution and country statistics, and the multi-board columns, are recomputed for the affected journals and editors. Nothing else changes: the build fails if any column outside a fixed allowed set differs from v3.0.0, and only the columns named in these notes did.`,
     stat: "Unique editors: 744,848 (v3.0.0: 745,125). Multi-board share: 15.04% (15.02%).",
   },
 ];
@@ -62,11 +62,15 @@ const rerun = [
   },
   {
     what: "oa_impact_quartile",
-    why: "It is now a within-field quartile, as documented; 339,687 positions changed value. Results that compared quartiles across fields were driven by field citation norms, not journal standing.",
+    why: "It is now a within-field quartile, as documented; 339,930 positions changed value. Results that compared quartiles across fields were driven by field citation norms, not journal standing.",
   },
   {
     what: "Institution-level results",
     why: "Especially for the University of California campuses, which v3.0.0 undercounted by up to 2,496 positions.",
+  },
+  {
+    what: "Journal metrics of 152 journals",
+    why: "Their OpenAlex source had been retired; openalex_source_id and the four oa_ journal metrics now come from the current source (6,463 positions).",
   },
   {
     what: "Editor counts",
@@ -210,7 +214,7 @@ const rerunV3 = [
     <h2 class="text-2xl font-bold mb-2">If you used v3.0.0</h2>
     <p class="text-sm text-text-secondary mb-4">
       Analyses that touch only the collected columns (publisher, journal, editor, role,
-      affiliation, source_url, scraped_at), gender or bibliometrics are unaffected. Re-run
+      affiliation, source_url, scraped_at), gender or editor bibliometrics are unaffected. Re-run
       anything that touches the following.
     </p>
     <div class="overflow-x-auto border border-border rounded-lg mb-12">

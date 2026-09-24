@@ -3,7 +3,7 @@
   "version": "4.0.0",
   "data_version": "2026.3",
   "release_date": "2026-09-24",
-  "exported_at": "2026-09-24T06:16:17+00:00",
+  "exported_at": "2026-09-24T07:09:15+00:00",
   "row_count": 922097,
   "column_count": 77,
   "unique_editors": 744848,
@@ -15,13 +15,13 @@
   "files": {
     "csv": {
       "name": "openeditors_plus_2026.csv",
-      "bytes": 840746678,
-      "sha256": "d5de5ac4eaadcbbe9bfbe101216f87dcb54d535147d27e786691f350dcab88d6"
+      "bytes": 840773715,
+      "sha256": "ce88723a60c4def52a32c4ea2ceae3fa1f51fa6b3bc6221363cc63cda11a786b"
     },
     "parquet": {
       "name": "openeditors_plus_2026.parquet",
-      "bytes": 98654560,
-      "sha256": "93c3054c1f67471d5ab01f0729314e85ab33462d46db9c46edbd4c87ac3e7472"
+      "bytes": 98657094,
+      "sha256": "f7df4c627caf91206c07b75dcbaa3bcf86326496c04a3ab51395320940aef2e7"
     }
   }
 }

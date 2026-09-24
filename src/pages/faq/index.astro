@@ -4,6 +4,7 @@ import ContactEmail from "../../components/ContactEmail.astro";
 import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
 import { fmtMB } from "../../lib/format";
+import countries from "../../../public/api/countries.json";
 
 const gd = summary.gender_distribution;
 const resolved = gd.male + gd.female;
@@ -15,6 +16,13 @@ const pctFemale = (gd.female / resolved * 100).toFixed(1);
 const csvMB = fmtMB(release.files.csv.bytes, 0);
 const parquetMB = fmtMB(release.files.parquet.bytes, 0);
 const compressionRatio = (release.files.csv.bytes / release.files.parquet.bytes).toFixed(0);
+
+// Country figures come from countries.json, so they follow each release.
+const byCountry = [...countries].sort((a, b) => b.records - a.records);
+const withCountry = byCountry.reduce((s, c) => s + c.records, 0);
+const fmt = (v: number) => v.toLocaleString("en-US");
+const pctOf = (v: number) => (100 * v / withCountry).toFixed(1);
+const theName = (name: string) => (/^United /.test(name) ? `the ${name}` : name);
 
 const faqs = [
   {
@@ -39,7 +47,7 @@ const faqs = [
   },
   {
     q: "Which country has the most editorial board members?",
-    a: `The United States accounts for 167,255 editorial positions (26.6% of records with country data), followed by China (60,816), the United Kingdom (49,363), Italy (44,150), and Australia (23,597). The top 10 countries hold 71.4% of all positions with country data.`
+    a: `The ${byCountry[0].country} accounts for ${fmt(byCountry[0].records)} editorial positions (${pctOf(byCountry[0].records)}% of records with country data), followed by ${byCountry.slice(1, 4).map((c) => `${theName(c.country)} (${fmt(c.records)})`).join(", ")}, and ${theName(byCountry[4].country)} (${fmt(byCountry[4].records)}). The top 10 countries hold ${pctOf(byCountry.slice(0, 10).reduce((s, c) => s + c.records, 0))}% of all positions with country data.`
   },
   {
     q: "What is the average h-index of editorial board members?",
