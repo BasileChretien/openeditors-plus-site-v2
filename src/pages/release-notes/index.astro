@@ -35,7 +35,7 @@ const changes = [
     tagClass: fixed,
     title: "False institution matches repaired again",
     body: `v2.0.0 removed false ROR matches on seven organisations, most of them University of California editors matched to California Coast University. A later re-enrichment brought them back, and v3.0.0 carried them on 3,484 rows. The repair is re-applied: University of California rows move to the campus their affiliation names, and rows that name no campus, or sit on the other six organisations, lose the wrong match. The release build now refuses any of the seven organisations.`,
-    stat: "2,496 rows move to their UC campus (UCLA 474, Davis 391, Berkeley 389, …) and 988 lose a wrong match. ROR coverage moves from 68.19% to 68.08% of records.",
+    stat: "2,516 rows move to their UC campus (UCLA 477, Davis 395, Berkeley 393, …) and 968 lose a wrong match. ROR coverage moves from 68.19% to 68.08% of records.",
   },
   {
     id: "retired-sources",
@@ -51,7 +51,7 @@ const changes = [
     tagClass: recomputed,
     title: "Identity keys and board statistics follow the repairs",
     body: `editor_key includes the institution, so it changes on the repaired rows, and University of California rows now join the same people's existing records at their campus. Board institution and country statistics, and the multi-board columns, are recomputed for the affected journals and editors. Nothing else changes: the build fails if any column outside a fixed allowed set differs from v3.0.0, and only the columns named in these notes did.`,
-    stat: "Unique editors: 744,848 (v3.0.0: 745,125). Multi-board share: 15.04% (15.02%).",
+    stat: "Unique editors: 744,842 (v3.0.0: 745,125). Multi-board share: 15.04% (15.02%).",
   },
 ];
 
@@ -66,7 +66,7 @@ const rerun = [
   },
   {
     what: "Institution-level results",
-    why: "Especially for the University of California campuses, which v3.0.0 undercounted by up to 2,496 positions.",
+    why: "Especially for the University of California campuses, which v3.0.0 undercounted by up to 2,516 positions.",
   },
   {
     what: "Journal metrics of 152 journals",
@@ -74,7 +74,7 @@ const rerun = [
   },
   {
     what: "Editor counts",
-    why: "Use 744,848 unique editors and the published editor_key.",
+    why: "Use 744,842 unique editors and the published editor_key.",
   },
 ];
 
