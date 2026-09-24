@@ -1,11 +1,9 @@
 ---
 import "../styles/global.css";
 import release from "../../public/api/release_meta.json";
+import { ZENODO_RECORD_ID } from "../lib/zenodo";
 
-// Zenodo record of the current release (version DOI 10.5281/zenodo.21620278).
-// The footer and the Dataset JSON-LD read version and date from release_meta.json;
-// bump this ID together with it when a new version is deposited.
-const ZENODO_RECORD_ID = "21620278";
+// The footer and the Dataset JSON-LD read version and date from release_meta.json.
 const releaseDateLabel = new Date(`${release.release_date}T00:00:00Z`).toLocaleDateString("en-US", {
   year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
 });
@@ -83,7 +81,7 @@ const breadcrumbSchema = breadcrumbs ? {
 
     <!-- Fonts (self-hosted, no external requests) -->
 
-    <!-- Schema.org Dataset — SECURITY: set:html is safe here because all values are hardcoded. Do NOT interpolate user/external data without escaping. -->
+    <!-- Schema.org Dataset — SECURITY: set:html is safe here because all values are hardcoded or come from this repo's own release_meta.json and lib/zenodo.ts, and JSON.stringify escapes them. Do NOT interpolate user/external data without escaping. -->
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "Dataset",
@@ -222,7 +220,7 @@ const breadcrumbSchema = breadcrumbs ? {
             <ul class="space-y-2 text-sm text-text-secondary">
               <li><a href="/explore" class="hover:text-brand-600">Explore the data</a></li>
               <li><a href="/download" class="hover:text-brand-600">Download (Zenodo)</a></li>
-              <li><a href="/release-notes" class="hover:text-brand-600">Release notes (v3.0.0)</a></li>
+              <li><a href="/release-notes" class="hover:text-brand-600">Release notes (v{release.version})</a></li>
               <li><a href="/methodology" class="hover:text-brand-600">Methodology</a></li>
               <li><a href="/cite" class="hover:text-brand-600">How to cite</a></li>
               <li><a href="/privacy" class="hover:text-brand-600">Privacy &amp; data protection</a></li>

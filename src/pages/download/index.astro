@@ -2,21 +2,19 @@
 import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
-
-// Zenodo record ID for the CURRENT (latest) version. Download URLs go
-// here, and they must match the files whose sizes and SHA-256 hashes are
-// shown below (release_meta.json). When a new version is published, bump
-// this to the new record ID (and the same constant in Base.astro) AND add
-// a new entry at the top of `versions` with its version DOI.
-const ZENODO_RECORD_ID = "21620278"; // v3.0.0
+// Record of the CURRENT version; download URLs go there (see lib/zenodo.ts).
+// When a new version is published, bump it there AND add a new entry at the
+// top of `versions` with its version DOI.
+import { ZENODO_RECORD_ID } from "../../lib/zenodo";
 // Primary DOI shown in the header chip. This is the CONCEPT DOI
 // (concept recid 19468382), verified against the Zenodo API: it always
 // resolves to the latest published version. Version-specific DOIs live
 // in the `versions` table below. Do not replace this with a version DOI.
 const ZENODO_DOI = "10.5281/zenodo.19468382";
 
-// Human-friendly size renderer — MB with one decimal, no locale quirks.
-const fmtMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1);
+// Human-friendly size renderer — decimal MB (10^6 bytes, as Zenodo shows them)
+// with one decimal, no locale quirks.
+const fmtMB = (bytes: number) => (bytes / 1_000_000).toFixed(1);
 
 const csv = release.files.csv;
 const parquet = release.files.parquet;
@@ -101,7 +99,7 @@ const versions = [
     date: "2026-04-15",
     title: "boards_count identity-collision fix",
     summary:
-      "Applied in place on the original v2.0.0 Zenodo record (19590816) a few hours after the v2.0.0 upload. Stage 12 of the enrichment pipeline was grouping editors by NAME alone when computing boards_count, publishers_count, and is_multi_board — so 57 distinct 'Wei Wang's at different institutions all got credited with the same pooled counts. All three columns are now recomputed against a composite identity key (ORCID when present, else ror_id + name, else affiliation + name). Distinct editors under that key: 726,735 (up from the name-collapse count of 619,700 that was shown in v1). Editors on ≥2 boards: 111,783 (15.0%). Max boards held by any individual: 92. Only boards_count, publishers_count, is_multi_board changed. Zenodo users who downloaded the initial v2.0 upload should re-download.",
+      "Applied in place on the original v2.0.0 Zenodo record (19590816) a few hours after the v2.0.0 upload. Stage 12 of the enrichment pipeline was grouping editors by NAME alone when computing boards_count, publishers_count, and is_multi_board — so 57 distinct 'Wei Wang's at different institutions all got credited with the same pooled counts. All three columns are now recomputed against a composite identity key (ORCID when present, else ror_id + name, else affiliation + name). Distinct editors under that key: 726,735 (up from the name-collapse count of 619,700 that was shown in v1). Editors on ≥2 boards: 111,783 (15.0%). Max boards held by any individual: 92. Only boards_count, publishers_count, is_multi_board changed. That record has since been updated in place again and now serves the v2.7.0 files, so use the latest version above rather than re-downloading from it.",
     doi: null,
     latest: false,
   },
@@ -351,7 +349,7 @@ curl https://openeditors-plus.org/api/fields.json</pre>
         ))}
       </div>
       <p class="text-xs text-text-muted mt-3">
-        Each version above has its own DOI so that downstream citations can pin to a specific release for reproducibility.
+        A version with a DOI can be cited as that exact release for reproducibility; the concept DOI at the top of this page always resolves to the latest version.
       </p>
     </div>
   </div>
