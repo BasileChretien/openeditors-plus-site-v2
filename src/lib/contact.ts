@@ -2,7 +2,7 @@
 //
 // Published as a durable address on the project's own domain,
 // data-rights@openeditors-plus.org, forwarded to the maintainer's mailbox.
-// The dataset is a permanent deposit (Zenodo DOI 10.5281/zenodo.19590816),
+// The dataset is a permanent deposit (Zenodo DOI 10.5281/zenodo.19468382),
 // so the contact must outlive any single personal or student account — a
 // domain address the maintainer controls does that. This module is the
 // single source of truth: change these two constants and every page plus

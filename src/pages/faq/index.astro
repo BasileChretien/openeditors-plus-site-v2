@@ -3,6 +3,7 @@ import Base from "../../layouts/Base.astro";
 import ContactEmail from "../../components/ContactEmail.astro";
 import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
+import { fmtMB } from "../../lib/format";
 
 const gd = summary.gender_distribution;
 const resolved = gd.male + gd.female;
@@ -10,10 +11,9 @@ const pctFemale = (gd.female / resolved * 100).toFixed(1);
 
 // File sizes are read from release_meta.json (regenerated with every export)
 // rather than typed in, so they cannot drift from the bytes on Zenodo.
-// Same MiB-based convention the /download page uses.
-const fmtMB = (bytes: number) => (bytes / (1024 * 1024)).toFixed(0);
-const csvMB = fmtMB(release.files.csv.bytes);
-const parquetMB = fmtMB(release.files.parquet.bytes);
+// Decimal MB, like /download and Zenodo (see lib/format.ts); whole numbers here.
+const csvMB = fmtMB(release.files.csv.bytes, 0);
+const parquetMB = fmtMB(release.files.parquet.bytes, 0);
 const compressionRatio = (release.files.csv.bytes / release.files.parquet.bytes).toFixed(0);
 
 const faqs = [
@@ -51,7 +51,7 @@ const faqs = [
   },
   {
     q: "How should I cite this dataset?",
-    a: "Chretien, B. (2026). Open Editors Plus 2026: Editorial Board Composition of 15,000+ Academic Journals [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19590816"
+    a: "Chretien, B. (2026). Open Editors Plus 2026: Editorial Board Composition of 15,000+ Academic Journals [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19468382"
   },
   {
     q: "What license is the data released under?",
