@@ -6,15 +6,14 @@ import release from "../../../public/api/release_meta.json";
 // When a new version is published, bump it there AND add a new entry at the
 // top of `versions` with its version DOI.
 import { ZENODO_RECORD_ID } from "../../lib/zenodo";
+import { fmtMB } from "../../lib/format";
 // Primary DOI shown in the header chip. This is the CONCEPT DOI
 // (concept recid 19468382), verified against the Zenodo API: it always
 // resolves to the latest published version. Version-specific DOIs live
 // in the `versions` table below. Do not replace this with a version DOI.
 const ZENODO_DOI = "10.5281/zenodo.19468382";
 
-// Human-friendly size renderer — decimal MB (10^6 bytes, as Zenodo shows them)
-// with one decimal, no locale quirks.
-const fmtMB = (bytes: number) => (bytes / 1_000_000).toFixed(1);
+// Sizes in decimal MB with one decimal (lib/format.ts), as Zenodo shows them.
 
 const csv = release.files.csv;
 const parquet = release.files.parquet;
