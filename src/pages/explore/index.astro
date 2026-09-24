@@ -568,8 +568,11 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     // Called whenever filters change so the map reflects the same subset
     // as the table and charts. On an unfiltered view we could use the
     // pre-built /api/map.json, but once any filter is active (column,
-    // map, or URL-param) the map has to come from DuckDB. Capped at 2000
-    // points so the marker layer stays responsive.
+    // map, or URL-param) the map has to come from DuckDB. Every point is
+    // drawn: a filter keeps a subset of the rows, so it never yields more
+    // points than map.json, which the unfiltered map already draws in
+    // full. The order (largest first) matches map.json, so smaller markers
+    // are drawn on top.
     //
     // Must match compute_map_data() in the data repo's
     // scripts/site/aggregate_data.py, which builds map.json: one point per
@@ -613,8 +616,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         FROM pts p
         LEFT JOIN labels l
           ON l.country = p.country AND l.lat = p.lat AND l.lon = p.lon AND l.rn = 1
-        ORDER BY p.records DESC, p.country, p.lat, p.lon
-        LIMIT 2000`;
+        ORDER BY p.records DESC, p.country, p.lat, p.lon`;
       const res = await conn.query(sql);
       return res.toArray().map(r => ({
         city: r.city || "",
