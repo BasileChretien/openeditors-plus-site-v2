@@ -4,11 +4,11 @@ import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
 
 // Zenodo record ID for the CURRENT (latest) version. Download URLs go
-// here. When a new version is published, bump this to the new record ID
-// AND add a new entry at the top of `versions` with its version DOI.
-// PLACEHOLDER: set to the v3.0.0 record ID as soon as the deposit is
-// published. Until then downloads still resolve to the v2.0.0 record.
-const ZENODO_RECORD_ID = "19590816";
+// here, and they must match the files whose sizes and SHA-256 hashes are
+// shown below (release_meta.json). When a new version is published, bump
+// this to the new record ID (and the same constant in Base.astro) AND add
+// a new entry at the top of `versions` with its version DOI.
+const ZENODO_RECORD_ID = "21620278"; // v3.0.0
 // Primary DOI shown in the header chip. This is the CONCEPT DOI
 // (concept recid 19468382), verified against the Zenodo API: it always
 // resolves to the latest published version. Version-specific DOIs live
@@ -39,7 +39,7 @@ const versions = [
     title: "Corrected release: board statistics, published identity keys, role repair",
     summary:
       "Major release. Changes values in existing columns, not just the schema, so analyses built on v2.6.0 or v2.7.0 must be re-run. (1) board_pct_female was constant at 0 in v2.6.0 and v2.7.0: a gender-wipe regression introduced in v2.6.0 had cleared the per-row gender values that the board-statistics stage reads as input, and because an all-zero result is arithmetically valid nothing raised an error. The inputs are restored and the denominator now matches the codebook definition, the resolved gender count (male plus female) rather than total board size; 907,086 rows (98.4%) now carry a non-zero value and the mean board is 31.5% female. (2) editor_key, the composite identity key behind the 745,125 unique-editor figure, is now published so that count is reproducible without reconstructing the key: 'orcid:' tier 346,713 records / 250,372 unique editors, 'ror:' tier 294,399 / 236,613, 'aff:' tier 280,985 / 258,140. (3) openalex_author_id is published, restoring direct interoperability with the OpenAlex graph, on 531,437 records (57.6%), which is 98.7% of the 538,550 records that matched an OpenAlex author. (4) Three provenance columns added: oa_match_method (orcid 344,957 / name_ror 107,173 / name_only 86,420 / unmatched 383,547), name_is_initials (26,763 records, 2.9%) and orcid_shared_flag (239 records where one ORCID maps to several distinct name strings); a supporting orcid_n_names column is also published. (5) role_std contamination fixed: 2,359 IEEE rows carried raw section headings, and a senior_editor category was added for 5,005 positions previously absorbed into 'other', leaving exactly ten canonical values. (6) All downstream statistics recomputed; multi-board editorship drops from a name-based 25.3% to 15.0% on two or more boards, because exact name matching had merged distinct homonymous individuals. The legacy 'andy' gender value is retired, leaving male, female and unknown. Public schema widens from 71 to 77 columns over 922,097 positions, 15,168 journals, 48 publishers and 189 countries. See the release notes page for the full re-run guidance.",
-    doi: "10.5281/zenodo.19468382",
+    doi: "10.5281/zenodo.21620278",
     latest: true,
   },
   {
@@ -47,7 +47,7 @@ const versions = [
     date: "2026-04-30",
     title: "Country-aware gender inference (WGND 2.0)",
     summary:
-      "Minor release. Replaces the country-blind gender-guesser library (Joerg Michael's ~48,000-name list, hard-coded confidence buckets) with the World Gender Name Dictionary 2.0 (WGND 2.0; Raffo & Lax-Martinez, WIPO 2021; Harvard Dataverse DOI 10.7910/DVN/MSEGSJ; CC0). WGND 2.0 covers ~3.5 million unique first names with frequency-weighted gender labels across 195 countries, sourced primarily from WIPO patent applicant administrative records. The enrichment pipeline now runs ROR institutional matching as Stage 2 before gender inference (Stage 3) so the editor's country of affiliation (ror_country) is available at gender lookup time — disambiguating names whose modal gender flips across cultures (Andrea is overwhelmingly male in Italy and overwhelmingly female in the United States). Layered lookup per editor: (1) wgnd_country — exact (first_name, ISO-2 country) cell, strongest signal; (2) wgnd_global — first_name aggregated across all countries, used when the country-specific cell is empty or ror_country is unknown; (3) gender_guesser — country-blind tertiary fallback for names absent from WGND; (4) unknown. Schema additions: gender_nobs (WGND sample size for the chosen cell) and gender_source (provenance ∈ {wgnd_country, wgnd_global, gender_guesser, unknown}); gender_prob is now a continuous WGND weight in [0, 1] replacing the previous {0.0, 0.75, 1.0} buckets. gender_raw is kept as a backwards-compatibility mirror of gender (WGND has no mostly_* granularity). v2.7 also applies a confidence floor of gender_prob ≥ 0.75: matches with weights below the floor are demoted to gender = 'unknown' / gender_source = 'unknown' while the raw gender_prob and gender_nobs stay populated for transparency. The threshold was set empirically from a 100-row manual validation sample where every gender-misclassification on the resolved subset had a sub-0.75 weight; the floor lifts precision on the resolved subset from ~97% to near 100% at a coverage cost of ~5 percentage points. On the 922,097-row master, 48.8% of records resolve via the country-conditional WGND table (wgnd_country), 33.2% via the global WGND aggregate (wgnd_global), and 18.0% remain unknown after the floor. Coverage gain on East Asian editorial-board members compared to v2.6 gender-guesser: China 8.0% → 44.6%, South Korea 11.6% → 40.2%; Italy 95.7% → 97.3%; UK 80.8% → 89.7%; US 75.0% → 86.3%. Implemented in scripts/wgnd.py with parquet caching of the ~5M-row dictionary; 33 unit tests in scripts/test_wgnd.py cover country-conditional disambiguation, layered fallbacks, vectorised pandas-merge equivalence, and the confidence threshold. Schema otherwise unchanged: 922,097 rows, 15,168 journals. Zenodo DOI pending.",
+      "Minor release. Replaces the country-blind gender-guesser library (Joerg Michael's ~48,000-name list, hard-coded confidence buckets) with the World Gender Name Dictionary 2.0 (WGND 2.0; Raffo & Lax-Martinez, WIPO 2021; Harvard Dataverse DOI 10.7910/DVN/MSEGSJ; CC0). WGND 2.0 covers ~3.5 million unique first names with frequency-weighted gender labels across 195 countries, sourced primarily from WIPO patent applicant administrative records. The enrichment pipeline now runs ROR institutional matching as Stage 2 before gender inference (Stage 3) so the editor's country of affiliation (ror_country) is available at gender lookup time — disambiguating names whose modal gender flips across cultures (Andrea is overwhelmingly male in Italy and overwhelmingly female in the United States). Layered lookup per editor: (1) wgnd_country — exact (first_name, ISO-2 country) cell, strongest signal; (2) wgnd_global — first_name aggregated across all countries, used when the country-specific cell is empty or ror_country is unknown; (3) gender_guesser — country-blind tertiary fallback for names absent from WGND; (4) unknown. Schema additions: gender_nobs (WGND sample size for the chosen cell) and gender_source (provenance ∈ {wgnd_country, wgnd_global, gender_guesser, unknown}); gender_prob is now a continuous WGND weight in [0, 1] replacing the previous {0.0, 0.75, 1.0} buckets. gender_raw is kept as a backwards-compatibility mirror of gender (WGND has no mostly_* granularity). v2.7 also applies a confidence floor of gender_prob ≥ 0.75: matches with weights below the floor are demoted to gender = 'unknown' / gender_source = 'unknown' while the raw gender_prob and gender_nobs stay populated for transparency. The threshold was set empirically from a 100-row manual validation sample where every gender-misclassification on the resolved subset had a sub-0.75 weight; the floor lifts precision on the resolved subset from ~97% to near 100% at a coverage cost of ~5 percentage points. On the 922,097-row master, 48.8% of records resolve via the country-conditional WGND table (wgnd_country), 33.2% via the global WGND aggregate (wgnd_global), and 18.0% remain unknown after the floor. Coverage gain on East Asian editorial-board members compared to v2.6 gender-guesser: China 8.0% → 44.6%, South Korea 11.6% → 40.2%; Italy 95.7% → 97.3%; UK 80.8% → 89.7%; US 75.0% → 86.3%. Implemented in scripts/wgnd.py with parquet caching of the ~5M-row dictionary; 33 unit tests in scripts/test_wgnd.py cover country-conditional disambiguation, layered fallbacks, vectorised pandas-merge equivalence, and the confidence threshold. Schema otherwise unchanged: 922,097 rows, 15,168 journals. On Zenodo, these files replaced the earlier v2 files in place, in record 10.5281/zenodo.19590816.",
     doi: "10.5281/zenodo.19590816",
     latest: false,
   },
@@ -57,7 +57,7 @@ const versions = [
     title: "Publisher-aware ISSN resolution",
     summary:
       "Minor release. Fixes 71 journals whose issn_l silently resolved to a more famous similarly-named publication. The Stage-4 lookup did relevance-ranked OpenAlex name search and took the first result with no publisher filter, so ambiguous bare titles like \"Chemotherapy\", \"Clinical Trials\", or \"Rheumatology\" collapsed onto the wrong journal. The dormant scripts/data/journal_aliases.json override file was never loaded by the enricher. User-confirmed corrections: ACS Pharmacology & Translational Science 2575-9108 (was NULL — a typo \"Translation\" in the source title); Current Psychopharmacology (Bentham) 2211-5560 (was Psychopharmacology Bulletin's 0097-8361); Karger Chemotherapy 0009-3157 (was ASM's Antimicrobial Agents and Chemotherapy 0066-4804); Bentham Cardiovascular & Hematological Disorders – Drug Targets 1871-529X (was 1568-0061); SAGE Clinical Trials 1740-7745 (was Elsevier's Controlled Clinical Trials 0197-2456); OUP Rheumatology 1462-0324 (was 1607-2669). Plus 65 more under SAGE, SCIRP, Taylor & Francis, MDPI, OUP, Wiley, Bentham, Elsevier, Karger, BMJ Group, IEEE, APA. Mechanism: every PUBLISHER_NAME maps to a token set expected in OpenAlex's host_organization_name; the local snapshot rejects host mismatches; the API search scans up to 25 results instead of taking results[0]; journal_aliases.json is now loaded with three layers (canonical-name remap, name→ISSN override, new publisher-scoped name|||publisher→ISSN map for ambiguous bare titles); a new /sources/issn:NNNN-NNNN direct resolver bypasses relevance ranking; an NPI title→ISSN cross-check (publisher-aware) re-resolves on disagreement; stale-snapshot results (source_id but no field/topic) now fall back to API for full taxonomy in the same run. Stage-4 cache key migrated from <journal> to <publisher>|||<journal>; legacy bare-name keys auto-discarded. New scripts/audit_issn.py validates issn_l against NPI's Print/Online ISSN catalog filtered by publisher; the audit on the regenerated 922,097-row master dropped flagged rows from 116 to 45 — the remaining 45 are predominantly NPI Print-vs-Online catalog drift (e.g. The BMJ pipeline 0959-8138 print, NPI 1756-1833 online — both correct), not pipeline bugs. Schema unchanged: 922,097 rows, 15,168 journals. issn_l, openalex_source_id, scientific_domain/field/subfield/topic, oa_* refreshed; downstream indexed_* flags recomputed live from the new ISSNs. Superseded by v2.7.0.",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -66,7 +66,7 @@ const versions = [
     title: "PubMed + DOAJ flags recomputed against authoritative lists",
     summary:
       "Patch release. Fixes a regression in v2.4.0: when the resolver cascade backfilled an ISSN via the alias map, the rest of fix_missing_issns.py recomputed indexed_scopus / indexed_wos / indexed_npi / indexed_cope against their local reference-list sets — but indexed_pubmed and indexed_doaj were NOT recomputed. Those two flags kept their stale values from the input master CSV (almost always False for newly-backfilled journals). Result: well-known PubMed journals like JACC (0735-1097) shipped with indexed_pubmed=False even though NCBI lists them. In v2.5.0, indexing_flags.IndexingSets accepts optional pubmed + doaj frozensets loaded from NLM's J_Medline.txt (45,313 ISSNs) and DOAJ's public journals CSV (34,740 ISSNs); compute_indexing() treats them as authoritative. Row flips: indexed_pubmed True count 687,574 → 744,772 (+57,198 rows, mostly JACC family, Nature Reviews family, Annales Médico-Psychologiques, Journal Français d'Ophtalmologie, Dialogue: Canadian Philosophical Review, etc.); indexed_doaj 324,546 → 324,553 (+7, the DOAJ universe was already ~accurate). Three new regression tests in scripts/tests/test_journal_resolver.py pin the override semantics (test_pubmed_set_overrides_passed_value covers the exact JACC bug), plus a dataset-level flagship check in test_journals_json_health.py asserting indexed_pubmed=True for JACC, JACC:Heart Failure / Cardiovascular Interventions / Cardiovascular Imaging, Nature Reviews Cancer / Immunology / Neuroscience. Schema unchanged: 67 columns, 922,097 rows. Only indexed_pubmed, indexed_doaj, and indexing_count changed on the affected rows. Superseded by v2.6.0.",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -75,7 +75,7 @@ const versions = [
     title: "ISSN coverage: 15.0 % → 1.17 % missing",
     summary:
       "Minor release. Backfills 2,094 journal ISSN-Ls that were blank in v2.3.0. The enrichment pipeline resolved journal names to ISSNs via a single case-insensitive exact-match lookup against a local OpenAlex sources index, which silently missed abbreviated titles (JACC → Journal of the American College of Cardiology), mojibake-corrupted titles (Lancet Regional Health �… Europe), and non-canonical publisher conventions (Inderscience \"Int. J. of X\"). An empty issn_l cascaded into all six indexed_* flags defaulting to False. 2,272 of 15,168 journals (15.0 %) had this missing issn_l; post-fix, only 178 (1.17 %) do — the remaining ones are overwhelmingly truncated source-title artifacts, predatory titles not registered with ISSN International Centre, and unlaunched 2026 journals. Row-level indexing True counts increased substantially: indexed_scopus +73,568 rows (to 826,021), indexed_wos +34,251 (to 491,322), indexed_npi +66,882 (to 744,410), indexed_doaj +15,344 (to 324,546). Superseded by v2.5.0, which fixes a shipped-with bug where indexed_pubmed and indexed_doaj were not recomputed for backfilled ISSNs.",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -84,7 +84,7 @@ const versions = [
     title: "IEEE section fully re-collected + re-enriched",
     summary:
       "Minor release. The IEEE portion of the dataset was fully re-collected and re-enriched; all other publishers are unchanged from v2.2.0. IEEE row count: 9,647 → 9,278. IEEE journals covered: 199 → 192. 17 new DOM parsers cover the full range of IEEE society layouts (Elementor text-editor / icon-list for PELS and Vehicular Tech; Drupal simple--contact + field--node--field-affiliation for Catalyze-theme journals including AESS / Biometrics / Photonics; IEEE NPSS prose for Transactions on Nuclear Science; cb-profile cards for MTT; legacy indvlistaffil for T-ED; topic-area tables for T-Computers). URL overrides for 23 IEEE journals whose boards live on external society sites (ieee-pels.org, ieee-npss.org, ieee-aess.org, ieeephotonics.org, ieee-ims.org, ieee-itss.org, ias.ieee.org, grss-ieee.org, ieeemagnetics.org, ieee-biometrics.org, ieeesmc.org and others), bypassing stale Xplore cache. Three local-LLM post-processing passes handle multi-editor aff-blob splits, long-aff cleanup, and row-level name validation — dropping 5,382 non-name rows and trimming 808 junk-bearing names. IEEE ORCID coverage jumped from 0% to 40.4% thanks to inline HTML parsing + OpenAlex fallback. 186 regression tests lock in every new parser strategy. Total dataset: 922,097 rows × 67 columns. Superseded by v2.4.0.",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -93,7 +93,7 @@ const versions = [
     title: "Cross-institution ORCID cleanup + per-entity per-editor stats",
     summary:
       "Two correctness fixes to the previous v2.1 bytes, plus site-side improvements. (1) 41,575 rows had cross-institution backfilled ORCIDs cleared: stage 5 of the enrichment pipeline had propagated one person's ORCID onto homonyms at other institutions (real example: one ORCID stamped on 47 'Qiang Zhang' rows at Tsinghua / Beijing Normal / China National Rice Research). The originally collected ORCIDs remain authoritative; only ORCIDs added by the OpenAlex name lookup were touched, and only when the ORCID spanned multiple ror_ids. orcid_source becomes 'cleared_cross_institution_backfill' on those rows for traceability. (2) Every per-entity site aggregate (publishers, countries, fields, institutions, journals) now computes gender / pct_female / mean_h_index / top_countries / top_fields against deduplicated editors instead of rows, so a prolific editor on 40 boards contributes once to the entity's gender share and mean h-index instead of 40 times. The dataset schema is unchanged; this affects JSON aggregates on the site and the displayed numbers on every detail page. Site also ships new per-entity diversity indicators (country Shannon, org_type Shannon, academic-age IQR) and gender-classification coverage warnings for CJK-heavy entities. Distinct editors under the composite identity key now stand at 744,940 (up from 726,735 in v2.1 because cross-institution ORCIDs split correctly into distinct editors).",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -102,7 +102,7 @@ const versions = [
     title: "boards_count identity-collision fix",
     summary:
       "Applied in place on the original v2.0.0 Zenodo record (19590816) a few hours after the v2.0.0 upload. Stage 12 of the enrichment pipeline was grouping editors by NAME alone when computing boards_count, publishers_count, and is_multi_board — so 57 distinct 'Wei Wang's at different institutions all got credited with the same pooled counts. All three columns are now recomputed against a composite identity key (ORCID when present, else ror_id + name, else affiliation + name). Distinct editors under that key: 726,735 (up from the name-collapse count of 619,700 that was shown in v1). Editors on ≥2 boards: 111,783 (15.0%). Max boards held by any individual: 92. Only boards_count, publishers_count, is_multi_board changed. Zenodo users who downloaded the initial v2.0 upload should re-download.",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -111,7 +111,7 @@ const versions = [
     title: "ROR false-positive fix",
     summary:
       "Fixes 3,480 mislabeled institution rows (0.38%) from the ROR fuzzy matcher accepting weak 'chosen=True' matches. 2,487 University of California rows were remapped to the correct campus; 7 false-positive clusters (California Coast University, Dordt, Measurement Incorporated, Wilderness Inquiry, Hudson Simulation Service, Kamehameha Schools, Bikur Cholim) were cleared. The enrichment pipeline now applies three guards: ROR_MIN_SCORE = 0.9, a hard blacklist of the 7 known-bad ror_ids, and a token-overlap check below ROR_TRUST_SCORE = 0.95. Row count unchanged; only ror_id / ror_name / ror_country / ror_state / ror_city / org_type / latitude / longitude were modified on the 3,480 affected rows.",
-    doi: "10.5281/zenodo.19590816",
+    doi: null,
     latest: false,
   },
   {
@@ -316,7 +316,12 @@ curl https://openeditors-plus.org/api/fields.json</pre>
 
     <!-- Version history -->
     <div class="mt-12">
-      <h2 class="text-2xl font-bold mb-4">Version history</h2>
+      <h2 class="text-2xl font-bold mb-2">Version history</h2>
+      <p class="text-text-secondary text-sm mb-4">
+        Versions 2.0.0 to 2.6.0 were published as in-place updates of one Zenodo record
+        (<a href="https://doi.org/10.5281/zenodo.19590816" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">10.5281/zenodo.19590816</a>),
+        which now serves the v2.7.0 files, so their own files are no longer available.
+      </p>
       <div class="space-y-3">
         {versions.map((v) => (
           <div class="border border-border rounded-lg overflow-hidden">

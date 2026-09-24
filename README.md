@@ -38,7 +38,7 @@ set by `public/CNAME`.
 ## Data and corrections
 
 The dataset itself is released separately under CC0 on Zenodo
-([10.5281/zenodo.19590816](https://doi.org/10.5281/zenodo.19590816)).
+([10.5281/zenodo.19468382](https://doi.org/10.5281/zenodo.19468382)).
 
 CC0 waives copyright and database rights only — it does not waive the
 data-protection rights of the individuals described. Anyone listed in the data
