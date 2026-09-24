@@ -34,8 +34,8 @@ const changes = [
     tag: "Fixed",
     tagClass: fixed,
     title: "False institution matches repaired again",
-    body: `v2.0.0 removed false ROR matches on seven organisations, most of them University of California editors matched to California Coast University. A later re-enrichment brought them back, and v3.0.0 carried them on 3,484 rows. The repair is re-applied: University of California rows move to the campus their affiliation names, and rows that name no campus, or sit on the other six organisations, lose the wrong match. The release build now refuses any of the seven organisations.`,
-    stat: "2,516 rows move to their UC campus (UCLA 477, Davis 395, Berkeley 393, …) and 968 lose a wrong match. ROR coverage moves from 68.19% to 68.08% of records.",
+    body: `v2.0.0 removed false ROR matches to seven organisations, most of them University of California editors matched to California Coast University. A later re-enrichment brought them back, and v3.0.0 carried 3,483 of them. The repair is re-applied: University of California rows move to the campus their affiliation names, and the other false matches are cleared. The seven are real institutions, so a match whose affiliation names the organisation is kept; the release build fails only on matches whose affiliation does not.`,
+    stat: "2,516 rows move to their UC campus (UCLA 477, Davis 395, Berkeley 393, …), 967 lose a wrong match, and 1 genuine match stays. ROR coverage moves from 68.19% to 68.08% of records.",
   },
   {
     id: "retired-sources",
