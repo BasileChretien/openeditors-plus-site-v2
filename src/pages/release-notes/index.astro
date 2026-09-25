@@ -12,6 +12,19 @@ const fixed = "bg-red-100 text-red-800 border-red-200";
 const added = "bg-emerald-100 text-emerald-800 border-emerald-200";
 const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 
+// v4.0.1 (2026-09-25), a patch to v4.0.0.
+const changesV401 = [
+  {
+    id: "ror-city-state",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "City and state filled for every institution-matched record",
+    body: `v4.0.0, like v2.7.0 and v3.0.0 before it, left ror_city and ror_state empty on records whose institution was matched after the one-off city backfill of April 2026: mostly IEEE editors added in v2.3.0. The release build now takes both from the ROR record of every row's ror_id and refuses a bundle where they are missing or differ from ROR. No other value changes, and every count of v4.0.0 stands; data_version is 2026.4.`,
+    stat: "5,537 records gain a city and 5,405 a state (4,919 editors); the other 132, in Singapore and Hong Kong, stay without a state because their institutions' ROR records give none. Most affected: Beijing (360 records), Shanghai (141), Nanjing (110), Singapore (105). Re-run only city- or state-level analyses.",
+  },
+];
+
+// v4.0.0 (2026-09-25), kept as published. Its figures describe v4.0.0.
 const changes = [
   {
     id: "journal-fields",
@@ -153,7 +166,7 @@ const rerunV3 = [
 <Base
   title="Release notes — Open Editors Plus"
   path="release-notes"
-  description="What changed in Open Editors Plus v4.0.0: journal fields from each journal's own articles, impact quartiles ranked within each field, repaired institution matches and current OpenAlex sources. Notes for v3.0.0 follow."
+  description="What changed in Open Editors Plus v4.0.1 (city and state filled for every institution-matched record) and v4.0.0 (journal fields from each journal's own articles, impact quartiles ranked within each field, repaired institution matches, current OpenAlex sources). Notes for v3.0.0 follow."
 >
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
     <h1 class="text-3xl sm:text-4xl font-bold mb-3">Release notes</h1>
@@ -167,10 +180,12 @@ const rerunV3 = [
     </div>
 
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v4.0.0 is a <strong>corrected</strong> release. It changes values in existing
-      columns, not the schema, so analyses built on v3.0.0 that use journal fields,
-      impact quartiles, institutions or editor counts need to be re-run. The paper that
-      describes the dataset uses v3.0.0, which stays available on Zenodo.
+      v4.0.1 is a <strong>patch</strong> to v4.0.0: it fills the city and state of
+      institution-matched records that v4.0.0 left empty, and changes nothing else. v4.0.0
+      was a <strong>corrected</strong> release: it changed values in existing columns, so
+      analyses built on v3.0.0 that use journal fields, impact quartiles, institutions or
+      editor counts need to be re-run. The paper that describes the dataset uses v3.0.0,
+      which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -190,7 +205,31 @@ const rerunV3 = [
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4">What changed in v4.0.0</h2>
+    <h2 class="text-2xl font-bold mb-4" id="v4.0.1">What changed in v4.0.1</h2>
+    <div class="space-y-5 mb-12">
+      {changesV401.map((c, i) => (
+        <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+          <div class="flex items-start gap-3 mb-2">
+            <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+            <div class="min-w-0">
+              <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                {c.tag}
+              </span>
+              <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+          <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+            {c.stat}
+          </p>
+        </section>
+      ))}
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4" id="v4.0.0">
+      <h2 class="text-2xl font-bold">What changed in v4.0.0</h2>
+      <span class="text-sm text-text-muted">released 2026-09-25 &middot; data_version 2026.3</span>
+    </div>
     <div class="space-y-5 mb-12">
       {changes.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">
