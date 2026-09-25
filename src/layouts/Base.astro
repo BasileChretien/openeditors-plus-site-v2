@@ -1,7 +1,14 @@
 ---
 import "../styles/global.css";
 import release from "../../public/api/release_meta.json";
+import summary from "../../public/api/summary.json";
+import { atLeast, thousandsAtLeast } from "../lib/figures";
 import { ZENODO_RECORD_ID } from "../lib/zenodo";
+
+// Counts in the meta tags, the Dataset JSON-LD and the footer come from the
+// generated data, so they follow every release.
+const recordsAtLeast = atLeast(summary.total_records);
+const journalsAtLeast = atLeast(summary.unique_journals);
 
 // The footer and the Dataset JSON-LD read version and date from release_meta.json.
 const releaseDateLabel = new Date(`${release.release_date}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -23,7 +30,7 @@ interface Props {
 
 const {
   title,
-  description = "Open Editors Plus: 920,000+ editorial board positions across 15,000 academic journals. Explore who edits science.",
+  description = `Open Editors Plus: ${recordsAtLeast} editorial board positions across ${journalsAtLeast} academic journals. Explore who edits science.`,
   path = "",
   breadcrumbs,
   schemaJson,
@@ -59,7 +66,7 @@ const breadcrumbSchema = breadcrumbs ? {
 
     <!-- OpenGraph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content={`${title} | 920K+ Editorial Board Records`} />
+    <meta property="og:title" content={`${title} | ${thousandsAtLeast(summary.total_records)} Editorial Board Records`} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content="Open Editors Plus" />
@@ -86,7 +93,7 @@ const breadcrumbSchema = breadcrumbs ? {
       "@context": "https://schema.org",
       "@type": "Dataset",
       "name": "Open Editors Plus 2026",
-      "description": "Editorial board composition of 15,000+ academic journals with institutional, demographic, and bibliometric enrichment.",
+      "description": `Editorial board composition of ${journalsAtLeast} academic journals with institutional, demographic, and bibliometric enrichment.`,
       "url": siteUrl,
       "license": "https://creativecommons.org/publicdomain/zero/1.0/",
       "creator": {
@@ -210,7 +217,7 @@ const breadcrumbSchema = breadcrumbs ? {
           <div>
             <h3 class="font-bold text-text-primary mb-3">Open Editors Plus</h3>
             <p class="text-sm text-text-secondary leading-relaxed">
-              A comprehensive dataset of editorial board composition across 15,000+ academic journals.
+              A comprehensive dataset of editorial board composition across {journalsAtLeast} academic journals.
               Created by <a href="https://orcid.org/0000-0002-7483-2489" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">Basile Chretien</a>
               (Neuropresage Team, Normandie Université, UNICAEN, INSERM, Caen, France).
             </p>

@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import { slugify } from "../lib/slugify";
+import { DATASET_TITLE } from "../lib/dataset";
 import summary from "../../public/api/summary.json";
 import release from "../../public/api/release_meta.json";
 import publishers from "../../public/api/publishers.json";
@@ -304,7 +305,7 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
       </p>
       <div class="bg-surface-dim rounded-xl border border-border p-6 text-left">
         <p class="text-sm leading-relaxed text-text-primary">
-          Chretien, B. (2026). <em>Open Editors Plus 2026: Editorial Board Composition of 15,000+ Academic Journals</em>.
+          Chretien, B. (2026). <em>{DATASET_TITLE}</em>.
           Zenodo. <span class="text-brand-600">https://doi.org/10.5281/zenodo.19468382</span>
         </p>
         <button
@@ -371,6 +372,7 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
   </section>
 
   <script>
+    import { DATASET_TITLE } from "../lib/dataset";
     // ─── Animated counters (triggered on scroll into view) ───
     function animateCounter(el) {
       const target = parseFloat(el.dataset.target);
@@ -421,7 +423,7 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
     document.getElementById("copy-citation")?.addEventListener("click", () => {
       const bibtex = `@dataset{chretien2026openeditors,
   author    = {Chretien, Basile},
-  title     = {Open Editors Plus 2026: Editorial Board Composition of 15,000+ Academic Journals},
+  title     = {${DATASET_TITLE}},
   year      = {2026},
   publisher = {Zenodo},
   doi       = {10.5281/zenodo.19468382},

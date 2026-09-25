@@ -1,6 +1,8 @@
 ---
 import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
+import countries from "../../../public/api/countries.json";
+import { fmt, oneDecimal, pct } from "../../lib/figures";
 
 // Role-count rows are rendered from summary.role_distribution so the
 // numbers stay in lock-step with each release. The pattern column maps
@@ -19,6 +21,28 @@ const ROLE_ROWS: { patterns: string[]; role: string; note?: string }[] = [
 const roleDist = (summary as any).role_distribution as Record<string, number>;
 const roleRows = ROLE_ROWS.map((r) => ({ ...r, count: roleDist[r.role] ?? 0 }));
 const otherCount = roleDist["other"] ?? 0;
+
+// Figures quoted in the text below, from the generated data (check-figures.mjs).
+const orgTypes = summary.org_type_distribution as Record<string, number>;
+const educationShare = pct(orgTypes.education ?? 0, Object.values(orgTypes).reduce((a, b) => a + b, 0));
+const byName = Object.fromEntries(countries.map((c) => [c.country, c]));
+const classified = (name: string) => byName[name]?.pct_gender_classified ?? null;
+const cls = (name: string) => `${classified(name)?.toFixed(1)}%`;
+// Gender coverage bands of the larger countries, as trustworthy as each band allows.
+const COVERAGE_COUNTRIES = ["Italy", "Germany", "United Kingdom", "United States", "France", "Japan",
+  "India", "Hong Kong", "China", "South Korea", "Taiwan"];
+const BANDS = [
+  { min: 85, verdict: "the female share is trustworthy" },
+  { min: 70, verdict: "reasonably trustworthy" },
+  { min: 50, verdict: "treat the female share with caution: a large minority of names is unclassified" },
+  { min: 0, verdict: "treat per-country female shares as indicative at best: the displayed share covers only the classified minority" },
+];
+const coverageBands = BANDS.map((band, i) => ({
+  ...band,
+  countries: COVERAGE_COUNTRIES
+    .filter((n) => classified(n) !== null && classified(n)! >= band.min && (i === 0 || classified(n)! < BANDS[i - 1].min))
+    .sort((a, b) => classified(b)! - classified(a)!),
+})).filter((band) => band.countries.length);
 ---
 
 <Base title="Methodology — Open Editors Plus" path="methodology" description="How Open Editors Plus collects and enriches editorial board data from 48 academic publishers.">
@@ -178,7 +202,7 @@ const otherCount = roleDist["other"] ?? 0;
             and <code class="font-mono">board</code>; <code class="font-mono">section</code> is
             higher in the order and wins, so it becomes
             <code class="font-mono">section_editor</code> (that's why the section_editor bucket
-            has 42,940 rows despite the raw text almost always saying "Board Member").
+            has {fmt(roleDist.section_editor ?? 0)} rows despite the raw text almost always saying "Board Member").
           </p>
           <p class="text-xs text-text-secondary leading-relaxed mt-3">
             The normaliser is deterministic: it lowercases the raw string and applies the
@@ -189,7 +213,7 @@ const otherCount = roleDist["other"] ?? 0;
           </p>
         </div>
         <p class="text-xs text-text-muted mt-3">
-          The <code class="font-mono">other</code> bucket (~6% of rows) is dominated by <em>Topical
+          The <code class="font-mono">other</code> bucket (~{pct(otherCount, summary.total_records)}% of rows) is dominated by <em>Topical
           Advisory Panel Members</em>, scientific/advisory committees, and language-specific
           variants that don't share any of the eight keywords above. None of the high-stakes
           quality journals use those labels, so their effect on cross-publisher comparisons
@@ -253,7 +277,7 @@ const otherCount = roleDist["other"] ?? 0;
             country distribution is trivially a single-country point mass.
           </p>
           <p class="text-xs text-text-muted">
-            <strong>Limitations.</strong> Dataset-wide publisher bias (the 48 publishers
+            <strong>Limitations.</strong> Dataset-wide publisher bias (the {summary.unique_publishers} publishers
             this site covers are not uniformly distributed across countries to begin
             with) propagates into the country Shannon — a publisher with a US-dominated
             journal catalog will score low regardless of its editorial policies. Use it
@@ -279,7 +303,7 @@ const otherCount = roleDist["other"] ?? 0;
             per entity and then computes Pielou's <em>J</em> over the resulting
             Counter. A value of <em>J = 0</em> means every editor at this entity is
             classified into the same ROR type — typically "education", which accounts
-            for about 82% of editors in the whole dataset. A value of <em>J = 1</em>
+            for about {educationShare}% of editors in the whole dataset. A value of <em>J = 1</em>
             means the entity's editors are perfectly spread across the types that
             appear at all.
           </p>
@@ -386,26 +410,32 @@ const otherCount = roleDist["other"] ?? 0;
               Gender is algorithmically inferred from the editor's first name <em>combined with their country of affiliation</em> using <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a> (the World Gender Name Dictionary by Raffo &amp; Lax-Martinez, WIPO 2021). The country signal disambiguates names whose gender flips across cultures — e.g. "Andrea" is male in Italy but female in the United States. The legacy <code class="bg-amber-100 px-1 rounded">gender-guesser</code> library is retained as a tertiary fallback for names absent from WGND. Gender is <strong>not</strong> self-reported gender identity. <code class="bg-amber-100 px-1 rounded">gender_prob</code> carries the WGND weight in [0,1]; <code class="bg-amber-100 px-1 rounded">gender_nobs</code> the WGND sample size; <code class="bg-amber-100 px-1 rounded">gender_source</code> the provenance (<code>wgnd_country</code> / <code>wgnd_global</code> / <code>gender_guesser</code> / <code>unknown</code>).
             </p>
             <p class="text-xs text-amber-800 mb-2">
-              Crucially, coverage is not uniform across countries. WGND 2.0 covers ~3.5M unique first names across 195 countries, materially improving coverage on Slavic, Arabic, South Asian, and African names compared to the older Latin-script-centric gender-guesser dictionary. The largest gain is on East Asian editorial-board members: classification of editors affiliated to Chinese institutions rose from 8.0% under the v2.6 gender-guesser pipeline to <strong>44.6%</strong> under the v2.7 WGND pipeline, and South Korea from 11.6% to <strong>40.2%</strong> (after applying the <code class="bg-amber-100 px-1 rounded">gender_prob ≥ 0.75</code> confidence floor described below). Transliterated CJK-script names from Taiwan (19.2%) and Hong Kong (59.4%) remain the principal residual gap. Every per-entity page on this site reports <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> alongside the female share, and entities below 60% coverage display a prominent warning band: the reported female share is then a fraction of the classifiable minority, not of the whole board.
+              Crucially, coverage is not uniform across countries. WGND 2.0 covers ~3.5M unique first names across 195 countries, materially improving coverage on Slavic, Arabic, South Asian, and African names compared to the older Latin-script-centric gender-guesser dictionary. 
+              <!-- frozen-figures:start (what the v2.7 switch did, when it was made) -->
+              The largest gain is on East Asian editorial-board members: classification of editors affiliated to Chinese institutions rose from 8.0% under the v2.6 gender-guesser pipeline to <strong>44.6%</strong> under the v2.7 WGND pipeline, and South Korea from 11.6% to <strong>40.2%</strong> (after applying the <code class="bg-amber-100 px-1 rounded">gender_prob ≥ 0.75</code> confidence floor described below).
+              <!-- frozen-figures:end -->
+              Transliterated CJK-script names from Taiwan ({cls("Taiwan")} classified in the current release) and Hong Kong ({cls("Hong Kong")}) remain the principal residual gap. Every per-entity page on this site reports <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> alongside the female share, and entities below 60% coverage display a prominent warning band: the reported female share is then a fraction of the classifiable minority, not of the whole board.
             </p>
             <p class="text-xs text-amber-800 mb-2">
               Concretely in the current release:
             </p>
             <ul class="text-xs text-amber-800 list-disc ml-5 space-y-0.5">
-              <li>Italy, Germany, UK, US, France: 80–95% classified — the female share is trustworthy</li>
-              <li>Japan: around 80% classified — reasonably trustworthy</li>
-              <li>China: around 34% classified — two-thirds of Chinese editors' names are unclassified and the displayed female share only covers the 34%</li>
-              <li>South Korea, Taiwan, India: 16–41% classified — treat per-country female shares as indicative at best</li>
+              {coverageBands.map((band) => (
+                <li>{band.countries.map((n) => `${n} ${cls(n)}`).join(", ")} classified — {band.verdict}</li>
+              ))}
             </ul>
             <p class="text-xs text-amber-800 mt-2">
-              When comparing countries, compare the <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> values first; gaps in coverage often explain away apparent gender imbalances. The global <code class="bg-amber-100 px-1 rounded">pct_female</code> headline (currently 33.0% of unique editors with a resolved gender; 82.0% of unique editors are gender-classified) is computed the same way and inherits the same bias — it is a lower bound on the share in well-covered regions and a less meaningful number in poorly-covered ones.
+              When comparing countries, compare the <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> values first; gaps in coverage often explain away apparent gender imbalances. The global <code class="bg-amber-100 px-1 rounded">pct_female</code> headline (currently {oneDecimal(summary.pct_female)}% of unique editors with a resolved gender; {oneDecimal(summary.pct_gender_classified)}% of unique editors are gender-classified) is computed the same way and inherits the same bias — it is a lower bound on the share in well-covered regions and a less meaningful number in poorly-covered ones.
             </p>
           </div>
 
           <div id="gender-threshold" class="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <h3 class="font-semibold text-amber-900 text-sm mb-1">Confidence floor: gender_prob ≥ 0.75</h3>
             <p class="text-amber-900 text-sm leading-relaxed">
+              <!-- frozen-figures:start (the v2.7 validation sample) -->
               v2.7 applies a confidence floor of <code class="bg-amber-100 px-1 rounded">gender_prob ≥ 0.75</code> at WGND lookup time. Matches with weights below the floor are demoted to <code class="bg-amber-100 px-1 rounded">gender = 'unknown'</code>, <code class="bg-amber-100 px-1 rounded">gender_source = 'unknown'</code>, while the raw <code class="bg-amber-100 px-1 rounded">gender_prob</code> and <code class="bg-amber-100 px-1 rounded">gender_nobs</code> stay populated for transparency. The threshold was set empirically from a 100-row manual validation sample drawn from v2.7 (50 records from <code>gender_source = wgnd_country</code> and 50 from <code>wgnd_global</code>): pre-threshold precision was <strong>97/100 (97.0%)</strong>, with 3 mis-classifications all on the <code>wgnd_global</code> layer at probabilities 0.50, 0.52 and 0.71. Applying the gender_prob ≥ 0.75 floor demotes those 3 wrong calls to <code>gender = 'unknown'</code>, leaving the resolved post-threshold subset at <strong>95/95 = 100.0% precision</strong> on this sample at a coverage cost of ~5 pp. Researchers who want the raw v2.7 inferences (no floor) can recover them by filtering the master parquet on the unmodified <code class="bg-amber-100 px-1 rounded">gender_prob</code> column or by calling the lookup with <code class="bg-amber-100 px-1 rounded">wgnd.annotate(..., min_prob=0.0)</code>.
+            
+              <!-- frozen-figures:end -->
             </p>
           </div>
 

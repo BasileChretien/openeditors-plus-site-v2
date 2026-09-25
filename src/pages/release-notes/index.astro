@@ -12,6 +12,12 @@ const fixed = "bg-red-100 text-red-800 border-red-200";
 const added = "bg-emerald-100 text-emerald-800 border-emerald-200";
 const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 
+// frozen-figures:start (every note below describes its own release)
+// The version the newest notes describe. The build fails when the site
+// serves another release, so a data update cannot ship without its notes.
+const NEWEST_NOTES = "4.0.1";
+const NOTES_DESCRIPTION = "What changed in Open Editors Plus v4.0.1 (city and state filled for every institution-matched record) and v4.0.0 (journal fields from each journal's own articles, impact quartiles ranked within each field, repaired institution matches, current OpenAlex sources). Notes for v3.0.0 follow.";
+
 // v4.0.1 (2026-09-25), a patch to v4.0.0.
 const changesV401 = [
   {
@@ -161,12 +167,16 @@ const rerunV3 = [
     why: "The legacy androgynous value is retired. gender now holds only male, female and unknown, so that branch is dead code.",
   },
 ];
+// frozen-figures:end
+if (NEWEST_NOTES !== release.version) {
+  throw new Error(`release notes: the newest section describes v${NEWEST_NOTES}, but the site serves v${release.version}`);
+}
 ---
 
 <Base
   title="Release notes — Open Editors Plus"
   path="release-notes"
-  description="What changed in Open Editors Plus v4.0.1 (city and state filled for every institution-matched record) and v4.0.0 (journal fields from each journal's own articles, impact quartiles ranked within each field, repaired institution matches, current OpenAlex sources). Notes for v3.0.0 follow."
+  description={NOTES_DESCRIPTION}
 >
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
     <h1 class="text-3xl sm:text-4xl font-bold mb-3">Release notes</h1>
@@ -179,6 +189,7 @@ const rerunV3 = [
       </span>
     </div>
 
+    <!-- frozen-figures:start (the notes describe their own releases) -->
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
       v4.0.1 is a <strong>patch</strong> to v4.0.0: it fills the city and state of
       institution-matched records that v4.0.0 left empty, and changes nothing else. v4.0.0
@@ -335,6 +346,7 @@ const rerunV3 = [
       </p>
     </div>
 
+    <!-- frozen-figures:end -->
     <div class="flex flex-wrap gap-3">
       <a href="/download" class="inline-flex items-center px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors">
         Download v{release.version}
