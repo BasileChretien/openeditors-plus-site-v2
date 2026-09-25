@@ -41,6 +41,8 @@ const ROLE_ALIASES = { editor_in_chief: ["EiCs?"] };
 const MIN_COUNTRY_EDITORS = 1000;
 // Words that turn a round number into a claim about the data: "~920,000", "over 15,000".
 const APPROX = "(?<![A-Za-z])(?:~|about|around|approximately|roughly|nearly|almost|over|more than|some)\\s*";
+// What the dataset's counts count, for a round number written without "+".
+const COUNTED = "journals?|editors?|records?|positions?|rows|members|people|persons|individuals|seats";
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const en = (n) => n.toLocaleString("en-US");
@@ -66,6 +68,8 @@ function countTokens(n) {
     if (f >= n) continue;
     out.push(number(`${esc(en(f))}\\+|${f}\\+`));
     out.push(new RegExp(`${APPROX}${esc(en(f))}(?![\\d,])`, "i"));
+    // A bare round number is a claim when what it counts follows: "15,000 academic journals".
+    out.push(new RegExp(`(?<![\\d.,])(?:${esc(en(f))}|${f})(?:[\\s-]+[A-Za-z]+){0,2}?[\\s-]+(?:${COUNTED})(?![A-Za-z])`, "i"));
     if (f % 1000 === 0) out.push(number(`${f / 1000}[kK]\\+?`));
   }
   if (n >= 100000) {
@@ -284,7 +288,8 @@ function main(args) {
     console.error(`Read them from summary.json / release_meta.json / countries.json, or fence past-release history with ${FROZEN_START} / ${FROZEN_END}.`);
     return 1;
   }
-  const baseline = previous ? `, including ${previousRef} at v${previous.release?.version}` : "";
+  const baseline = previous
+    ? `, including ${previousRef}${previous.release?.version ? ` at v${previous.release.version}` : ""}` : "";
   console.log(`check-figures: no typed dataset figures (${checks.length} checked${baseline}).`);
   return 0;
 }

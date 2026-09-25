@@ -34,7 +34,8 @@ const flagged = (text, data = release(), previous = null, file = "page.astro") =
 test("a current count is flagged in every usual form", () => {
   for (const line of ["922097 records", "922,097 records", "922k records", "920,000+ records", "920K+ records",
     "920K records", "~920,000 records", "over 15,000 journals", "more than 920,000 positions", "15,000+ journals",
-    "0.92 million records", "0.9M records"]) {
+    "0.92 million records", "0.9M records", "across 15,000 academic journals", "920,000 editorial positions",
+    "a board of 740,000 editors"]) {
     assert.equal(flagged(line).length, 1, line);
   }
 });
@@ -43,6 +44,7 @@ test("a count computed from the data is not flagged, nor a coarse round number",
   assert.deepEqual(flagged("{atLeast(summary.total_records)} records"), []);
   assert.deepEqual(flagged("Loading {fmt(roleDist.section_editor)} rows"), []);
   assert.deepEqual(flagged("journals with 10,000+ citations"), []);
+  assert.deepEqual(flagged("15,000 page views a month"), []);
 });
 
 test("a percentage is flagged only next to what it measures", () => {

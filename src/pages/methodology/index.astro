@@ -23,6 +23,7 @@ const roleRows = ROLE_ROWS.map((r) => ({ ...r, count: roleDist[r.role] ?? 0 }));
 const otherCount = roleDist["other"] ?? 0;
 
 // Figures quoted in the text below, from the generated data (check-figures.mjs).
+const publishers = fmt(summary.unique_publishers, "unique_publishers");
 const orgTypes = summary.org_type_distribution as Record<string, number>;
 const educationShare = pct(orgTypes.education ?? 0, Object.values(orgTypes).reduce((a, b) => a + b, 0));
 const byName = Object.fromEntries(countries.map((c) => [c.country, c]));
@@ -46,7 +47,7 @@ const coverageBands = BANDS.map((band, i) => ({
 })).filter((band) => band.countries.length);
 ---
 
-<Base title="Methodology — Open Editors Plus" path="methodology" description={`How Open Editors Plus collects and enriches editorial board data from ${summary.unique_publishers} academic publishers.`}>
+<Base title="Methodology — Open Editors Plus" path="methodology" description={`How Open Editors Plus collects and enriches editorial board data from ${publishers} academic publishers.`}>
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
     <h1 class="text-3xl sm:text-4xl font-bold mb-8">Methodology</h1>
 
@@ -63,7 +64,7 @@ const coverageBands = BANDS.map((band, i) => ({
       <section>
         <h2 class="text-2xl font-bold mt-10 mb-4">Stage 1: Editorial board collection</h2>
         <p class="text-text-secondary leading-relaxed mb-4">
-          The collection pipeline targets {summary.unique_publishers} academic publishers and extracts editor names, roles, affiliations, and ORCIDs from publicly available journal editorial board pages.
+          The collection pipeline targets {publishers} academic publishers and extracts editor names, roles, affiliations, and ORCIDs from publicly available journal editorial board pages.
         </p>
 
         <h3 class="text-lg font-semibold mt-6 mb-3">Data quality measures</h3>
@@ -278,7 +279,7 @@ const coverageBands = BANDS.map((band, i) => ({
             country distribution is trivially a single-country point mass.
           </p>
           <p class="text-xs text-text-muted">
-            <strong>Limitations.</strong> Dataset-wide publisher bias (the {summary.unique_publishers} publishers
+            <strong>Limitations.</strong> Dataset-wide publisher bias (the {publishers} publishers
             this site covers are not uniformly distributed across countries to begin
             with) propagates into the country Shannon — a publisher with a US-dominated
             journal catalog will score low regardless of its editorial policies. Use it
