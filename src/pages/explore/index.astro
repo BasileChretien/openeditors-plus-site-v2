@@ -58,7 +58,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
         <div class="px-4 py-2.5 border-b border-border bg-surface-dim flex items-center justify-between">
           <h2 class="font-semibold text-sm">Geographic distribution</h2>
-          <span class="text-[10px] text-text-muted">Click a city to filter</span>
+          <span class="text-[10px] text-text-muted">Click a point to filter</span>
         </div>
         <div id="map" class="h-[300px] sm:h-[380px]"></div>
       </div>
@@ -210,8 +210,16 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     // applied filter, so it survives header re-renders).
     let columnFilters = {};
     let filterTerms = {};
+    // ?country= / ?city= deep links filter by name. A click on a map point
+    // sets mapPointFilter instead: { country, lat, lon, city, state }, which
+    // selects exactly the records drawn at that point.
     let mapCountryFilter = "";
     let mapCityFilter = "";
+    let mapPointFilter = null;
+    const hasMapFilter = () => !!(mapPointFilter || mapCountryFilter || mapCityFilter);
+    function clearMapFilter() {
+      mapCountryFilter = ""; mapCityFilter = ""; mapPointFilter = null;
+    }
 
     // ─── Institution alias index (ROR acronyms + alternate names) ───
     // Built by scripts/site/build_institution_aliases.py (data repo) from the
@@ -433,7 +441,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       if (!mapCountryFilter && urlParams.get("ror_country")) {
         mapCountryFilter = urlParams.get("ror_country");
       }
-      if (mapCountryFilter || mapCityFilter || anyColumnFilter()) {
+      if (hasMapFilter() || anyColumnFilter()) {
         await primeInstitutionInfo();
         showResetButton();
         updateFilterChips();
@@ -456,16 +464,30 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       return /^0[a-hj-km-np-tv-z0-9]{6}[0-9]{2}$/i.test(v) ? "https://ror.org/" + v.toLowerCase() : null;
     }
 
+    // A JS number as a DuckDB DOUBLE literal that compares equal to the
+    // stored value. String(x) is the shortest text that parses back to x,
+    // and a string cast parses it as a double. A bare 43.65737 would be
+    // typed DECIMAL(7,5) and converted instead.
+    function sqlDouble(x) {
+      if (!Number.isFinite(x)) throw new Error(`not a coordinate: ${x}`);
+      return `CAST('${String(x)}' AS DOUBLE)`;
+    }
+
     // ─── Build SQL WHERE clause ───
     function buildWhere() {
       const conditions = [];
+      const sq = (s) => String(s).replace(/'/g, "''");
       if (mapCountryFilter) {
-        conditions.push(`ror_country = '${mapCountryFilter.replace(/'/g, "''")}'`);
+        conditions.push(`ror_country = '${sq(mapCountryFilter)}'`);
       }
       if (mapCityFilter) {
-        conditions.push(`ror_city = '${mapCityFilter.replace(/'/g, "''")}'`);
+        conditions.push(`ror_city = '${sq(mapCityFilter)}'`);
       }
-      const sq = (s) => String(s).replace(/'/g, "''");
+      if (mapPointFilter) {
+        const p = mapPointFilter;
+        conditions.push(`ror_country = '${sq(p.country)}'`);
+        conditions.push(`latitude = ${sqlDouble(p.lat)} AND longitude = ${sqlDouble(p.lon)}`);
+      }
       for (const [key, f] of Object.entries(columnFilters)) {
         if (!filterActive(f)) continue;
         if (f.mode === "contains") {
@@ -542,41 +564,67 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       renderPublisherChart(pData);
     }
 
-    // ─── Re-query city-level aggregates for the map ───
+    // ─── Re-query map points ───
     // Called whenever filters change so the map reflects the same subset
     // as the table and charts. On an unfiltered view we could use the
     // pre-built /api/map.json, but once any filter is active (column,
     // map, or URL-param) the map has to come from DuckDB. Capped at 2000
-    // cities so the marker layer stays responsive.
+    // points so the marker layer stays responsive.
+    //
+    // Must match compute_map_data() in the data repo's
+    // scripts/site/aggregate_data.py, which builds map.json: one point per
+    // distinct (country, latitude, longitude), labelled with the (city,
+    // state) recorded most often there, ties alphabetical, and an empty
+    // city when no record at the point has one. Rows without a country or
+    // with a missing, non-finite or zero coordinate are not drawn.
     async function queryFilteredMapPoints() {
       if (!conn) return null;
       const where = buildWhere();
       // latitude/longitude are stored as DOUBLE in the parquet (they get
       // inferred from the CSV by pandas). Use IS NOT NULL rather than
       // a string-empty check or we get a type-mismatch and zero rows.
-      const whereGeo = where
-        ? `${where} AND latitude IS NOT NULL AND longitude IS NOT NULL`
-        : "WHERE latitude IS NOT NULL AND longitude IS NOT NULL";
+      const geo = `ror_country IS NOT NULL AND ror_country <> ''
+        AND latitude IS NOT NULL AND longitude IS NOT NULL
+        AND isfinite(latitude) AND isfinite(longitude)
+        AND latitude <> 0 AND longitude <> 0`;
+      const whereGeo = where ? `${where} AND ${geo}` : `WHERE ${geo}`;
       const sql = `
-        SELECT ror_city AS city, ror_country AS country,
-               MAX(latitude)  AS lat,
-               MAX(longitude) AS lon,
-               COUNT(*) AS records,
-               COUNT(DISTINCT editor) AS editors
-        FROM editors
-        ${whereGeo}
-        GROUP BY ror_city, ror_country
-        ORDER BY records DESC
+        WITH geo AS (
+          SELECT ror_country AS country, latitude AS lat, longitude AS lon,
+                 ror_city AS city, COALESCE(ror_state, '') AS state, editor
+          FROM editors
+          ${whereGeo}
+        ),
+        pts AS (
+          SELECT country, lat, lon, COUNT(*) AS records, COUNT(DISTINCT editor) AS editors
+          FROM geo
+          GROUP BY country, lat, lon
+        ),
+        labels AS (
+          SELECT country, lat, lon, city, state,
+                 ROW_NUMBER() OVER (PARTITION BY country, lat, lon
+                                    ORDER BY COUNT(*) DESC, city, state) AS rn
+          FROM geo
+          WHERE city IS NOT NULL AND city <> ''
+          GROUP BY country, lat, lon, city, state
+        )
+        SELECT p.country, p.lat, p.lon, p.records, p.editors,
+               COALESCE(l.city, '') AS city, COALESCE(l.state, '') AS state
+        FROM pts p
+        LEFT JOIN labels l
+          ON l.country = p.country AND l.lat = p.lat AND l.lon = p.lon AND l.rn = 1
+        ORDER BY p.records DESC, p.country, p.lat, p.lon
         LIMIT 2000`;
       const res = await conn.query(sql);
       return res.toArray().map(r => ({
         city: r.city || "",
+        state: r.state || "",
         country: r.country || "",
         lat: Number(r.lat),
         lon: Number(r.lon),
         records: Number(r.records),
         editors: Number(r.editors),
-      })).filter(d => Number.isFinite(d.lat) && Number.isFinite(d.lon) && d.lat !== 0 && d.lon !== 0);
+      }));
     }
 
     // ─── Charts ───
@@ -642,6 +690,22 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       return Math.max(3, base * zoomScale);
     }
 
+    // "Portland, Maine, United States". A repeated part is shown once, so
+    // "Tokyo, Tokyo, Japan" reads "Tokyo, Japan" and "Macao, Macau, Macao"
+    // reads "Macao, Macau". A point where no record has a city is labelled
+    // by its country and says so.
+    function pointLabel(d) {
+      if (!d.city) return `${d.country} (city not recorded)`;
+      return [...new Set([d.city, d.state, d.country].filter(Boolean))].join(", ");
+    }
+
+    function pointPopup(d) {
+      const head = d.city
+        ? `<strong>${esc(pointLabel(d))}</strong>`
+        : `<strong>${esc(d.country)}</strong><br><span class="text-text-muted">City not recorded</span>`;
+      return `${head}<br>${d.records.toLocaleString()} positions<br>${d.editors.toLocaleString()} editors`;
+    }
+
     function addMarker(d) {
       if (!d.lat || !d.lon) return;
       const r = markerRadius(d.records, map.getZoom());
@@ -651,16 +715,13 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       marker._oepRecords = d.records;
       marker._oepCountry = d.country;
       markers.push(marker);
-      const label = d.city ? `${d.city}, ${d.country}` : d.country;
-      marker.bindPopup(`<strong>${label}</strong><br>${d.records.toLocaleString()} positions<br>${d.editors.toLocaleString()} editors`);
+      marker.bindPopup(pointPopup(d));
       marker.on("click", () => {
-        if (d.city) {
-          mapCityFilter = d.city;
-          mapCountryFilter = d.country;
-        } else {
-          mapCityFilter = "";
-          mapCountryFilter = d.country;
-        }
+        // Filter by the point itself, not its label: the label is only the
+        // most frequent city there, and same-named cities (Portland, Oregon
+        // and Portland, Maine) are separate points.
+        clearMapFilter();
+        mapPointFilter = { country: d.country, lat: d.lat, lon: d.lon, city: d.city || "", state: d.state || "" };
         page = 0;
         showResetButton();
         updateFilterChips();
@@ -727,9 +788,11 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     function updateFilterChips() {
       const container = document.getElementById("filter-chips");
       const chips = [];
-      if (mapCityFilter || mapCountryFilter) {
-        const mapLabel = mapCityFilter ? `${mapCityFilter}, ${mapCountryFilter}` : mapCountryFilter;
-        chips.push(`<span class="inline-flex items-center gap-1 px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-full border border-brand-200">
+      if (hasMapFilter()) {
+        const p = mapPointFilter;
+        const mapLabel = p ? pointLabel(p) : [mapCityFilter, mapCountryFilter].filter(Boolean).join(", ");
+        const mapTitle = p ? `Records at ${p.lat}, ${p.lon}` : "";
+        chips.push(`<span class="inline-flex items-center gap-1 px-2 py-1 bg-brand-50 text-brand-700 text-xs rounded-full border border-brand-200" title="${esc(mapTitle)}">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           <strong>${esc(mapLabel)}</strong>
           <button data-clear="map" class="hover:text-red-600 ml-1">&times;</button>
@@ -749,7 +812,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       syncRorParam();
       container.querySelectorAll("[data-clear='map']").forEach(b =>
         b.addEventListener("click", () => {
-          mapCountryFilter = ""; mapCityFilter = ""; page = 0;
+          clearMapFilter(); page = 0;
           updateFilterChips(); showResetButton(); runQuery(); updateCharts();
           // If any column filter is still active, keep the map in sync
           // with it; otherwise reset to the full unfiltered marker set.
@@ -763,7 +826,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
           delete columnFilters[k]; delete filterTerms[k]; page = 0;
           updateFilterChips(); showResetButton(); buildTableHeaders();
           runQuery(); updateCharts();
-          if (hasNonMapFilter() || mapCityFilter || mapCountryFilter) redrawMap();
+          if (hasNonMapFilter() || hasMapFilter()) redrawMap();
           else resetMapToUnfiltered();
         })
       );
@@ -778,7 +841,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     }
 
     function showResetButton() {
-      const has = mapCountryFilter || mapCityFilter || anyColumnFilter();
+      const has = hasMapFilter() || anyColumnFilter();
       document.getElementById("reset-filters").classList.toggle("hidden", !has);
       document.getElementById("reset-filters").classList.toggle("inline-flex", !!has);
     }
@@ -1123,7 +1186,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     function onFilterChanged() {
       page = 0;
       updateFilterChips(); showResetButton(); runQuery(); updateCharts();
-      if (hasNonMapFilter() || mapCityFilter || mapCountryFilter) redrawMap();
+      if (hasNonMapFilter() || hasMapFilter()) redrawMap();
       else resetMapToUnfiltered();
     }
 
@@ -1219,7 +1282,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
 
     // ─── Reset ───
     document.getElementById("reset-filters").addEventListener("click", () => {
-      mapCountryFilter = ""; mapCityFilter = ""; columnFilters = {}; filterTerms = {}; page = 0; sortCol = ""; sortAsc = true;
+      clearMapFilter(); columnFilters = {}; filterTerms = {}; page = 0; sortCol = ""; sortAsc = true;
       closeFilterMenu();
       document.getElementById("reset-filters").classList.add("hidden");
       document.getElementById("reset-filters").classList.remove("inline-flex");
