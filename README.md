@@ -44,22 +44,29 @@ journal counts, the female share and gender coverage overall, by role and by
 country, h-index coverage, the version and its date) is read at build time
 from the generated JSON in `public/api/`, which the data repository writes at
 each release (`aggregate_data.py`, `build_release.py`). `src/lib/figures.ts`
-holds the helpers that round them for prose ("920,000+", "920K+").
+holds the helpers that round them for prose ("920,000+", "920K+"); they throw
+on a missing value, so a key dropped from the data fails the build instead of
+printing "undefined%". The social preview image is drawn at build time too
+(`src/pages/img/og-preview.png.ts`, with sharp), since a PNG in `public/`
+would keep the figures of the day it was made.
 
 `scripts/check-figures.mjs` fails the build when one of those figures is typed
 into `src/` instead. It runs first in `npm run build` and in both workflows
 (`check.yml` on pull requests, `deploy.yml` before publishing), so a typed
 figure never reaches the site. With `--previous-ref origin/main` it also flags
 every figure of the release at that ref which has since changed, and a Zenodo
-record id left unchanged although the version changed; the data repository's
-release verification (`verify_release.py`) runs that mode on a data update.
+record id left unchanged although the version changed; a ref that does not
+exist or lacks the data files is an error (exit 2), never a pass. The data
+repository's release verification (`verify_release.py`) runs that mode on a
+data update. Its tests: `node --test scripts/check-figures.test.mjs`.
 
 Figures that describe a past release (the version history on `/download`, the
 release notes, "China rose from 8% in v2.6 to 45% in v2.7") are history and are
 fenced between comments containing `frozen-figures:start` and
-`frozen-figures:end`, which the check skips. The newest release note and the
-newest download entry must name the release in `public/api/release_meta.json`,
-or the build fails, so a data update cannot ship without them.
+`frozen-figures:end`, which the check skips (a fence left open fails). The
+newest release note, the newest download entry and the codebook texts must
+name the release in `public/api/release_meta.json`, or the build fails, so a
+data update cannot ship without them.
 
 The column descriptions on the codebook page (`src/pages/codebook/index.astro`)
 are read from `public/api/codebook.json`, the descriptions of the deposited

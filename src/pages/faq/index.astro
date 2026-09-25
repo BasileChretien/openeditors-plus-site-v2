@@ -6,7 +6,7 @@ import release from "../../../public/api/release_meta.json";
 import { fmtMB } from "../../lib/format";
 import countries from "../../../public/api/countries.json";
 import { DATASET_TITLE } from "../../lib/dataset";
-import { oneDecimal } from "../../lib/figures";
+import { oneDecimal, whole } from "../../lib/figures";
 
 const gd = summary.gender_distribution;
 const resolved = gd.male + gd.female;
@@ -47,7 +47,7 @@ const roleGap = lowestRole === "editor_in_chief"
   : `The share is lowest among ${ROLE_LABELS[lowestRole]} (${oneDecimal(lowest.pct_female)}% female); among Editors-in-Chief it is ${oneDecimal(eic.pct_female)}%.`;
 // frozen-figures:start
 // What the v2.7 switch did, when it was made: history, not a current figure.
-const WGND_SWITCH = "v2.7's switch to country-aware WGND 2.0 dramatically improved coverage for East Asian names — China rose from 8% (v2.6 gender-guesser) to 45% — but Romanised CJK given names remain partially ambiguous.";
+const WGND_SWITCH = "v2.7's switch to country-aware WGND 2.0 dramatically improved coverage for East Asian names — China rose from 8% (v2.6 gender-guesser) to 45% in v2.7 — but Romanised CJK given names remain partially ambiguous.";
 // frozen-figures:end
 
 const faqs = [
@@ -77,7 +77,7 @@ const faqs = [
   },
   {
     q: "What is the average h-index of editorial board members?",
-    a: `The mean h-index of editors in the dataset is ${summary.h_index_stats.mean} (median: ${summary.h_index_stats.median}). Bibliometric data is available for ${Math.round(summary.pct_records_with_h_index)}% of records, sourced from OpenAlex. The h-index is not field-normalized and should not be compared across disciplines.`
+    a: `The mean h-index of editors in the dataset is ${summary.h_index_stats.mean} (median: ${summary.h_index_stats.median}). Bibliometric data is available for ${whole(summary.pct_records_with_h_index, "pct_records_with_h_index")}% of records, sourced from OpenAlex. The h-index is not field-normalized and should not be compared across disciplines.`
   },
   {
     q: "How can I download the dataset?",

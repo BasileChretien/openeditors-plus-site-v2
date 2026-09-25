@@ -27,7 +27,8 @@ const orgTypes = summary.org_type_distribution as Record<string, number>;
 const educationShare = pct(orgTypes.education ?? 0, Object.values(orgTypes).reduce((a, b) => a + b, 0));
 const byName = Object.fromEntries(countries.map((c) => [c.country, c]));
 const classified = (name: string) => byName[name]?.pct_gender_classified ?? null;
-const cls = (name: string) => `${classified(name)?.toFixed(1)}%`;
+// A country the text names must be in the data: the build fails rather than print "undefined%".
+const cls = (name: string) => `${oneDecimal(classified(name) as number, `${name} pct_gender_classified`)}%`;
 // Gender coverage bands of the larger countries, as trustworthy as each band allows.
 const COVERAGE_COUNTRIES = ["Italy", "Germany", "United Kingdom", "United States", "France", "Japan",
   "India", "Hong Kong", "China", "South Korea", "Taiwan"];
@@ -45,7 +46,7 @@ const coverageBands = BANDS.map((band, i) => ({
 })).filter((band) => band.countries.length);
 ---
 
-<Base title="Methodology — Open Editors Plus" path="methodology" description="How Open Editors Plus collects and enriches editorial board data from 48 academic publishers.">
+<Base title="Methodology — Open Editors Plus" path="methodology" description={`How Open Editors Plus collects and enriches editorial board data from ${summary.unique_publishers} academic publishers.`}>
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
     <h1 class="text-3xl sm:text-4xl font-bold mb-8">Methodology</h1>
 
@@ -62,7 +63,7 @@ const coverageBands = BANDS.map((band, i) => ({
       <section>
         <h2 class="text-2xl font-bold mt-10 mb-4">Stage 1: Editorial board collection</h2>
         <p class="text-text-secondary leading-relaxed mb-4">
-          The collection pipeline targets 48 academic publishers and extracts editor names, roles, affiliations, and ORCIDs from publicly available journal editorial board pages.
+          The collection pipeline targets {summary.unique_publishers} academic publishers and extracts editor names, roles, affiliations, and ORCIDs from publicly available journal editorial board pages.
         </p>
 
         <h3 class="text-lg font-semibold mt-6 mb-3">Data quality measures</h3>
@@ -303,7 +304,8 @@ const coverageBands = BANDS.map((band, i) => ({
             per entity and then computes Pielou's <em>J</em> over the resulting
             Counter. A value of <em>J = 0</em> means every editor at this entity is
             classified into the same ROR type — typically "education", which accounts
-            for about {educationShare}% of editors in the whole dataset. A value of <em>J = 1</em>
+            for about {educationShare}% of the editors with a known institution type in the
+            whole dataset. A value of <em>J = 1</em>
             means the entity's editors are perfectly spread across the types that
             appear at all.
           </p>

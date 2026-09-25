@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import codebook from "../../../public/api/codebook.json";
+import release from "../../../public/api/release_meta.json";
 
 // Provenance tag for every column. Helps users assess which columns
 // are trustworthy ground truth vs. inferred/derived values that may
@@ -125,6 +126,14 @@ const columns = [
     { name: "enriched_at", display: "Enriched at", type: "datetime", source: "computed" as Source },
   ]},
 ];
+
+// The texts must be those of the release the site serves: a data update that
+// refreshed the other files but not this one would show the previous
+// release's descriptions.
+if (codebook.version !== release.version || String(codebook.data_version) !== String(release.data_version)) {
+  throw new Error(`public/api/codebook.json describes v${codebook.version} (${codebook.data_version}), `
+    + `but the site serves v${release.version} (${release.data_version})`);
+}
 
 // A column the page lists without a text, or a text for a column the page
 // does not list, fails the build rather than showing a gap.
