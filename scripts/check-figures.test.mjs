@@ -1,9 +1,10 @@
 // Tests for check-figures.mjs: run with `node --test scripts/check-figures.test.mjs`.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { baselineProblem, checksFor, figures, scanText, zenodoProblem } from "./check-figures.mjs";
+import { ALIAS_KEYS, baselineProblem, checksFor, figures, scanText, zenodoProblem } from "./check-figures.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-figures.mjs", import.meta.url));
 
@@ -43,9 +44,19 @@ test("a current count is flagged in every usual form", () => {
   assert.equal(flagged("grab all 922k").length, 1);
 });
 
-test("a rounded count is flagged where what it counts is named, also on the next line", () => {
-  assert.equal(flagged("<div>920K+</div>\n<div>positions</div>").length, 1);
-  assert.equal(flagged("<b>15K+</b>\n<span>journals</span>").length, 1);
+test("a headline count's '+' form is a figure anywhere, as the stat cards print it", () => {
+  // The home page's hero cards put the label two lines under the number.
+  for (const card of ["<span>740K+</span>\n</div>\n<div>Unique editors</div>", "<span>15K+</span>", "920,000+",
+    "920,000+ editorial roles", "920K+ board memberships", "15,000+ scholarly publications", "740K+ academics",
+    "0.92 million"]) {
+    assert.equal(flagged(card).length, 1, card);
+  }
+});
+
+test("a weaker rounded form is a figure where what it counts is named within three lines", () => {
+  assert.equal(flagged("<span>920K</span>\n</div>\n<div>positions</div>").length, 1);
+  assert.equal(flagged("~15,000\n\n\njournals").length, 1);
+  assert.deepEqual(flagged("~15,000\n\n\n\njournals"), []);
 });
 
 test("a count computed from the data is not flagged, nor a round number counting something else", () => {
@@ -53,8 +64,8 @@ test("a count computed from the data is not flagged, nor a round number counting
   assert.deepEqual(flagged("Loading {fmt(roleDist.section_editor)} rows"), []);
   assert.deepEqual(flagged("journals with 10,000+ citations"), []);
   for (const line of ["15,000 page views a month", "15,000 rows", "15,000 people", "some 15,000 downloads",
-    "15k downloads", "15,000+ downloads", "400,000 members", "400,000 records per file", "over 400,000 page views",
-    "a 0.5 m margin", "0.4M euros"]) {
+    "15k downloads", "400,000 members", "400,000+ page views", "400,000 records per file",
+    "over 400,000 page views", "a 0.5 m margin", "0.4M euros"]) {
     assert.deepEqual(flagged(line), [], line);
   }
 });
@@ -78,16 +89,33 @@ test("a percent sign is recognised in every spelling", () => {
   }
 });
 
-test("a country is named also by its demonym or short name", () => {
+test("a country is named also by another name, or by its demonym before what it is about", () => {
   const data = release({ countries: [
     { country: "China", editors: 50000, pct_gender_classified: 44.2, pct_female: 30.1 },
     { country: "South Korea", editors: 9000, pct_gender_classified: 39.6, pct_female: 22.5 },
     { country: "United Kingdom", editors: 40000, pct_gender_classified: 89.6, pct_female: 36.0 },
+    { country: "The Netherlands", editors: 9000, pct_gender_classified: 91.3, pct_female: 34.4 },
+    { country: "T\u00fcrkiye", editors: 5000, pct_gender_classified: 71.8, pct_female: 41.2 },
+    { country: "India", editors: 15000, pct_gender_classified: 80.4, pct_female: 23.5 },
+    { country: "Germany", editors: 30000, pct_gender_classified: 92.3, pct_female: 25.0 },
+    { country: "United States", editors: 150000, pct_gender_classified: 86.4, pct_female: 37.0 },
   ] });
-  for (const line of ["Chinese editors: 44.2% classified", "Korea at 39.6%", "Korean names, 39.6%", "British editors 89.6%"]) {
+  for (const line of ["Chinese editors: 44.2% classified", "Korea at 39.6%", "Korean names, 39.6%",
+    "British editors 89.6%", "the Netherlands, 91.3%", "Dutch editorial boards: 91.3%", "Turkey at 71.8%",
+    "Turkish editors, 71.8%", "Indian institutions 80.4%", "US editors 37.0%"]) {
     assert.equal(flagged(line, data).length, 1, line);
   }
-  assert.deepEqual(flagged("us at 44.2%", data), []);
+  for (const line of ["us at 44.2%", "North Korea: 39.6%", "the Indian Ocean 23.5%", "German-language 25%",
+    "German-language journals are 25% of the sample", "German-language editors: 25%", "Chinese journals: 44.2%",
+    "Latin American 37%", "Chinese: 44.2%"]) {
+    assert.deepEqual(flagged(line, data), [], line);
+  }
+});
+
+test("every alias is keyed by a country name as countries.json spells it", () => {
+  const names = new Set(JSON.parse(readFileSync(new URL("../public/api/countries.json", import.meta.url), "utf-8"))
+    .map((c) => c.country));
+  assert.deepEqual(ALIAS_KEYS.filter((k) => !names.has(k)), []);
 });
 
 test("role and country names match whole words only", () => {
@@ -144,6 +172,15 @@ test("comments are followed across lines", () => {
   assert.match(flagged("/* note\n*/ 922,097 records")[0], /^page\.astro:2: /);
   // Outside a comment, a line starting with "*" is code (a continued expression).
   assert.equal(flagged("const x = a\n  * 922097 records").length, 1);
+});
+
+test("a comment that never closes, or runs on, is an error rather than a hiding place", () => {
+  const never = flagged("<p>ok</p>\n<!-- stray\n922,097 records");
+  assert.equal(never.length, 1);
+  assert.match(never[0], /^page\.astro:2: a comment opened here never closes/);
+  const long = flagged(["/* stray", ...Array(70).fill("text"), "*/"].join("\n"));
+  assert.equal(long.length, 1);
+  assert.match(long[0], /still open 60 lines on/);
 });
 
 test("a fence left open, or closed without opening, is an error", () => {

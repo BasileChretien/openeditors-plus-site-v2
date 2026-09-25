@@ -38,53 +38,39 @@ const EXTENSIONS = new Set([".astro", ".ts", ".js", ".mjs", ".md", ".mdx", ".sve
 const FROZEN_START = "frozen-figures:start";
 const FROZEN_END = "frozen-figures:end";
 const DATA_FILES = { summary: "summary.json", release: "release_meta.json", countries: "countries.json" };
-// Other ways a page names a country: "US", "Chinese editors", "Korea".
-const ALIASES = {
-  "United States": ["US", "USA", "U.S.", "U.S.A.", "American"],
-  "United Kingdom": ["UK", "U.K.", "Britain", "British"],
-  "South Korea": ["Korea", "Korean"],
-  China: ["Chinese", "PRC"],
+// Other names of a country, keyed by its name in countries.json (a test checks
+// every key is one): "US", "Korea" (not North Korea), "the Netherlands".
+const COUNTRY_NAMES = {
+  "United States": ["US", "USA", "U\\.S\\.", "U\\.S\\.A\\."],
+  "United Kingdom": ["UK", "U\\.K\\.", "Britain", "Great Britain"],
+  "South Korea": ["(?<!North )Korea"],
   "Hong Kong": ["HK"],
-  Taiwan: ["Taiwanese"],
-  Japan: ["Japanese"],
-  India: ["Indian"],
-  Italy: ["Italian"],
-  Germany: ["German"],
-  France: ["French"],
-  Spain: ["Spanish"],
-  Portugal: ["Portuguese"],
-  Netherlands: ["Dutch"],
-  Switzerland: ["Swiss"],
-  Sweden: ["Swedish"],
-  Poland: ["Polish"],
-  Brazil: ["Brazilian"],
-  Canada: ["Canadian"],
-  Australia: ["Australian"],
-  Russia: ["Russian"],
-  Iran: ["Iranian"],
-  Turkey: ["Turkish", "Türkiye"],
-  Egypt: ["Egyptian"],
-  Mexico: ["Mexican"],
-  Belgium: ["Belgian"],
-  Austria: ["Austrian"],
-  Denmark: ["Danish"],
-  Norway: ["Norwegian"],
-  Finland: ["Finnish"],
-  Greece: ["Greek"],
-  Israel: ["Israeli"],
-  Pakistan: ["Pakistani"],
-  "Saudi Arabia": ["Saudi"],
-  Ireland: ["Irish"],
-  "South Africa": ["South African"],
-  Nigeria: ["Nigerian"],
-  Malaysia: ["Malaysian"],
-  Singapore: ["Singaporean"],
-  Indonesia: ["Indonesian"],
-  Thailand: ["Thai"],
-  Argentina: ["Argentinian", "Argentine"],
-  Chile: ["Chilean"],
-  Colombia: ["Colombian"],
+  "The Netherlands": ["Netherlands", "Holland"],
+  "Türkiye": ["Turkey", "Turkiye"],
+  Czechia: ["Czech Republic"],
+  "United Arab Emirates": ["UAE", "U\\.A\\.E\\."],
 };
+// A demonym names a country only before what the figure is about: "Chinese
+// editors", "Korean names"; not "German-language", "the Indian Ocean".
+const DEMONYMS = {
+  "United States": "(?<!(?:Latin|South|North|Central) )Americans?",
+  "United Kingdom": "British", China: "Chinese", "South Korea": "(?<!North )Koreans?", Taiwan: "Taiwanese",
+  Japan: "Japanese", India: "Indians?", Italy: "Italians?", Germany: "Germans?", France: "French",
+  Spain: "Spanish", Portugal: "Portuguese", "The Netherlands": "Dutch", Switzerland: "Swiss",
+  Sweden: "Swedish", Poland: "Polish", Brazil: "Brazilians?", Canada: "Canadians?", Australia: "Australians?",
+  Russia: "Russians?", Iran: "Iranians?", "Türkiye": "Turkish", Egypt: "Egyptians?", Mexico: "Mexicans?",
+  Belgium: "Belgians?", Austria: "Austrians?", Denmark: "Danish", Norway: "Norwegians?", Finland: "Finnish",
+  Greece: "Greeks?", Israel: "Israelis?", Pakistan: "Pakistanis?", "Saudi Arabia": "Saudis?", Ireland: "Irish",
+  "South Africa": "South Africans?", Malaysia: "Malaysians?", Singapore: "Singaporeans?", Thailand: "Thai",
+  Argentina: "Argentin(?:ian|e)s?", Chile: "Chileans?", Romania: "Romanians?", Hungary: "Hungarians?",
+  Czechia: "Czech", "New Zealand": "New Zealanders?",
+};
+// What a demonym must precede to name the country, within two words: the
+// people the per-country shares are about. A language or a spelling between
+// them breaks the link ("German-language editors" are not Germany's).
+const ABOUT_PEOPLE = "editors?|editorial|names?|researchers?|scholars?|scientists?|academics?|authors?"
+  + "|members?|boards?|institutions?|universit(?:y|ies)|affiliations?";
+const NOT_ABOUT_A_COUNTRY = "languages?|speaking|spelling|english|ocean";
 const ROLE_ALIASES = { editor_in_chief: ["EiCs?"] };
 // Countries whose rates are worth naming on a page; smaller ones are noise.
 const MIN_COUNTRY_EDITORS = 1000;
@@ -99,16 +85,49 @@ const en = (n) => n.toLocaleString("en-US");
 // Whole words, also next to "." or "-": "U.S.", "Editors-in-Chief", but not "another" for "other".
 const words = (alternatives, flags = "") => new RegExp(`(?<![A-Za-z])(?:${alternatives.join("|")})(?![A-Za-z])`, flags);
 
-// A rounded count ("920K+", "~15,000", "0.92 million") is a figure of the data
-// only where what it counts is named on the same or a neighbouring line: each
-// count has its own nouns, or its own context. The exact count is always one.
+// A count's exact value is always a figure, and so is a thousands form as
+// precise ("922k"). Its rounded forms ("920K+", "~920,000", "0.92 million", a
+// bare "920,000") are figures where what it counts is named within three lines,
+// by its own nouns, or, for the ORCID and h-index counts, by their context. The
+// headline counts' "+" forms ("920K+", "15,000+") and two-decimal millions are
+// figures anywhere: they are how the site's own stat cards and titles print them.
 const COUNTS = {
-  total_records: words(["records?", "positions?", "rows?", "seats?", "entries", "entry", "listings?"], "i"),
-  unique_editors: words(["editors?", "people", "persons?", "individuals?", "researchers?", "scholars?", "scientists?", "members?"], "i"),
-  unique_journals: words(["journals?", "titles?", "periodicals?", "venues?"], "i"),
-  with_orcid: /orcid/i,
-  records_with_h_index: /h-index|h index|bibliometric/i,
+  total_records: {
+    headline: true,
+    needs: words(["records?", "positions?", "rows?", "seats?", "entries", "entry", "listings?", "roles?",
+      "memberships?", "appointments?"], "i"),
+  },
+  unique_editors: {
+    headline: true,
+    needs: words(["editors?", "people", "persons?", "individuals?", "researchers?", "scholars?", "scientists?",
+      "members?", "academics?", "experts?"], "i"),
+  },
+  unique_journals: {
+    headline: true,
+    needs: words(["journals?", "titles?", "periodicals?", "venues?", "publications?", "outlets?"], "i"),
+  },
+  with_orcid: { headline: false, needs: /orcid/i },
+  records_with_h_index: { headline: false, needs: /h-index|h index|bibliometric/i },
 };
+// How far from a rounded count its noun may be: stat cards put the label
+// two lines under the number.
+const NOUN_WINDOW = 3;
+// A comment longer than this is more likely a stray opener than a comment.
+const MAX_COMMENT_LINES = 60;
+
+/** Whatever names a country on a page: its name, another name ("US", "Korea"),
+ *  or its demonym before what the figure is about ("Chinese editors"). */
+export function countryNames(country) {
+  const names = [esc(country), ...(COUNTRY_NAMES[country] ?? [])];
+  const between = `(?:[\\s-]+(?!(?:${NOT_ABOUT_A_COUNTRY})(?![A-Za-z]))[A-Za-z]+){0,2}?`;
+  const demonym = DEMONYMS[country]
+    ? [`(?:${DEMONYMS[country]})${between}[\\s-]+(?:${ABOUT_PEOPLE})`] : [];
+  return words([...names, ...demonym]);
+}
+
+/** The keys of COUNTRY_NAMES and DEMONYMS, which must be country names as
+ *  countries.json spells them, or their aliases would never be used. */
+export const ALIAS_KEYS = [...new Set([...Object.keys(COUNTRY_NAMES), ...Object.keys(DEMONYMS)])];
 
 class UsageError extends Error {}
 
@@ -117,29 +136,41 @@ function floorSig(n, digits) {
   return Math.floor(n / p) * p;
 }
 
-/** Every way a count of this size is commonly written: 922097, 922,097 (always a
- *  figure), and, where `needs` matches nearby, 922k, 920,000(+), ~920,000,
- *  920K(+), 0.92 million, 0.9M. */
-function countTokens(n, needs) {
+/** Every way a count of this size is commonly written (see COUNTS for when
+ *  each form is a figure): 922097, 922,097, 922k, 920,000+, 920K+, ~920,000,
+ *  a bare 920,000 or 920K, 0.92 million, 0.9M. */
+function countTokens(n, { headline, needs }) {
   const number = (src, near = null) =>
     Object.assign(new RegExp(`(?<![\\d.,])(?:${src})(?![\\d,]|[A-Za-z])`, "i"), near ? { needs: near } : {});
-  const out = [number(esc(String(n))), number(esc(en(n)))];
-  if (n < 10000) return out;
-  const thousands = [...new Set([Math.round(n / 1000), Math.floor(n / 1000)])];
-  // "922k" is as specific as the count itself; "15k" is not.
-  out.push(...thousands.filter((k) => k >= 100).map((k) => number(`${k}k\\+?`)));
-  const rounded = thousands.filter((k) => k < 100).map((k) => `${k}k\\+?`);
-  for (const d of [2, 3]) {
-    const f = floorSig(n, d);
-    if (f >= n) continue;
-    rounded.push(`${esc(en(f))}\\+?`, `${f}\\+?`, `${APPROX}(?:${esc(en(f))}|${f})`);
-    if (f % 1000 === 0) rounded.push(`${f / 1000}k\\+?`);
+  const always = [esc(String(n)), esc(en(n))];
+  const plus = [];
+  const weak = [];
+  if (n >= 10000) {
+    for (const k of new Set([Math.round(n / 1000), Math.floor(n / 1000)])) {
+      // "922k" is as specific as the count itself; "15k" is not.
+      (k >= 100 ? always : weak).push(`${k}k(?!\\+)`);
+      (k >= 100 ? always : plus).push(`${k}k\\+`);
+    }
+    for (const d of [2, 3]) {
+      const f = floorSig(n, d);
+      if (f >= n) continue;
+      plus.push(`${esc(en(f))}\\+`, `${f}\\+`);
+      weak.push(`${esc(en(f))}(?!\\+)`, `${f}(?!\\+)`, `${APPROX}(?:${esc(en(f))}|${f})`);
+      if (f % 1000 === 0) plus.push(`${f / 1000}k\\+`), weak.push(`${f / 1000}k(?!\\+)`);
+    }
   }
   if (n >= 100000) {
-    const millions = new Set([1, 2].flatMap((d) => [(n / 1e6).toFixed(d), (floorSig(n, d) / 1e6).toFixed(d)]));
-    for (const m of millions) rounded.push(`${esc(m)}\\s?(?:m|million)`);
+    for (const d of [1, 2]) {
+      for (const m of new Set([(n / 1e6).toFixed(d), (floorSig(n, d) / 1e6).toFixed(d)])) {
+        (d === 2 ? plus : weak).push(`${esc(m)}\\s?(?:m|million)`);
+      }
+    }
   }
-  return [...out, ...rounded.map((src) => number(src, needs))];
+  return [
+    ...always.map((src) => number(src)),
+    ...plus.map((src) => number(src, headline ? null : needs)),
+    ...weak.map((src) => number(src, needs)),
+  ];
 }
 
 /** "25.2%" is specific enough to match its context on a neighbouring line;
@@ -159,8 +190,8 @@ export function figures({ summary, release, countries }) {
     if (value === null || value === undefined) return;
     f[id] = { value: String(value), label, patterns, context };
   };
-  for (const [key, needs] of Object.entries(COUNTS)) {
-    if (typeof summary?.[key] === "number" && summary[key] >= 1000) add(key, summary[key], key, countTokens(summary[key], needs));
+  for (const [key, kind] of Object.entries(COUNTS)) {
+    if (typeof summary?.[key] === "number" && summary[key] >= 1000) add(key, summary[key], key, countTokens(summary[key], kind));
   }
   for (const [role, n] of Object.entries(summary?.role_distribution ?? {})) {
     if (typeof n === "number" && n >= 1000) {
@@ -192,7 +223,7 @@ export function figures({ summary, release, countries }) {
   }
   for (const c of countries ?? []) {
     if (!(c.editors >= MIN_COUNTRY_EDITORS)) continue;
-    const names = words([c.country, ...(ALIASES[c.country] ?? [])].map(esc));
+    const names = countryNames(c.country);
     for (const key of ["pct_gender_classified", "pct_female"]) {
       if (typeof c[key] === "number") add(`${c.country}:${key}`, c[key], `${c.country} ${key}`, pctTokens(c[key]), names);
     }
@@ -250,9 +281,19 @@ export function scanText(file, text, checks) {
   const markdown = /\.mdx?$/.test(file);
   let frozenAt = 0;
   const comments = { close: null };
+  let commentAt = 0;
   lines.forEach((line, i) => {
     // Every line moves the comment state, a fence marker's line included.
+    const wasOpen = comments.close;
     const comment = commentOnly(line, markdown, comments);
+    if (!comments.close) commentAt = 0;
+    else if (!wasOpen) commentAt = i + 1;
+    // A stray "/*" or "<!--" (in a string, say) would hide the rest of the file:
+    // a comment that runs on and on is reported, and so is one never closed.
+    if (commentAt && i + 1 - commentAt === MAX_COMMENT_LINES) {
+      problems.push(`${file}:${commentAt}: a comment opened here is still open ${MAX_COMMENT_LINES} lines on; `
+        + "if it is not a comment, the check is skipping real text");
+    }
     if (line.includes(FROZEN_START)) {
       if (frozenAt) problems.push(`${file}:${i + 1}: ${FROZEN_START} inside the fence opened at line ${frozenAt}`);
       frozenAt = i + 1;
@@ -264,16 +305,18 @@ export function scanText(file, text, checks) {
       return;
     }
     if (frozenAt || comment) return;
-    const around = [lines[i - 1] ?? "", line, lines[i + 1] ?? ""].join(" ");
+    const around = lines.slice(Math.max(0, i - 1), i + 2).join(" ");
+    const wide = lines.slice(Math.max(0, i - NOUN_WINDOW), i + NOUN_WINDOW + 1).join(" ");
     for (const { label, patterns, context, kind } of checks) {
       const m = patterns
         .filter((re) => !context || context.test(re.sameLine ? line : around))
-        .filter((re) => !re.needs || re.needs.test(around))
+        .filter((re) => !re.needs || re.needs.test(wide))
         .map((re) => line.match(re)).find(Boolean);
       if (m) problems.push(`${file}:${i + 1}: ${kind} ${label} typed as "${m[0].trim()}"`);
     }
   });
   if (frozenAt) problems.push(`${file}:${frozenAt}: ${FROZEN_START} is never closed with ${FROZEN_END}`);
+  if (commentAt) problems.push(`${file}:${commentAt}: a comment opened here never closes`);
   return problems;
 }
 

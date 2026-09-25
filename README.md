@@ -54,11 +54,15 @@ PNG in `public/` would keep the figures of the day it was made.
 into `src/` instead. It runs first in `npm run build` and in both workflows
 (`check.yml` on pull requests, `deploy.yml` before publishing), so a typed
 figure never reaches the site. An exact count ("922,097", "922k") is always a
-figure; a rounded one ("920K+", "~15,000", "0.92 million") is one where what it
-counts is named on the same or a neighbouring line ("positions", "journals"),
-so "15,000 page views" passes. A percentage is one next to what it measures:
-"female", a role, or a country by its name or demonym ("Chinese editors").
-Comments are followed across lines and not checked. With `--previous-ref
+figure, and so are the headline counts' "+" forms ("920K+", "15,000+"), as the
+stat cards print them. Other rounded forms ("~15,000", a bare "920,000", "0.9M")
+are figures where what they count is named within three lines ("positions",
+"journals"), so "15,000 page views" passes. A percentage is one next to what it
+measures: "female", a role, or a country by its name, another name ("Korea",
+"the Netherlands") or its demonym before its people ("Chinese editors").
+Comments are followed across lines and not checked; one that never closes or
+runs past 60 lines is an error, as it may be a stray opener hiding the rest of
+the file. With `--previous-ref
 origin/main` it also flags every figure of the release at that ref which has
 since changed, and a Zenodo record id left unchanged although the version
 changed; a ref that does not exist, lacks the data files or has no release
