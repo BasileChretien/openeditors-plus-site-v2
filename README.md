@@ -40,6 +40,14 @@ set by `public/CNAME`.
 The dataset itself is released separately under CC0 on Zenodo
 ([10.5281/zenodo.19468382](https://doi.org/10.5281/zenodo.19468382)).
 
+The column descriptions on the codebook page (`src/pages/codebook/index.astro`)
+are copies of the dataset's own codebook: each `method` text must equal the
+column's `description` in the data repository's `scripts/release_columns.json`.
+Change a description there, not here, then run
+`python scripts/site/check_codebook_sync.py --write` in the data repository
+(with `OEP_SITE_DIR` pointing at this checkout if it is not a sibling). Without
+`--write` the script only checks, and exits 1 on any difference.
+
 CC0 waives copyright and database rights only — it does not waive the
 data-protection rights of the individuals described. Anyone listed in the data
 may correct or remove their record; see
