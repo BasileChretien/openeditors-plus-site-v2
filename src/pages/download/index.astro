@@ -35,7 +35,7 @@ const versions = [
     date: "2026-09-25",
     title: "Patch: ROR city and state filled",
     summary:
-      "Patch release. ror_city is filled on 5,537 records and ror_state on 5,405 of them, from the ROR record of each row's ror_id; v4.0.0 had left them empty on records whose institution was matched after the one-off city backfill of April 2026 (mostly IEEE). ROR records no state for the other 132, in Singapore and Hong Kong. No other value changes and every count of v4.0.0 stands; data_version is 2026.4. Re-run only city- or state-level analyses.",
+      "Patch release. ror_city is filled on 5,537 records and ror_state on 5,405 of them, from the ROR record of each row's ror_id; v4.0.0 had left them empty on records whose institution was matched after the one-off city backfill of April 2026 (mostly IEEE). The other 132, in Singapore and Hong Kong, stay without a state because their institutions' ROR records give none. No other value changes and every count of v4.0.0 stands; data_version is 2026.4. Re-run only city- or state-level analyses.",
     doi: "10.5281/zenodo.22950163",
     latest: true,
   },

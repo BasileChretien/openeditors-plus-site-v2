@@ -20,7 +20,7 @@ const changesV401 = [
     tagClass: fixed,
     title: "City and state filled for every institution-matched record",
     body: `v4.0.0, like v2.7.0 and v3.0.0 before it, left ror_city and ror_state empty on records whose institution was matched after the one-off city backfill of April 2026: mostly IEEE editors added in v2.3.0. The release build now takes both from the ROR record of every row's ror_id and refuses a bundle where they are missing or differ from ROR. No other value changes, and every count of v4.0.0 stands; data_version is 2026.4.`,
-    stat: "5,537 records gain a city and 5,405 a state (4,919 editors); ROR records no state for the other 132, in Singapore and Hong Kong. Most affected: Beijing (360 records), Shanghai (141), Nanjing (110), Singapore (105). Re-run only city- or state-level analyses.",
+    stat: "5,537 records gain a city and 5,405 a state (4,919 editors); the other 132, in Singapore and Hong Kong, stay without a state because their institutions' ROR records give none. Most affected: Beijing (360 records), Shanghai (141), Nanjing (110), Singapore (105). Re-run only city- or state-level analyses.",
   },
 ];
 
@@ -205,7 +205,7 @@ const rerunV3 = [
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4">What changed in v4.0.1</h2>
+    <h2 class="text-2xl font-bold mb-4" id="v4.0.1">What changed in v4.0.1</h2>
     <div class="space-y-5 mb-12">
       {changesV401.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">
