@@ -102,12 +102,13 @@ test("a country is named also by another name, or by its demonym before what it 
   ] });
   for (const line of ["Chinese editors: 44.2% classified", "Korea at 39.6%", "Korean names, 39.6%",
     "British editors 89.6%", "the Netherlands, 91.3%", "Dutch editorial boards: 91.3%", "Turkey at 71.8%",
-    "Turkish editors, 71.8%", "Indian institutions 80.4%", "US editors 37.0%"]) {
+    "Turkish editors, 71.8%", "Indian institutions 80.4%", "US editors 37.0%", "Chinese Editors: 44.2%",
+    "<th>Chinese Institutions</th><td>44.2%</td>"]) {
     assert.equal(flagged(line, data).length, 1, line);
   }
   for (const line of ["us at 44.2%", "North Korea: 39.6%", "the Indian Ocean 23.5%", "German-language 25%",
     "German-language journals are 25% of the sample", "German-language editors: 25%", "Chinese journals: 44.2%",
-    "Latin American 37%", "Chinese: 44.2%"]) {
+    "Latin American 37%", "Latin-American editors: 37%", "German-Language Editors: 25%", "Chinese: 44.2%"]) {
     assert.deepEqual(flagged(line, data), [], line);
   }
 });

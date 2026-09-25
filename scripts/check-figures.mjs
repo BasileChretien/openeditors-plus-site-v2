@@ -53,7 +53,7 @@ const COUNTRY_NAMES = {
 // A demonym names a country only before what the figure is about: "Chinese
 // editors", "Korean names"; not "German-language", "the Indian Ocean".
 const DEMONYMS = {
-  "United States": "(?<!(?:Latin|South|North|Central) )Americans?",
+  "United States": "(?<!(?:Latin|South|North|Central)[ -])Americans?",
   "United Kingdom": "British", China: "Chinese", "South Korea": "(?<!North )Koreans?", Taiwan: "Taiwanese",
   Japan: "Japanese", India: "Indians?", Italy: "Italians?", Germany: "Germans?", France: "French",
   Spain: "Spanish", Portugal: "Portuguese", "The Netherlands": "Dutch", Switzerland: "Swiss",
@@ -68,9 +68,12 @@ const DEMONYMS = {
 // What a demonym must precede to name the country, within two words: the
 // people the per-country shares are about. A language or a spelling between
 // them breaks the link ("German-language editors" are not Germany's).
-const ABOUT_PEOPLE = "editors?|editorial|names?|researchers?|scholars?|scientists?|academics?|authors?"
-  + "|members?|boards?|institutions?|universit(?:y|ies)|affiliations?";
-const NOT_ABOUT_A_COUNTRY = "languages?|speaking|spelling|english|ocean";
+// Both match in any case ("Chinese Editors" in a table header), while the
+// country names around them stay case-sensitive ("US", not "us").
+const anyCase = (src) => src.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const ABOUT_PEOPLE = anyCase("editors?|editorial|names?|researchers?|scholars?|scientists?|academics?|authors?"
+  + "|members?|boards?|institutions?|universit(?:y|ies)|affiliations?");
+const NOT_ABOUT_A_COUNTRY = anyCase("languages?|speaking|spelling|english|ocean");
 const ROLE_ALIASES = { editor_in_chief: ["EiCs?"] };
 // Countries whose rates are worth naming on a page; smaller ones are noise.
 const MIN_COUNTRY_EDITORS = 1000;
