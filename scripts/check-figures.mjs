@@ -15,14 +15,17 @@
  *       written (a figure that went stale), and a Zenodo record id left
  *       unchanged although the release version changed. The data
  *       repository's verify_release.py runs this mode. A ref that does not
- *       exist, or lacks the data files, is an error (exit 2), never a pass.
+ *       exist, lacks the data files or has no release version is an error
+ *       (exit 2), never a pass.
  *
- * Figures that describe a past release (version history, release notes,
- * "rose from 8% in v2.6 to 45% in v2.7") are fenced between two comments
- * containing `frozen-figures:start` and `frozen-figures:end` and are not
- * checked; a fence left open is an error. Lines that are only a comment are
- * not checked either. Images are not read: the social preview image is drawn
- * from summary.json at build time (src/pages/img/og-preview.png.ts).
+ * An exact count is always a figure; a rounded one ("920K+", "~15,000") is
+ * one where what it counts is named nearby, and a percentage is one next to
+ * what it measures. Figures that describe a past release (version history,
+ * release notes, "rose from 8% in v2.6 to 45% in v2.7") are fenced between two
+ * comments containing `frozen-figures:start` and `frozen-figures:end` and are
+ * not checked; a fence left open is an error. Comments, followed across lines,
+ * are not checked either. Images are not read: the social preview image is
+ * drawn from summary.json at build time (src/pages/img/og-preview.png.ts).
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
@@ -35,19 +38,77 @@ const EXTENSIONS = new Set([".astro", ".ts", ".js", ".mjs", ".md", ".mdx", ".sve
 const FROZEN_START = "frozen-figures:start";
 const FROZEN_END = "frozen-figures:end";
 const DATA_FILES = { summary: "summary.json", release: "release_meta.json", countries: "countries.json" };
-const ALIASES = { "United States": ["United States", "US", "USA", "U.S."], "United Kingdom": ["United Kingdom", "UK", "U.K."] };
+// Other ways a page names a country: "US", "Chinese editors", "Korea".
+const ALIASES = {
+  "United States": ["US", "USA", "U.S.", "U.S.A.", "American"],
+  "United Kingdom": ["UK", "U.K.", "Britain", "British"],
+  "South Korea": ["Korea", "Korean"],
+  China: ["Chinese", "PRC"],
+  "Hong Kong": ["HK"],
+  Taiwan: ["Taiwanese"],
+  Japan: ["Japanese"],
+  India: ["Indian"],
+  Italy: ["Italian"],
+  Germany: ["German"],
+  France: ["French"],
+  Spain: ["Spanish"],
+  Portugal: ["Portuguese"],
+  Netherlands: ["Dutch"],
+  Switzerland: ["Swiss"],
+  Sweden: ["Swedish"],
+  Poland: ["Polish"],
+  Brazil: ["Brazilian"],
+  Canada: ["Canadian"],
+  Australia: ["Australian"],
+  Russia: ["Russian"],
+  Iran: ["Iranian"],
+  Turkey: ["Turkish", "Türkiye"],
+  Egypt: ["Egyptian"],
+  Mexico: ["Mexican"],
+  Belgium: ["Belgian"],
+  Austria: ["Austrian"],
+  Denmark: ["Danish"],
+  Norway: ["Norwegian"],
+  Finland: ["Finnish"],
+  Greece: ["Greek"],
+  Israel: ["Israeli"],
+  Pakistan: ["Pakistani"],
+  "Saudi Arabia": ["Saudi"],
+  Ireland: ["Irish"],
+  "South Africa": ["South African"],
+  Nigeria: ["Nigerian"],
+  Malaysia: ["Malaysian"],
+  Singapore: ["Singaporean"],
+  Indonesia: ["Indonesian"],
+  Thailand: ["Thai"],
+  Argentina: ["Argentinian", "Argentine"],
+  Chile: ["Chilean"],
+  Colombia: ["Colombian"],
+};
 const ROLE_ALIASES = { editor_in_chief: ["EiCs?"] };
 // Countries whose rates are worth naming on a page; smaller ones are noise.
 const MIN_COUNTRY_EDITORS = 1000;
 // Words that turn a round number into a claim about the data: "~920,000", "over 15,000".
 const APPROX = "(?<![A-Za-z])(?:~|about|around|approximately|roughly|nearly|almost|over|more than|some)\\s*";
-// What the dataset's counts count, for a round number written without "+".
-const COUNTED = "journals?|editors?|records?|positions?|rows|members|people|persons|individuals|seats";
+// A percent sign, also written as an HTML entity or after a (no-break, thin) space.
+const PERCENT = "(?:\\s|&nbsp;|&#160;|&#x0*a0;|&thinsp;|&#8201;|&#x0*2009;|&#8239;|&#x0*202f;)?"
+  + "(?:%|&#37;|&#x0*25;|&percnt;|percent\\b|per cent\\b)";
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const en = (n) => n.toLocaleString("en-US");
 // Whole words, also next to "." or "-": "U.S.", "Editors-in-Chief", but not "another" for "other".
 const words = (alternatives, flags = "") => new RegExp(`(?<![A-Za-z])(?:${alternatives.join("|")})(?![A-Za-z])`, flags);
+
+// A rounded count ("920K+", "~15,000", "0.92 million") is a figure of the data
+// only where what it counts is named on the same or a neighbouring line: each
+// count has its own nouns, or its own context. The exact count is always one.
+const COUNTS = {
+  total_records: words(["records?", "positions?", "rows?", "seats?", "entries", "entry", "listings?"], "i"),
+  unique_editors: words(["editors?", "people", "persons?", "individuals?", "researchers?", "scholars?", "scientists?", "members?"], "i"),
+  unique_journals: words(["journals?", "titles?", "periodicals?", "venues?"], "i"),
+  with_orcid: /orcid/i,
+  records_with_h_index: /h-index|h index|bibliometric/i,
+};
 
 class UsageError extends Error {}
 
@@ -56,33 +117,35 @@ function floorSig(n, digits) {
   return Math.floor(n / p) * p;
 }
 
-/** Every way a count of this size is commonly written: 922097, 922,097, 922k,
- *  920,000+, ~920,000, 920K(+), 0.92 million, 0.9M. */
-function countTokens(n) {
-  const number = (src) => new RegExp(`(?<![\\d.,])(?:${src})(?![\\d,]|[A-Za-z])`);
+/** Every way a count of this size is commonly written: 922097, 922,097 (always a
+ *  figure), and, where `needs` matches nearby, 922k, 920,000(+), ~920,000,
+ *  920K(+), 0.92 million, 0.9M. */
+function countTokens(n, needs) {
+  const number = (src, near = null) =>
+    Object.assign(new RegExp(`(?<![\\d.,])(?:${src})(?![\\d,]|[A-Za-z])`, "i"), near ? { needs: near } : {});
   const out = [number(esc(String(n))), number(esc(en(n)))];
   if (n < 10000) return out;
-  for (const k of new Set([Math.round(n / 1000), Math.floor(n / 1000)])) out.push(number(`${k}[kK]\\+?`));
+  const thousands = [...new Set([Math.round(n / 1000), Math.floor(n / 1000)])];
+  // "922k" is as specific as the count itself; "15k" is not.
+  out.push(...thousands.filter((k) => k >= 100).map((k) => number(`${k}k\\+?`)));
+  const rounded = thousands.filter((k) => k < 100).map((k) => `${k}k\\+?`);
   for (const d of [2, 3]) {
     const f = floorSig(n, d);
     if (f >= n) continue;
-    out.push(number(`${esc(en(f))}\\+|${f}\\+`));
-    out.push(new RegExp(`${APPROX}${esc(en(f))}(?![\\d,])`, "i"));
-    // A bare round number is a claim when what it counts follows: "15,000 academic journals".
-    out.push(new RegExp(`(?<![\\d.,])(?:${esc(en(f))}|${f})(?:[\\s-]+[A-Za-z]+){0,2}?[\\s-]+(?:${COUNTED})(?![A-Za-z])`, "i"));
-    if (f % 1000 === 0) out.push(number(`${f / 1000}[kK]\\+?`));
+    rounded.push(`${esc(en(f))}\\+?`, `${f}\\+?`, `${APPROX}(?:${esc(en(f))}|${f})`);
+    if (f % 1000 === 0) rounded.push(`${f / 1000}k\\+?`);
   }
   if (n >= 100000) {
     const millions = new Set([1, 2].flatMap((d) => [(n / 1e6).toFixed(d), (floorSig(n, d) / 1e6).toFixed(d)]));
-    for (const m of millions) out.push(new RegExp(`(?<![\\d.,])${esc(m)}\\s?(?:M\\b|million\\b)`, "i"));
+    for (const m of millions) rounded.push(`${esc(m)}\\s?(?:m|million)`);
   }
-  return out;
+  return [...out, ...rounded.map((src) => number(src, needs))];
 }
 
 /** "25.2%" is specific enough to match its context on a neighbouring line;
  *  a rounded "25%" is common, so its context must be on the same line. */
 function pctTokens(v) {
-  const unit = "\\s?(?:%|percent\\b|per cent\\b)";
+  const unit = PERCENT;
   const token = (t, sameLine) => Object.assign(new RegExp(`(?<![\\d.])${esc(t)}${unit}`, "i"), { sameLine });
   const one = v.toFixed(1);
   const rounded = String(Math.round(v));
@@ -96,8 +159,8 @@ export function figures({ summary, release, countries }) {
     if (value === null || value === undefined) return;
     f[id] = { value: String(value), label, patterns, context };
   };
-  for (const key of ["total_records", "unique_editors", "unique_journals", "with_orcid", "records_with_h_index"]) {
-    if (typeof summary?.[key] === "number" && summary[key] >= 1000) add(key, summary[key], key, countTokens(summary[key]));
+  for (const [key, needs] of Object.entries(COUNTS)) {
+    if (typeof summary?.[key] === "number" && summary[key] >= 1000) add(key, summary[key], key, countTokens(summary[key], needs));
   }
   for (const [role, n] of Object.entries(summary?.role_distribution ?? {})) {
     if (typeof n === "number" && n >= 1000) {
@@ -129,7 +192,7 @@ export function figures({ summary, release, countries }) {
   }
   for (const c of countries ?? []) {
     if (!(c.editors >= MIN_COUNTRY_EDITORS)) continue;
-    const names = words((ALIASES[c.country] ?? [c.country]).map(esc));
+    const names = words([c.country, ...(ALIASES[c.country] ?? [])].map(esc));
     for (const key of ["pct_gender_classified", "pct_female"]) {
       if (typeof c[key] === "number") add(`${c.country}:${key}`, c[key], `${c.country} ${key}`, pctTokens(c[key]), names);
     }
@@ -153,18 +216,28 @@ export function checksFor(current, previous = null, previousRef = "the previous 
   return checks;
 }
 
-/** A line that is only a comment. In Markdown a leading "*" is a bullet, not a comment. */
-function commentOnly(line, markdown) {
+/** Whether a line is only comment, following comments across lines: `state.close`
+ *  holds the end of a comment still open ("*" + "/" or "-->"). A line inside one
+ *  is comment up to its end; text after the end, or after a comment closed on
+ *  the same line, is checked. Markdown has only HTML comments ("*" is a bullet). */
+function commentOnly(line, markdown, state) {
   const t = line.trim();
-  const closedAtEnd = (open, close) => {
-    const end = t.indexOf(close, open.length);
-    return end === -1 || end + close.length === t.length;
+  const restAfter = (close, from) => {
+    const end = t.indexOf(close, from);
+    if (end === -1) {
+      state.close = close;
+      return "";
+    }
+    state.close = null;
+    return t.slice(end + close.length).trim();
   };
-  if (t.startsWith("<!--")) return closedAtEnd("<!--", "-->");
-  if (markdown) return false;
-  if (t.startsWith("//")) return true;
-  if (t.startsWith("{/*")) return closedAtEnd("{/*", "*/}");
-  if (t.startsWith("/*") || t.startsWith("*")) return closedAtEnd("/*", "*/");
+  if (state.close) return /^}?$/.test(restAfter(state.close, 0));
+  if (!markdown && t.startsWith("//")) return true;
+  const opens = markdown ? [["<!--", "-->"]] : [["<!--", "-->"], ["{/*", "*/"], ["/*", "*/"]];
+  for (const [open, close] of opens) {
+    // "{/* ... */}" closes with "*/}"; the "}" left over is part of the comment.
+    if (t.startsWith(open)) return /^}?$/.test(restAfter(close, open.length));
+  }
   return false;
 }
 
@@ -176,7 +249,10 @@ export function scanText(file, text, checks) {
   const lines = text.split(/\r?\n/);
   const markdown = /\.mdx?$/.test(file);
   let frozenAt = 0;
+  const comments = { close: null };
   lines.forEach((line, i) => {
+    // Every line moves the comment state, a fence marker's line included.
+    const comment = commentOnly(line, markdown, comments);
     if (line.includes(FROZEN_START)) {
       if (frozenAt) problems.push(`${file}:${i + 1}: ${FROZEN_START} inside the fence opened at line ${frozenAt}`);
       frozenAt = i + 1;
@@ -187,11 +263,12 @@ export function scanText(file, text, checks) {
       frozenAt = 0;
       return;
     }
-    if (frozenAt || commentOnly(line, markdown)) return;
+    if (frozenAt || comment) return;
     const around = [lines[i - 1] ?? "", line, lines[i + 1] ?? ""].join(" ");
     for (const { label, patterns, context, kind } of checks) {
       const m = patterns
         .filter((re) => !context || context.test(re.sameLine ? line : around))
+        .filter((re) => !re.needs || re.needs.test(around))
         .map((re) => line.match(re)).find(Boolean);
       if (m) problems.push(`${file}:${i + 1}: ${kind} ${label} typed as "${m[0].trim()}"`);
     }
@@ -236,7 +313,17 @@ function dataAt(ref) {
       throw new UsageError(`--previous-ref ${ref}: cannot read public/api/${file} there (${String(err.message).split("\n")[0]})`);
     }
   }
+  const problem = baselineProblem(out);
+  if (problem) throw new UsageError(`--previous-ref ${ref}: ${problem}; compare against a released commit`);
   return out;
+}
+
+/** Why a baseline's data is not a release's, or null. Without a version or a
+ *  record count, comparing against it would skip the Zenodo check and most figures. */
+export function baselineProblem({ summary, release }) {
+  if (typeof release?.version !== "string" || !release.version) return "its release_meta.json has no version";
+  if (typeof summary?.total_records !== "number") return "its summary.json has no total_records";
+  return null;
 }
 
 function zenodoRecordId(text) {
@@ -289,7 +376,7 @@ function main(args) {
     return 1;
   }
   const baseline = previous
-    ? `, including ${previousRef}${previous.release?.version ? ` at v${previous.release.version}` : ""}` : "";
+    ? `, including ${previousRef} at v${previous.release.version}` : "";
   console.log(`check-figures: no typed dataset figures (${checks.length} checked${baseline}).`);
   return 0;
 }

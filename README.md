@@ -47,16 +47,22 @@ each release (`aggregate_data.py`, `build_release.py`). `src/lib/figures.ts`
 holds the helpers that round them for prose ("920,000+", "920K+"); they throw
 on a missing value, so a key dropped from the data fails the build instead of
 printing "undefined%". The social preview image is drawn at build time too
-(`src/pages/img/og-preview.png.ts`, with sharp), since a PNG in `public/`
-would keep the figures of the day it was made.
+(`src/pages/img/og-preview.png.ts`, with sharp, a direct dependency), since a
+PNG in `public/` would keep the figures of the day it was made.
 
 `scripts/check-figures.mjs` fails the build when one of those figures is typed
 into `src/` instead. It runs first in `npm run build` and in both workflows
 (`check.yml` on pull requests, `deploy.yml` before publishing), so a typed
-figure never reaches the site. With `--previous-ref origin/main` it also flags
-every figure of the release at that ref which has since changed, and a Zenodo
-record id left unchanged although the version changed; a ref that does not
-exist or lacks the data files is an error (exit 2), never a pass. The data
+figure never reaches the site. An exact count ("922,097", "922k") is always a
+figure; a rounded one ("920K+", "~15,000", "0.92 million") is one where what it
+counts is named on the same or a neighbouring line ("positions", "journals"),
+so "15,000 page views" passes. A percentage is one next to what it measures:
+"female", a role, or a country by its name or demonym ("Chinese editors").
+Comments are followed across lines and not checked. With `--previous-ref
+origin/main` it also flags every figure of the release at that ref which has
+since changed, and a Zenodo record id left unchanged although the version
+changed; a ref that does not exist, lacks the data files or has no release
+version is an error (exit 2), never a pass. The data
 repository's release verification (`verify_release.py`) runs that mode on a
 data update. Its tests: `node --test scripts/check-figures.test.mjs`.
 

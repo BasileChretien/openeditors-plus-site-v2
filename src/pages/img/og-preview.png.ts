@@ -4,9 +4,9 @@
 // editors" long after the data said otherwise), out of reach of
 // scripts/check-figures.mjs, which reads text, not images.
 //
-// sharp (with librsvg) comes with Astro, which installs it for its own image
-// service; without it this import fails the build rather than ship no image.
-// Text is set in DejaVu Sans, present on the ubuntu build runner.
+// sharp (with librsvg) is a direct dependency; without it this import fails the
+// build rather than ship no image. Text is set in DejaVu Sans, present on the
+// ubuntu build runner.
 import type { APIRoute } from "astro";
 import sharp from "sharp";
 import summary from "../../../public/api/summary.json";

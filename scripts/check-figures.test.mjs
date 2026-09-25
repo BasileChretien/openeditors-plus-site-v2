@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { checksFor, figures, scanText, zenodoProblem } from "./check-figures.mjs";
+import { baselineProblem, checksFor, figures, scanText, zenodoProblem } from "./check-figures.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./check-figures.mjs", import.meta.url));
 
@@ -35,16 +35,28 @@ test("a current count is flagged in every usual form", () => {
   for (const line of ["922097 records", "922,097 records", "922k records", "920,000+ records", "920K+ records",
     "920K records", "~920,000 records", "over 15,000 journals", "more than 920,000 positions", "15,000+ journals",
     "0.92 million records", "0.9M records", "across 15,000 academic journals", "920,000 editorial positions",
-    "a board of 740,000 editors"]) {
+    "a board of 740,000 editors", "the full 922k-row dataset", "400,000+ editors with an ORCID"]) {
     assert.equal(flagged(line).length, 1, line);
   }
+  // The exact count, or a thousands form as precise, needs nothing around it.
+  assert.equal(flagged("922,097").length, 1);
+  assert.equal(flagged("grab all 922k").length, 1);
 });
 
-test("a count computed from the data is not flagged, nor a coarse round number", () => {
+test("a rounded count is flagged where what it counts is named, also on the next line", () => {
+  assert.equal(flagged("<div>920K+</div>\n<div>positions</div>").length, 1);
+  assert.equal(flagged("<b>15K+</b>\n<span>journals</span>").length, 1);
+});
+
+test("a count computed from the data is not flagged, nor a round number counting something else", () => {
   assert.deepEqual(flagged("{atLeast(summary.total_records)} records"), []);
   assert.deepEqual(flagged("Loading {fmt(roleDist.section_editor)} rows"), []);
   assert.deepEqual(flagged("journals with 10,000+ citations"), []);
-  assert.deepEqual(flagged("15,000 page views a month"), []);
+  for (const line of ["15,000 page views a month", "15,000 rows", "15,000 people", "some 15,000 downloads",
+    "15k downloads", "15,000+ downloads", "400,000 members", "400,000 records per file", "over 400,000 page views",
+    "a 0.5 m margin", "0.4M euros"]) {
+    assert.deepEqual(flagged(line), [], line);
+  }
 });
 
 test("a percentage is flagged only next to what it measures", () => {
@@ -57,6 +69,25 @@ test("a percentage is flagged only next to what it measures", () => {
   assert.equal(flagged("the editor in chief role: 25%").length, 1);
   assert.equal(flagged("EiCs are 25.2% women").length, 1);
   assert.deepEqual(flagged("the page loads 33.0% faster"), []);
+});
+
+test("a percent sign is recognised in every spelling", () => {
+  for (const line of ["33.0&nbsp;% female", "33.0&#160;% female", "33.0&thinsp;% female", "33.0&#37; female",
+    "33.0\u202f% female", "33.0 per cent female"]) {
+    assert.equal(flagged(line).length, 1, line);
+  }
+});
+
+test("a country is named also by its demonym or short name", () => {
+  const data = release({ countries: [
+    { country: "China", editors: 50000, pct_gender_classified: 44.2, pct_female: 30.1 },
+    { country: "South Korea", editors: 9000, pct_gender_classified: 39.6, pct_female: 22.5 },
+    { country: "United Kingdom", editors: 40000, pct_gender_classified: 89.6, pct_female: 36.0 },
+  ] });
+  for (const line of ["Chinese editors: 44.2% classified", "Korea at 39.6%", "Korean names, 39.6%", "British editors 89.6%"]) {
+    assert.equal(flagged(line, data).length, 1, line);
+  }
+  assert.deepEqual(flagged("us at 44.2%", data), []);
 });
 
 test("role and country names match whole words only", () => {
@@ -104,6 +135,17 @@ test("a Markdown bullet is not a comment", () => {
   assert.equal(flagged("* 922,097 records", release(), null, "notes.md").length, 1);
 });
 
+test("comments are followed across lines", () => {
+  // Inside a block comment: skipped, whatever the line starts with.
+  assert.deepEqual(flagged("/* note\n  922,097 records\n*/"), []);
+  assert.deepEqual(flagged("{/* note\n  922,097 records\n*/}"), []);
+  assert.deepEqual(flagged("<!-- note\n  922,097 records\n-->"), []);
+  // Text after the comment closes, on the closing line, is checked.
+  assert.match(flagged("/* note\n*/ 922,097 records")[0], /^page\.astro:2: /);
+  // Outside a comment, a line starting with "*" is code (a continued expression).
+  assert.equal(flagged("const x = a\n  * 922097 records").length, 1);
+});
+
 test("a fence left open, or closed without opening, is an error", () => {
   const open = flagged("<!-- frozen-figures:start -->\n922,097 records");
   assert.equal(open.length, 1);
@@ -139,4 +181,12 @@ test("a baseline that cannot be read fails, it never passes vacuously", () => {
     const run = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf-8" });
     assert.equal(run.status, 2, `${args.join(" ")}: ${run.stdout}${run.stderr}`);
   }
+});
+
+test("a baseline without a release version or a record count is not a release", () => {
+  assert.equal(baselineProblem(release()), null);
+  // The site's first commit had data files but no version: it must not pass as a baseline.
+  assert.match(baselineProblem(release({ release: { version: undefined } })), /no version/);
+  assert.match(baselineProblem({ ...release(), release: {} }), /no version/);
+  assert.match(baselineProblem({ ...release(), summary: {} }), /no total_records/);
 });
