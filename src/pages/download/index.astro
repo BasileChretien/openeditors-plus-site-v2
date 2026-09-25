@@ -29,6 +29,7 @@ const parquetShort = parquet.sha256.slice(0, 16);
 // Dataset version history. The latest entry is sourced from
 // CHANGELOG.md (kept in the repo root) — when a new version is cut,
 // add an entry here AND update CHANGELOG.md in the same commit.
+// frozen-figures:start (each entry describes its own release)
 const versions = [
   {
     version: "4.0.1",
@@ -139,6 +140,12 @@ const versions = [
     latest: false,
   },
 ];
+// frozen-figures:end
+// The newest entry must be the release the site serves, or the build fails:
+// a data update cannot ship with the previous release's entry on top.
+if (versions[0].version !== release.version || !versions[0].latest || versions.filter((v) => v.latest).length !== 1) {
+  throw new Error(`download page: the newest version entry must be v${release.version}, the only one marked latest`);
+}
 ---
 
 <Base title="Download — Open Editors Plus" path="download" description="Download the Open Editors Plus 2026 dataset in CSV or Parquet format from Zenodo. CC0, versioned, SHA-256 verified.">

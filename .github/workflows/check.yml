@@ -1,18 +1,11 @@
-name: Deploy site to GitHub Pages
+name: Check site
 
 on:
-  push:
+  pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
   build:
@@ -28,21 +21,11 @@ jobs:
 
       - run: npm ci
 
+      - run: node --test scripts/check-figures.test.mjs
+
       # Fails on a dataset figure typed into src/ instead of read from public/api/.
       - run: node scripts/check-figures.mjs
 
+      # The pages assert that the release notes and the download history cover
+      # the release in public/api/release_meta.json; a build proves they do.
       - run: npx astro build
-
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5

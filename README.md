@@ -31,25 +31,56 @@ src/components/ shared components
 
 ## Deployment
 
-Pushes to `main` trigger `.github/workflows/deploy.yml`, which builds with
-`npx astro build` and publishes `dist/` to GitHub Pages. The custom domain is
+Pushes to `main` trigger `.github/workflows/deploy.yml`, which runs the figure
+check below, builds with `npx astro build` and publishes `dist/` to GitHub
+Pages. Pull requests run the same check and build (`check.yml`) without
+publishing. The custom domain is
 set by `public/CNAME`.
+
+## Figures come from the data, never from the source
+
+Every figure the pages quote about the current release (record, editor and
+journal counts, the female share and gender coverage overall, by role and by
+country, h-index coverage, the version and its date) is read at build time
+from the generated JSON in `public/api/`, which the data repository writes at
+each release (`aggregate_data.py`, `build_release.py`). `src/lib/figures.ts`
+holds the helpers that round them for prose ("920,000+", "920K+"); they throw
+on a missing value, so a key dropped from the data fails the build instead of
+printing "undefined%". The social preview image is drawn at build time too
+(`src/pages/img/og-preview.png.ts`, with sharp), since a PNG in `public/`
+would keep the figures of the day it was made.
+
+`scripts/check-figures.mjs` fails the build when one of those figures is typed
+into `src/` instead. It runs first in `npm run build` and in both workflows
+(`check.yml` on pull requests, `deploy.yml` before publishing), so a typed
+figure never reaches the site. With `--previous-ref origin/main` it also flags
+every figure of the release at that ref which has since changed, and a Zenodo
+record id left unchanged although the version changed; a ref that does not
+exist or lacks the data files is an error (exit 2), never a pass. The data
+repository's release verification (`verify_release.py`) runs that mode on a
+data update. Its tests: `node --test scripts/check-figures.test.mjs`.
+
+Figures that describe a past release (the version history on `/download`, the
+release notes, "China rose from 8% in v2.6 to 45% in v2.7") are history and are
+fenced between comments containing `frozen-figures:start` and
+`frozen-figures:end`, which the check skips (a fence left open fails). The
+newest release note, the newest download entry and the codebook texts must
+name the release in `public/api/release_meta.json`, or the build fails, so a
+data update cannot ship without them.
+
+The column descriptions on the codebook page (`src/pages/codebook/index.astro`)
+are read from `public/api/codebook.json`, the descriptions of the deposited
+codebook, which `build_release.py` writes with any figure a description quotes
+filled in from the release data. Change a description in the data repository's
+`scripts/release_columns.json`, never here. The data repository's
+`scripts/site/check_codebook_sync.py` checks that this file equals the
+deposited codebook (`--write` copies it), and `verify_release.py` fails a
+release on any difference.
 
 ## Data and corrections
 
 The dataset itself is released separately under CC0 on Zenodo
 ([10.5281/zenodo.19468382](https://doi.org/10.5281/zenodo.19468382)).
-
-The column descriptions on the codebook page (`src/pages/codebook/index.astro`)
-are copies of the dataset's own codebook: each `method` text must equal the
-column's `description` in the data repository's `scripts/release_columns.json`.
-Change a description there, not here, then run
-`python scripts/site/check_codebook_sync.py --write` in the data repository
-(with `OEP_SITE_DIR` pointing at this checkout if it is not a sibling), from a
-data checkout at least as new as this page's texts, normally `main`. Without
-`--write` the script only checks, and exits 1 on any difference; the data
-repository's release verification (`verify_release.py`, section 9) runs the
-same check and fails a release on drift.
 
 CC0 waives copyright and database rights only — it does not waive the
 data-protection rights of the individuals described. Anyone listed in the data

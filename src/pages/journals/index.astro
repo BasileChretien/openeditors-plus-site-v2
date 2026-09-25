@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
+import { atLeast } from "../../lib/figures";
 import { slugify } from "../../lib/slugify";
 
 const topPublishers = [
@@ -8,7 +9,7 @@ const topPublishers = [
 ];
 ---
 
-<Base title="Journal Statistics — Open Editors Plus" path="journals" description="Per-journal statistics: board size, gender balance, geographic diversity, indexing, and impact for 15,000+ academic journals.">
+<Base title="Journal Statistics — Open Editors Plus" path="journals" description={`Per-journal statistics: board size, gender balance, geographic diversity, indexing, and impact for ${atLeast(summary.unique_journals)} academic journals.`}>
   <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>

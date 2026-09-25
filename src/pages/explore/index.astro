@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
+import { atLeast, thousandsAtLeast } from "../../lib/figures";
 import { slugify } from "../../lib/slugify";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -110,7 +111,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
           <tbody id="table-body">
             <tr><td colspan="14" class="py-12 text-center text-text-muted">
               <svg class="w-6 h-6 animate-spin text-brand-500 mx-auto mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              Loading 920,000+ records...
+              Loading {atLeast(summary.total_records)} records...
             </td></tr>
           </tbody>
         </table>
@@ -141,7 +142,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text. Click the Affiliation filter to find an institution by name, acronym (e.g. INRAE) or ROR identifier, or click an institution name in the table to keep only that institution; [page] opens its page on this site. Institution selections filter on the ROR record, so affiliations that could not be resolved to ROR are only reachable through the text search (<em>Select all matching</em>).</p>
       <p><strong>h-index:</strong> From <a href="https://openalex.org" class="underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>. Missing when no author profile was matched.</p>
       <p><strong>Roles:</strong> Standardized from publisher-specific titles.</p>
-      <p><strong>Powered by <a href="https://duckdb.org/docs/api/wasm/overview" class="underline" target="_blank" rel="noopener noreferrer">DuckDB-WASM</a></strong> — all 920K+ records queried locally in your browser. No server needed.</p>
+      <p><strong>Powered by <a href="https://duckdb.org/docs/api/wasm/overview" class="underline" target="_blank" rel="noopener noreferrer">DuckDB-WASM</a></strong> — all {thousandsAtLeast(summary.total_records)} records queried locally in your browser. No server needed.</p>
     </div>
   </div>
 
@@ -1338,7 +1339,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
             `Exports larger than ${EXPORT_HARD_CAP.toLocaleString()} rows can be slow ` +
             `or crash the browser tab on low-memory devices.\n\n` +
             `Continue anyway?\n\n` +
-            `Tip: narrow the filter first, or grab the full 922k-row dataset from /download.`
+            `Tip: narrow the filter first, or grab the full ${totalCount.toLocaleString()}-row dataset from /download.`
           );
           if (!ok) {
             label.textContent = originalLabel;

@@ -1,5 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
+import codebook from "../../../public/api/codebook.json";
+import release from "../../../public/api/release_meta.json";
 
 // Provenance tag for every column. Helps users assess which columns
 // are trustworthy ground truth vs. inferred/derived values that may
@@ -13,118 +15,139 @@ import Base from "../../layouts/Base.astro";
 //   computed  — derived arithmetically from other columns in this dataset
 type Source = "collected" | "external" | "inferred" | "computed";
 
-// Each `method` text must equal the column's `description` in the data
-// repository's scripts/release_columns.json, which is also written into the
-// deposited codebook.json. Do not edit a text here alone: change it there, then
-// run `python scripts/site/check_codebook_sync.py --write` in the data
-// repository, which rewrites this file (without --write it only checks).
+// Each column's text is its description in this release's deposited
+// codebook: public/api/codebook.json, written by the data repository's
+// build_release.py, which renders any figure a description quotes from the
+// release data. The texts are never typed here, so they cannot go stale.
 const columns = [
   { group: "Core", cols: [
-    { name: "publisher", display: "Publisher", type: "string", source: "collected" as Source, method: "Publisher name (e.g., Elsevier, Springer Nature, Wiley), known from the collection configuration for each source." },
-    { name: "journal", display: "Journal", type: "string", source: "collected" as Source, method: "Journal title as listed on the publisher website." },
-    { name: "editor", display: "Name", type: "string", source: "collected" as Source, method: "Editor full name as it appeared on the editorial board page, after mojibake repair and light cleaning." },
-    { name: "first_name", display: "First name", type: "string", source: "computed" as Source, method: "Given name extracted from `editor` via the probablepeople ML name parser. Used as the lookup key for WGND 2.0 gender inference; preserved in the public release so users can re-use the parsed value without rerunning probablepeople." },
-    { name: "last_name", display: "Last name", type: "string", source: "computed" as Source, method: "Surname extracted from `editor` via the probablepeople ML name parser. Empty when probablepeople could not parse the string; the original `editor` field is always preserved." },
-    { name: "role", display: "Role (raw)", type: "string", source: "collected" as Source, method: "Role label as listed on the publisher page, unmodified." },
-    { name: "role_std", display: "Role (standardized)", type: "string", source: "computed" as Source, method: "Standardized role, one of exactly ten canonical values: editor_in_chief, senior_editor, deputy_editor, associate_editor, section_editor, reviewing_editor, guest_editor, editorial_board_member, editor, other. The mapping is deterministic from the raw role string. 'senior_editor' was introduced in v3.0.0; 'other' absorbs roughly 6% of positions that do not match the canonical set." },
-    { name: "affiliation", display: "Affiliation", type: "string", source: "collected" as Source, method: "Institutional affiliation as listed, after universal cleaning (strips roles, credentials, dates, junk). Not canonicalised; see ror_name for the authoritative form." },
-    { name: "orcid", display: "ORCID", type: "string", source: "collected" as Source, method: "16-digit ORCID iD. Preferred from the collected value when available; otherwise backfilled from OpenAlex or the ORCID API (see orcid_source)." },
-    { name: "source_url", display: "Source URL", type: "string", source: "collected" as Source, method: "Public publisher URL where this record was collected." },
-    { name: "scraped_at", display: "Collected at", type: "datetime", source: "collected" as Source, method: "ISO-8601 timestamp of when this record was collected. The column name is retained for backward compatibility with earlier releases." },
+    { name: "publisher", display: "Publisher", type: "string", source: "collected" as Source },
+    { name: "journal", display: "Journal", type: "string", source: "collected" as Source },
+    { name: "editor", display: "Name", type: "string", source: "collected" as Source },
+    { name: "first_name", display: "First name", type: "string", source: "computed" as Source },
+    { name: "last_name", display: "Last name", type: "string", source: "computed" as Source },
+    { name: "role", display: "Role (raw)", type: "string", source: "collected" as Source },
+    { name: "role_std", display: "Role (standardized)", type: "string", source: "computed" as Source },
+    { name: "affiliation", display: "Affiliation", type: "string", source: "collected" as Source },
+    { name: "orcid", display: "ORCID", type: "string", source: "collected" as Source },
+    { name: "source_url", display: "Source URL", type: "string", source: "collected" as Source },
+    { name: "scraped_at", display: "Collected at", type: "datetime", source: "collected" as Source },
   ]},
   { group: "Identity", cols: [
-    { name: "editor_key", display: "Editor key", type: "string", source: "computed" as Source, method: "Composite identity key used to deduplicate editors across boards; the basis for the 744,842 unique-editor count. Resolved in priority order and prefixed with the tier that produced it: 'orcid:<orcid>|<ror>' when an ORCID iD is available (346,713 records, 250,217 unique editors); 'ror:<ror_id>|<name>' when there is no iD but the affiliation resolved to ROR (293,742 records, 235,869 unique); 'aff:<affiliation>|<name>' otherwise (281,642 records, 258,756 unique, of which 51,695 have an empty affiliation and so fall back to name alone). Published in v3.0.0 at reviewer request so the unique-editor count is reproducible without reconstructing the key. Because the lowest tier is name-based, distinct people who share a name and affiliation string can still collide there; the ORCID and ROR tiers are the reliable ones." },
+    { name: "editor_key", display: "Editor key", type: "string", source: "computed" as Source },
   ]},
   { group: "Gender", cols: [
-    { name: "gender", display: "Gender", type: "string", source: "inferred" as Source, method: "Country-aware inference from the editor's first name and ror_country using WGND 2.0 (Raffo & Lax-Martinez, WIPO 2021; Harvard Dataverse DOI 10.7910/DVN/MSEGSJ, roughly 3.5 million names across 195 countries). The same name can resolve differently by country (for example 'Andrea' is typically male in Italy and female in the United States). gender-guesser is a tertiary fallback for names absent from WGND. Values: male, female, unknown. The legacy 'andy' (androgynous) value was retired in v3.0.0. Self-reported gender is NOT available in this dataset; every value is inferred and should be treated as such." },
-    { name: "gender_raw", display: "Gender (raw)", type: "string", source: "inferred" as Source, method: "Backwards-compatibility column kept since v1; mirrors gender exactly (WGND has no mostly_male / mostly_female granularity). Retained so v1-era scripts keep running; new work should read gender." },
-    { name: "gender_prob", display: "Gender weight", type: "float", source: "inferred" as Source, method: "WGND weight in [0, 1]: the probability that an individual with this first name in this country has the inferred gender. Replaces the legacy 3-bucket {0.0, 0.75, 1.0} confidence; downstream filters should use thresholds like `>= 0.95`. For gender-guesser fallback rows, 1.0 = certain, 0.75 = mostly_*, 0.0 = unknown." },
-    { name: "gender_nobs", display: "WGND sample size", type: "int", source: "inferred" as Source, method: "Number of observed individuals in the WGND cell (name × country) underlying the inference. Useful for filtering low-confidence cells in analysis. 0 for gender-guesser-fallback rows." },
-    { name: "gender_source", display: "Gender source", type: "string", source: "inferred" as Source, method: "Provenance of the inference: `wgnd_country` (matched on first_name + ror_country, strongest signal), `wgnd_global` (matched on first_name only, used when country was missing or the country-specific cell was empty), `gender_guesser` (tertiary fallback, country-blind), or `unknown`." },
+    { name: "gender", display: "Gender", type: "string", source: "inferred" as Source },
+    { name: "gender_raw", display: "Gender (raw)", type: "string", source: "inferred" as Source },
+    { name: "gender_prob", display: "Gender weight", type: "float", source: "inferred" as Source },
+    { name: "gender_nobs", display: "WGND sample size", type: "int", source: "inferred" as Source },
+    { name: "gender_source", display: "Gender source", type: "string", source: "inferred" as Source },
   ]},
   { group: "Institution (ROR)", cols: [
-    { name: "ror_id", display: "ROR ID", type: "string", source: "external" as Source, method: "Research Organization Registry identifier resolved from the raw affiliation string via the ROR /organizations?affiliation= fuzzy-match endpoint, subject to score and token-overlap guards (see CHANGELOG v2.0.0) that reject low-confidence matches. Seven organisations drew clusters of false matches (issue #30). v4.0.0 re-applied the v2.0.0 repair, which later re-enrichments had undone: a match to one of the seven is kept only when the affiliation names that organisation." },
-    { name: "ror_name", display: "Institution", type: "string", source: "external" as Source, method: "Canonical institution name from the ROR v2 record (ror_display name)." },
-    { name: "ror_country", display: "Country", type: "string", source: "external" as Source, method: "Country name from ROR/GeoNames for the primary location of the institution." },
-    { name: "ror_city", display: "City", type: "string", source: "external" as Source, method: "City of the primary location in the ROR record of the row's ror_id (GeoNames). Taken from ROR for every row with a ror_id since v4.0.1, which filled 5,537 rows left empty in v4.0.0." },
-    { name: "ror_state", display: "State/Province", type: "string", source: "external" as Source, method: "State or province of the primary location in the ROR record of the row's ror_id, as ROR gives it: usually a name, occasionally a GeoNames code (e.g. SG.01); empty when the ROR record gives none. Taken from ROR for every row with a ror_id since v4.0.1." },
-    { name: "org_type", display: "Org type", type: "string", source: "external" as Source, method: "Organization type from ROR: education, healthcare, government, facility, nonprofit, company, archive, or other. Taken from the first entry in the ROR record's types array." },
-    { name: "latitude", display: "Latitude", type: "float", source: "external" as Source, method: "Geographic latitude of the institution from ROR/GeoNames." },
-    { name: "longitude", display: "Longitude", type: "float", source: "external" as Source, method: "Geographic longitude of the institution from ROR/GeoNames." },
+    { name: "ror_id", display: "ROR ID", type: "string", source: "external" as Source },
+    { name: "ror_name", display: "Institution", type: "string", source: "external" as Source },
+    { name: "ror_country", display: "Country", type: "string", source: "external" as Source },
+    { name: "ror_city", display: "City", type: "string", source: "external" as Source },
+    { name: "ror_state", display: "State/Province", type: "string", source: "external" as Source },
+    { name: "org_type", display: "Org type", type: "string", source: "external" as Source },
+    { name: "latitude", display: "Latitude", type: "float", source: "external" as Source },
+    { name: "longitude", display: "Longitude", type: "float", source: "external" as Source },
   ]},
   { group: "Classification (OpenAlex)", cols: [
-    { name: "scientific_domain", display: "Domain", type: "string", source: "external" as Source, method: "OpenAlex domain of scientific_field (Health Sciences, Life Sciences, Physical Sciences or Social Sciences), or Multidisciplinary. Journal-level: identical for every editor of a journal." },
-    { name: "scientific_field", display: "Field", type: "string", source: "external" as Source, method: "Journal-level OpenAlex field (e.g. Medicine, Engineering, Psychology), identical for every editor of a journal: it describes the journal, not the editor's own research. Since v4.0.0 it is the field of most of the journal's own research articles with an abstract, by primary topic (falling back to all articles, then all works, below 30 classified works), provided that field covers at least 40% of those articles or the journal's earlier topic was one of OpenAlex's catch-all topics. Otherwise the journal keeps its v3.0.0 classification, which came from its most frequent OpenAlex topic. Multidisciplinary for journals the Norwegian Register for Scientific Journals (NPI) files under Interdisciplinary Natural Sciences. Empty when OpenAlex has no classified works for the journal." },
-    { name: "scientific_subfield", display: "Subfield", type: "string", source: "external" as Source, method: "Journal-level OpenAlex subfield. For journals classified by their articles (see scientific_field), the most common subfield among those articles within scientific_field; for journals that keep the v3.0.0 classification, the subfield of their most frequent OpenAlex topic. Empty for Multidisciplinary journals." },
-    { name: "scientific_topic", display: "Topic", type: "string", source: "external" as Source, method: "Journal-level OpenAlex topic. For journals classified by their articles (see scientific_field), the most common topic among those articles within scientific_subfield; for journals that keep the v3.0.0 classification, their most frequent OpenAlex topic. Empty for Multidisciplinary journals." },
+    { name: "scientific_domain", display: "Domain", type: "string", source: "external" as Source },
+    { name: "scientific_field", display: "Field", type: "string", source: "external" as Source },
+    { name: "scientific_subfield", display: "Subfield", type: "string", source: "external" as Source },
+    { name: "scientific_topic", display: "Topic", type: "string", source: "external" as Source },
   ]},
   { group: "Journal identifiers", cols: [
-    { name: "openalex_source_id", display: "OpenAlex source ID", type: "string", source: "external" as Source, method: "OpenAlex Source identifier for the journal, resolved from the journal title and/or ISSN. In v4.0.0, 152 journals whose recorded source OpenAlex had since retired were moved to the current source for their ISSN-L, and their four oa_ journal metrics were refreshed from it in September 2026; the other journals keep the metrics from the original enrichment." },
-    { name: "issn_l", display: "ISSN-L", type: "string", source: "external" as Source, method: "Linking ISSN (the ISSN-L groups print and electronic variants into one identifier) from OpenAlex." },
+    { name: "openalex_source_id", display: "OpenAlex source ID", type: "string", source: "external" as Source },
+    { name: "issn_l", display: "ISSN-L", type: "string", source: "external" as Source },
   ]},
   { group: "Journal metrics", cols: [
-    { name: "oa_2yr_mean_citedness", display: "Mean citedness (2yr)", type: "float", source: "external" as Source, method: "OpenAlex 2-year mean citedness: average citations received by articles published in the last 2 years. Open-data analogue of the Clarivate Journal Impact Factor but computed from OpenAlex citation graph." },
-    { name: "oa_journal_h_index", display: "Journal h-index", type: "int", source: "external" as Source, method: "Journal-level h-index from OpenAlex." },
-    { name: "oa_journal_works_count", display: "Journal works count", type: "int", source: "external" as Source, method: "Total number of works published in the journal (OpenAlex count)." },
-    { name: "oa_journal_cited_by_count", display: "Journal citations", type: "int", source: "external" as Source, method: "Total citations received by the journal (OpenAlex count)." },
-    { name: "is_in_doaj", display: "In DOAJ", type: "bool", source: "external" as Source, method: "True if the journal is listed in the Directory of Open Access Journals (DOAJ)." },
-    { name: "is_oa", display: "Open access", type: "bool", source: "external" as Source, method: "True if OpenAlex classifies the journal as open access." },
-    { name: "oa_impact_quartile", display: "OpenAlex citedness quartile (per field)", type: "string", source: "computed" as Source, method: "Q1 to Q4, computed locally by this project within each scientific_field from oa_2yr_mean_citedness. A journal's position is the share of journals in the same field with strictly lower citedness: Q4 below 0.25, Q3 below 0.50, Q2 below 0.75, Q1 from 0.75. Q1 is therefore roughly the top quarter of the field, so the value accounts for differing citation norms across disciplines, and journals with equal citedness share a quartile. Empty when the journal has no field or no citedness, or its field has fewer than 4 such journals. Releases up to v3.0.0 published one split across all journals despite this description; see CHANGELOG. This is NOT the Clarivate JIF or the Scopus CiteScore quartile." },
+    { name: "oa_2yr_mean_citedness", display: "Mean citedness (2yr)", type: "float", source: "external" as Source },
+    { name: "oa_journal_h_index", display: "Journal h-index", type: "int", source: "external" as Source },
+    { name: "oa_journal_works_count", display: "Journal works count", type: "int", source: "external" as Source },
+    { name: "oa_journal_cited_by_count", display: "Journal citations", type: "int", source: "external" as Source },
+    { name: "is_in_doaj", display: "In DOAJ", type: "bool", source: "external" as Source },
+    { name: "is_oa", display: "Open access", type: "bool", source: "external" as Source },
+    { name: "oa_impact_quartile", display: "OpenAlex citedness quartile (per field)", type: "string", source: "computed" as Source },
   ]},
   { group: "Editor bibliometrics", cols: [
-    { name: "h_index", display: "h-index", type: "int", source: "external" as Source, method: "Author h-index from OpenAlex, looked up by (name, ror_id) pair." },
-    { name: "total_publications", display: "Publications", type: "int", source: "external" as Source, method: "Total number of works by this author in OpenAlex." },
-    { name: "total_citations", display: "Citations", type: "int", source: "external" as Source, method: "Total citations received by this author in OpenAlex." },
-    { name: "academic_age", display: "Academic age", type: "int", source: "computed" as Source, method: "Years since this author's first OpenAlex-indexed publication (current year minus earliest publication year)." },
-    { name: "orcid_source", display: "ORCID source", type: "string", source: "computed" as Source, method: "Provenance of the ORCID iD. Values: 'scraped' (the iD was published on the editorial board page itself), 'missing' (no iD resolved for this record), and 'cleared_cross_institution_backfill' (a previously backfilled iD that was withdrawn in v2.x because the candidate profile resolved to a different institution than the editor's, and so could not be trusted)." },
-    { name: "openalex_author_id", display: "OpenAlex author ID", type: "string", source: "external" as Source, method: "OpenAlex Author identifier for the matched profile, restoring direct interoperability with the OpenAlex graph. Populated on 531,437 records (57.6%), which is 98.7% of the 538,550 records that matched an OpenAlex author. Added in v3.0.0; earlier releases carried the derived bibliometrics (h_index and friends) without exposing the identifier they came from." },
-    { name: "oa_match_method", display: "OpenAlex match method", type: "string", source: "computed" as Source, method: "How the OpenAlex author profile was resolved, so users can filter by match strength. Values: 'orcid' (matched on ORCID iD, the strongest signal, 344,957 records), 'name_ror' (matched on name plus the ROR-resolved institution, 107,173), 'name_only' (matched on name alone and therefore the weakest tier, most exposed to homonym error, 86,420), and 'unmatched' (no profile found, 383,547). Added in v3.0.0." },
+    { name: "h_index", display: "h-index", type: "int", source: "external" as Source },
+    { name: "total_publications", display: "Publications", type: "int", source: "external" as Source },
+    { name: "total_citations", display: "Citations", type: "int", source: "external" as Source },
+    { name: "academic_age", display: "Academic age", type: "int", source: "computed" as Source },
+    { name: "orcid_source", display: "ORCID source", type: "string", source: "computed" as Source },
+    { name: "openalex_author_id", display: "OpenAlex author ID", type: "string", source: "external" as Source },
+    { name: "oa_match_method", display: "OpenAlex match method", type: "string", source: "computed" as Source },
   ]},
   { group: "Indexing", cols: [
-    { name: "indexed_pubmed", display: "PubMed", type: "bool", source: "external" as Source, method: "True if the journal is indexed in PubMed/MEDLINE (matched on ISSN against the NLM catalog)." },
-    { name: "indexed_scopus", display: "Scopus", type: "bool", source: "external" as Source, method: "True if the journal is indexed in Scopus (matched on ISSN against the Scopus source list)." },
-    { name: "indexed_wos", display: "Web of Science", type: "bool", source: "external" as Source, method: "True if the journal is indexed in Web of Science (matched on ISSN against the WoS master journal list)." },
-    { name: "indexed_doaj", display: "DOAJ", type: "bool", source: "external" as Source, method: "True if the journal is listed in the Directory of Open Access Journals (DOAJ)." },
-    { name: "indexed_cope", display: "COPE", type: "bool", source: "external" as Source, method: "True if the publisher is a member of COPE (Committee on Publication Ethics). Publisher-level flag applied to all of that publisher's journals." },
-    { name: "indexed_npi", display: "NPI", type: "bool", source: "external" as Source, method: "True if the journal appears in the Norwegian Publishing Indicator register (at either level 1 or level 2). See the separate 'Norwegian Publishing Indicator' group below for the level and discipline fields." },
-    { name: "indexing_count", display: "Index count", type: "int", source: "computed" as Source, method: "Sum of the indexed_* flags (PubMed, Scopus, WoS, DOAJ, COPE, NPI). Range 0–6. A rough journal-quality proxy independent of citation metrics. Used as the indexing weight in the experimental 'weighted power' score on the Network page." },
+    { name: "indexed_pubmed", display: "PubMed", type: "bool", source: "external" as Source },
+    { name: "indexed_scopus", display: "Scopus", type: "bool", source: "external" as Source },
+    { name: "indexed_wos", display: "Web of Science", type: "bool", source: "external" as Source },
+    { name: "indexed_doaj", display: "DOAJ", type: "bool", source: "external" as Source },
+    { name: "indexed_cope", display: "COPE", type: "bool", source: "external" as Source },
+    { name: "indexed_npi", display: "NPI", type: "bool", source: "external" as Source },
+    { name: "indexing_count", display: "Index count", type: "int", source: "computed" as Source },
   ]},
   { group: "Norwegian Publishing Indicator", cols: [
-    { name: "npi_level", display: "NPI level", type: "string", source: "external" as Source, method: "Norwegian Publishing Indicator level. Level 2 marks the top ~20% of journals in the register; level 1 is the remainder of the register; 0 and X denote entries the register carries without a scoring level. Scope is limited to Nordic-relevant disciplines. Stored as a string; 320 rows carry the float-formatted variants '1.0' and '2.0', which downstream code should fold into '1' and '2'." },
-    { name: "npi_discipline", display: "NPI discipline", type: "string", source: "external" as Source, method: "Broad discipline in the NPI register." },
-    { name: "npi_field", display: "NPI field", type: "string", source: "external" as Source, method: "Specific field in the NPI register." },
+    { name: "npi_level", display: "NPI level", type: "string", source: "external" as Source },
+    { name: "npi_discipline", display: "NPI discipline", type: "string", source: "external" as Source },
+    { name: "npi_field", display: "NPI field", type: "string", source: "external" as Source },
   ]},
   { group: "Funding", cols: [
-    { name: "top_funder_1", display: "Top funder 1", type: "string", source: "external" as Source, method: "Most common funding organization for articles in this journal (from the OpenAlex Works funder metadata)." },
-    { name: "top_funder_1_count", display: "Funder 1 count", type: "int", source: "external" as Source, method: "Number of funded articles from the top funder." },
-    { name: "top_funder_2", display: "Top funder 2", type: "string", source: "external" as Source, method: "Second most common funder." },
-    { name: "top_funder_2_count", display: "Funder 2 count", type: "int", source: "external" as Source, method: "Count of funded articles." },
-    { name: "top_funder_3", display: "Top funder 3", type: "string", source: "external" as Source, method: "Third most common funder." },
-    { name: "top_funder_3_count", display: "Funder 3 count", type: "int", source: "external" as Source, method: "Count of funded articles." },
+    { name: "top_funder_1", display: "Top funder 1", type: "string", source: "external" as Source },
+    { name: "top_funder_1_count", display: "Funder 1 count", type: "int", source: "external" as Source },
+    { name: "top_funder_2", display: "Top funder 2", type: "string", source: "external" as Source },
+    { name: "top_funder_2_count", display: "Funder 2 count", type: "int", source: "external" as Source },
+    { name: "top_funder_3", display: "Top funder 3", type: "string", source: "external" as Source },
+    { name: "top_funder_3_count", display: "Funder 3 count", type: "int", source: "external" as Source },
   ]},
   { group: "Board diversity", cols: [
-    { name: "board_size", display: "Board size", type: "int", source: "computed" as Source, method: "Total number of editors on this journal's board (number of distinct editor rows sharing the same journal)." },
-    { name: "board_pct_female", display: "% female", type: "float", source: "computed" as Source, method: "Percentage (0 to 100) of female editors on this journal's board. The denominator is the RESOLVED gender count (male + female), not total board size, so the value is not artificially depressed on boards where many editors have unknown inferred gender. Fixed in v3.0.0: in v2.6.0 and v2.7.0 this column was constant at 0 because a gender-wipe regression emptied the inputs to the board-statistics stage. Any analysis using board_pct_female from those releases must be re-run." },
-    { name: "board_country_count", display: "Countries on board", type: "int", source: "computed" as Source, method: "Number of distinct ror_country values on the board." },
-    { name: "board_country_hhi", display: "Country HHI", type: "float", source: "computed" as Source, method: "Herfindahl–Hirschman Index of country concentration. Sum of squared country shares on the board. 0 = maximally diverse across many countries; 1 = all editors from a single country." },
-    { name: "board_institution_count", display: "Institutions on board", type: "int", source: "computed" as Source, method: "Number of distinct ror_id values on the board." },
-    { name: "board_mean_h_index", display: "Mean board h-index", type: "float", source: "computed" as Source, method: "Arithmetic mean of h_index across board members with a resolved OpenAlex profile." },
+    { name: "board_size", display: "Board size", type: "int", source: "computed" as Source },
+    { name: "board_pct_female", display: "% female", type: "float", source: "computed" as Source },
+    { name: "board_country_count", display: "Countries on board", type: "int", source: "computed" as Source },
+    { name: "board_country_hhi", display: "Country HHI", type: "float", source: "computed" as Source },
+    { name: "board_institution_count", display: "Institutions on board", type: "int", source: "computed" as Source },
+    { name: "board_mean_h_index", display: "Mean board h-index", type: "float", source: "computed" as Source },
   ]},
   { group: "Multi-board", cols: [
-    { name: "boards_count", display: "Boards served", type: "int", source: "computed" as Source, method: "Number of distinct editorial boards this editor serves on in the dataset." },
-    { name: "publishers_count", display: "Publishers served", type: "int", source: "computed" as Source, method: "Number of distinct publishers this editor serves across." },
-    { name: "is_multi_board", display: "Multi-board", type: "bool", source: "computed" as Source, method: "True if boards_count >= 2." },
+    { name: "boards_count", display: "Boards served", type: "int", source: "computed" as Source },
+    { name: "publishers_count", display: "Publishers served", type: "int", source: "computed" as Source },
+    { name: "is_multi_board", display: "Multi-board", type: "bool", source: "computed" as Source },
   ]},
   { group: "Metadata", cols: [
-    { name: "name_script", display: "Script", type: "string", source: "inferred" as Source, method: "Detected writing script of the editor's name (Latin, CJK, Cyrillic, Arabic, etc.). Used to document coverage gaps in downstream inference steps." },
-    { name: "name_script_region", display: "Script region", type: "string", source: "inferred" as Source, method: "Geographic region associated with the name script. Heuristic, not authoritative." },
-    { name: "name_is_initials", display: "Name is initials", type: "bool", source: "computed" as Source, method: "True when the editor's given name is recorded only as initials (for example 'J. R. Smith'), which blocks first-name-based gender inference and weakens name-based OpenAlex matching. True on 26,763 records (2.9%). Added in v3.0.0 so these records can be excluded from name-sensitive analyses." },
-    { name: "orcid_n_names", display: "Distinct names per ORCID", type: "int", source: "computed" as Source, method: "Number of distinct editor name strings that map to this record's ORCID iD in the OpenAlex snapshot. 1 for a clean one-to-one iD. Supporting column for orcid_shared_flag. Added in v3.0.0." },
-    { name: "orcid_shared_flag", display: "Shared ORCID", type: "bool", source: "computed" as Source, method: "True when one ORCID iD maps to several distinct name strings in the OpenAlex snapshot, which usually signals a data-entry error at the source rather than a genuine identity. True on 239 records. Added in v3.0.0 as a transparency flag; these records are retained, not removed." },
-    { name: "data_version", display: "Version", type: "float", source: "computed" as Source, method: "Dataset version stamp for the row, matching CHANGELOG.md. 2026.4 for the v4.0.1 release (v4.0.0: 2026.3). Stored as a number, not a string." },
-    { name: "enriched_at", display: "Enriched at", type: "datetime", source: "computed" as Source, method: "ISO timestamp of when enrichment completed for this row." },
+    { name: "name_script", display: "Script", type: "string", source: "inferred" as Source },
+    { name: "name_script_region", display: "Script region", type: "string", source: "inferred" as Source },
+    { name: "name_is_initials", display: "Name is initials", type: "bool", source: "computed" as Source },
+    { name: "orcid_n_names", display: "Distinct names per ORCID", type: "int", source: "computed" as Source },
+    { name: "orcid_shared_flag", display: "Shared ORCID", type: "bool", source: "computed" as Source },
+    { name: "data_version", display: "Version", type: "float", source: "computed" as Source },
+    { name: "enriched_at", display: "Enriched at", type: "datetime", source: "computed" as Source },
   ]},
 ];
+
+// The texts must be those of the release the site serves: a data update that
+// refreshed the other files but not this one would show the previous
+// release's descriptions.
+if (codebook.version !== release.version || String(codebook.data_version) !== String(release.data_version)) {
+  throw new Error(`public/api/codebook.json describes v${codebook.version} (${codebook.data_version}), `
+    + `but the site serves v${release.version} (${release.data_version})`);
+}
+
+// A column the page lists without a text, or a text for a column the page
+// does not list, fails the build rather than showing a gap.
+const descriptions = codebook.descriptions as Record<string, string>;
+const listed = new Set(columns.flatMap((g) => g.cols.map((c) => c.name)));
+const unlisted = Object.keys(descriptions).filter((name) => !listed.has(name));
+if (unlisted.length) throw new Error(`codebook page does not list: ${unlisted.join(", ")}`);
+for (const group of columns) {
+  for (const c of group.cols as { name: string; method?: string }[]) {
+    const text = descriptions[c.name];
+    if (!text) throw new Error(`public/api/codebook.json has no description for ${c.name}`);
+    c.method = text;
+  }
+}
 
 const typeColors: Record<string, string> = {
   string: "bg-blue-100 text-blue-800",

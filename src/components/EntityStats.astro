@@ -1,6 +1,7 @@
 ---
 import { slugify } from "../lib/slugify";
 import summary from "../../public/api/summary.json";
+import { pct } from "../lib/figures";
 
 const { name, records, editors, journals, extraLabel, extraValue, gd, topEntries, topType, mean_h_index, rank, rankTotal, globalShare, oaPct, entityType, entityValue } = Astro.props;
 const exploreUrl = "/explore?" + (entityType || "publisher") + "=" + encodeURIComponent(entityValue || name);
@@ -109,6 +110,9 @@ const diversityIntro =
     : shannonCount === 1
     ? "Per-editor diversity indicators. Each editor is counted once (composite identity key). The Shannon column uses Pielou's normalisation J = H / ln(k), bounded in [0, 1]."
     : "Per-editor seniority indicator, counted once per unique editor at this entity.";
+// Universities' share of editors with an institution type, from the data.
+const educationShare = pct((summary.org_type_distribution as Record<string, number>).education ?? 0,
+  Object.values(summary.org_type_distribution as Record<string, number>).reduce((a, b) => a + b, 0));
 ---
 
 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
@@ -232,8 +236,8 @@ const diversityIntro =
             Pielou's <em>J</em> over the ROR <code class="font-mono">org_type</code>
             field (education, healthcare, facility, government, nonprofit, company,
             archive). Low values mean editors come overwhelmingly from one kind of
-            institution — usually universities, which account for about 82% of
-            editors dataset-wide. Higher values indicate editorial boards that reach
+            institution — usually universities, which account for about {educationShare}% of
+            the editors with a known institution type dataset-wide. Higher values indicate editorial boards that reach
             into clinical practice, public labs, industry, or scientific societies.
           </div>
         </div>
