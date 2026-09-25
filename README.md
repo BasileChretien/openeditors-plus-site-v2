@@ -45,8 +45,11 @@ are copies of the dataset's own codebook: each `method` text must equal the
 column's `description` in the data repository's `scripts/release_columns.json`.
 Change a description there, not here, then run
 `python scripts/site/check_codebook_sync.py --write` in the data repository
-(with `OEP_SITE_DIR` pointing at this checkout if it is not a sibling). Without
-`--write` the script only checks, and exits 1 on any difference.
+(with `OEP_SITE_DIR` pointing at this checkout if it is not a sibling), from a
+data checkout at least as new as this page's texts, normally `main`. Without
+`--write` the script only checks, and exits 1 on any difference; the data
+repository's release verification (`verify_release.py`, section 9) runs the
+same check and fails a release on drift.
 
 CC0 waives copyright and database rights only — it does not waive the
 data-protection rights of the individuals described. Anyone listed in the data
