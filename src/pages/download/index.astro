@@ -31,13 +31,22 @@ const parquetShort = parquet.sha256.slice(0, 16);
 // add an entry here AND update CHANGELOG.md in the same commit.
 const versions = [
   {
+    version: "4.0.1",
+    date: "2026-09-25",
+    title: "Patch: ROR city and state filled",
+    summary:
+      "Patch release. ror_city is filled on 5,537 records and ror_state on 5,405 of them, from the ROR record of each row's ror_id; v4.0.0 had left them empty on records whose institution was matched after the one-off city backfill of April 2026 (mostly IEEE). ROR records no state for the other 132, in Singapore and Hong Kong. No other value changes and every count of v4.0.0 stands; data_version is 2026.4. Re-run only city- or state-level analyses.",
+    doi: "10.5281/zenodo.22950163",
+    latest: true,
+  },
+  {
     version: "4.0.0",
     date: "2026-09-25",
     title: "Corrected release: journal fields, per-field quartiles, ROR repair",
     summary:
       "Major release. Changes values in existing columns, not the schema, so analyses built on v3.0.0 that use journal fields, impact quartiles, institutions or editor counts must be re-run. (1) Journal fields now come from each journal's own OpenAlex articles, used when the majority field covers at least 40% of them or the old topic was a catch-all; 2,576 journals (183,173 positions, 19.9%) change field. The Lancet, JAMA, NEJM and The BMJ are Medicine again, and 151 journals the Norwegian register files as interdisciplinary (Science, Nature, PLOS ONE, Scientific Reports) are Multidisciplinary. 537 journals that had no field now have one. (2) oa_impact_quartile is now ranked within each field, as the codebook always said: Q1 starts at a citedness of 1.29 in Mathematics, 2.25 in Medicine and 3.70 in Engineering; 5,860 journals change quartile. (3) False ROR matches to seven organisations, removed in v2.0.0, had come back on 3,483 rows; 2,516 University of California rows move to their campus and the rest lose the wrong match. (4) 152 journals move from retired to current OpenAlex sources, with fresh journal metrics. Unique editors: 744,842 (was 745,125). See the release notes page for the full re-run guidance.",
     doi: "10.5281/zenodo.22931970",
-    latest: true,
+    latest: false,
   },
   {
     version: "3.0.0",
