@@ -15,14 +15,17 @@
  *       written (a figure that went stale), and a Zenodo record id left
  *       unchanged although the release version changed. The data
  *       repository's verify_release.py runs this mode. A ref that does not
- *       exist, or lacks the data files, is an error (exit 2), never a pass.
+ *       exist, lacks the data files or has no release version is an error
+ *       (exit 2), never a pass.
  *
- * Figures that describe a past release (version history, release notes,
- * "rose from 8% in v2.6 to 45% in v2.7") are fenced between two comments
- * containing `frozen-figures:start` and `frozen-figures:end` and are not
- * checked; a fence left open is an error. Lines that are only a comment are
- * not checked either. Images are not read: the social preview image is drawn
- * from summary.json at build time (src/pages/img/og-preview.png.ts).
+ * An exact count is always a figure; a rounded one ("920K+", "~15,000") is
+ * one where what it counts is named nearby, and a percentage is one next to
+ * what it measures. Figures that describe a past release (version history,
+ * release notes, "rose from 8% in v2.6 to 45% in v2.7") are fenced between two
+ * comments containing `frozen-figures:start` and `frozen-figures:end` and are
+ * not checked; a fence left open is an error. Comments, followed across lines,
+ * are not checked either. Images are not read: the social preview image is
+ * drawn from summary.json at build time (src/pages/img/og-preview.png.ts).
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
@@ -35,19 +38,99 @@ const EXTENSIONS = new Set([".astro", ".ts", ".js", ".mjs", ".md", ".mdx", ".sve
 const FROZEN_START = "frozen-figures:start";
 const FROZEN_END = "frozen-figures:end";
 const DATA_FILES = { summary: "summary.json", release: "release_meta.json", countries: "countries.json" };
-const ALIASES = { "United States": ["United States", "US", "USA", "U.S."], "United Kingdom": ["United Kingdom", "UK", "U.K."] };
+// Other names of a country, keyed by its name in countries.json (a test checks
+// every key is one): "US", "Korea" (not North Korea), "the Netherlands".
+const COUNTRY_NAMES = {
+  "United States": ["US", "USA", "U\\.S\\.", "U\\.S\\.A\\."],
+  "United Kingdom": ["UK", "U\\.K\\.", "Britain", "Great Britain"],
+  "South Korea": ["(?<!North )Korea"],
+  "Hong Kong": ["HK"],
+  "The Netherlands": ["Netherlands", "Holland"],
+  "Türkiye": ["Turkey", "Turkiye"],
+  Czechia: ["Czech Republic"],
+  "United Arab Emirates": ["UAE", "U\\.A\\.E\\."],
+};
+// A demonym names a country only before what the figure is about: "Chinese
+// editors", "Korean names"; not "German-language", "the Indian Ocean".
+const DEMONYMS = {
+  "United States": "(?<!(?:Latin|South|North|Central)[ -])Americans?",
+  "United Kingdom": "British", China: "Chinese", "South Korea": "(?<!North )Koreans?", Taiwan: "Taiwanese",
+  Japan: "Japanese", India: "Indians?", Italy: "Italians?", Germany: "Germans?", France: "French",
+  Spain: "Spanish", Portugal: "Portuguese", "The Netherlands": "Dutch", Switzerland: "Swiss",
+  Sweden: "Swedish", Poland: "Polish", Brazil: "Brazilians?", Canada: "Canadians?", Australia: "Australians?",
+  Russia: "Russians?", Iran: "Iranians?", "Türkiye": "Turkish", Egypt: "Egyptians?", Mexico: "Mexicans?",
+  Belgium: "Belgians?", Austria: "Austrians?", Denmark: "Danish", Norway: "Norwegians?", Finland: "Finnish",
+  Greece: "Greeks?", Israel: "Israelis?", Pakistan: "Pakistanis?", "Saudi Arabia": "Saudis?", Ireland: "Irish",
+  "South Africa": "South Africans?", Malaysia: "Malaysians?", Singapore: "Singaporeans?", Thailand: "Thai",
+  Argentina: "Argentin(?:ian|e)s?", Chile: "Chileans?", Romania: "Romanians?", Hungary: "Hungarians?",
+  Czechia: "Czech", "New Zealand": "New Zealanders?",
+};
+// What a demonym must precede to name the country, within two words: the
+// people the per-country shares are about. A language or a spelling between
+// them breaks the link ("German-language editors" are not Germany's).
+// Both match in any case ("Chinese Editors" in a table header), while the
+// country names around them stay case-sensitive ("US", not "us").
+const anyCase = (src) => src.replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const ABOUT_PEOPLE = anyCase("editors?|editorial|names?|researchers?|scholars?|scientists?|academics?|authors?"
+  + "|members?|boards?|institutions?|universit(?:y|ies)|affiliations?");
+const NOT_ABOUT_A_COUNTRY = anyCase("languages?|speaking|spelling|english|ocean");
 const ROLE_ALIASES = { editor_in_chief: ["EiCs?"] };
 // Countries whose rates are worth naming on a page; smaller ones are noise.
 const MIN_COUNTRY_EDITORS = 1000;
 // Words that turn a round number into a claim about the data: "~920,000", "over 15,000".
 const APPROX = "(?<![A-Za-z])(?:~|about|around|approximately|roughly|nearly|almost|over|more than|some)\\s*";
-// What the dataset's counts count, for a round number written without "+".
-const COUNTED = "journals?|editors?|records?|positions?|rows|members|people|persons|individuals|seats";
+// A percent sign, also written as an HTML entity or after a (no-break, thin) space.
+const PERCENT = "(?:\\s|&nbsp;|&#160;|&#x0*a0;|&thinsp;|&#8201;|&#x0*2009;|&#8239;|&#x0*202f;)?"
+  + "(?:%|&#37;|&#x0*25;|&percnt;|percent\\b|per cent\\b)";
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const en = (n) => n.toLocaleString("en-US");
 // Whole words, also next to "." or "-": "U.S.", "Editors-in-Chief", but not "another" for "other".
 const words = (alternatives, flags = "") => new RegExp(`(?<![A-Za-z])(?:${alternatives.join("|")})(?![A-Za-z])`, flags);
+
+// A count's exact value is always a figure, and so is a thousands form as
+// precise ("922k"). Its rounded forms ("920K+", "~920,000", "0.92 million", a
+// bare "920,000") are figures where what it counts is named within three lines,
+// by its own nouns, or, for the ORCID and h-index counts, by their context. The
+// headline counts' "+" forms ("920K+", "15,000+") and two-decimal millions are
+// figures anywhere: they are how the site's own stat cards and titles print them.
+const COUNTS = {
+  total_records: {
+    headline: true,
+    needs: words(["records?", "positions?", "rows?", "seats?", "entries", "entry", "listings?", "roles?",
+      "memberships?", "appointments?"], "i"),
+  },
+  unique_editors: {
+    headline: true,
+    needs: words(["editors?", "people", "persons?", "individuals?", "researchers?", "scholars?", "scientists?",
+      "members?", "academics?", "experts?"], "i"),
+  },
+  unique_journals: {
+    headline: true,
+    needs: words(["journals?", "titles?", "periodicals?", "venues?", "publications?", "outlets?"], "i"),
+  },
+  with_orcid: { headline: false, needs: /orcid/i },
+  records_with_h_index: { headline: false, needs: /h-index|h index|bibliometric/i },
+};
+// How far from a rounded count its noun may be: stat cards put the label
+// two lines under the number.
+const NOUN_WINDOW = 3;
+// A comment longer than this is more likely a stray opener than a comment.
+const MAX_COMMENT_LINES = 60;
+
+/** Whatever names a country on a page: its name, another name ("US", "Korea"),
+ *  or its demonym before what the figure is about ("Chinese editors"). */
+export function countryNames(country) {
+  const names = [esc(country), ...(COUNTRY_NAMES[country] ?? [])];
+  const between = `(?:[\\s-]+(?!(?:${NOT_ABOUT_A_COUNTRY})(?![A-Za-z]))[A-Za-z]+){0,2}?`;
+  const demonym = DEMONYMS[country]
+    ? [`(?:${DEMONYMS[country]})${between}[\\s-]+(?:${ABOUT_PEOPLE})`] : [];
+  return words([...names, ...demonym]);
+}
+
+/** The keys of COUNTRY_NAMES and DEMONYMS, which must be country names as
+ *  countries.json spells them, or their aliases would never be used. */
+export const ALIAS_KEYS = [...new Set([...Object.keys(COUNTRY_NAMES), ...Object.keys(DEMONYMS)])];
 
 class UsageError extends Error {}
 
@@ -56,33 +139,47 @@ function floorSig(n, digits) {
   return Math.floor(n / p) * p;
 }
 
-/** Every way a count of this size is commonly written: 922097, 922,097, 922k,
- *  920,000+, ~920,000, 920K(+), 0.92 million, 0.9M. */
-function countTokens(n) {
-  const number = (src) => new RegExp(`(?<![\\d.,])(?:${src})(?![\\d,]|[A-Za-z])`);
-  const out = [number(esc(String(n))), number(esc(en(n)))];
-  if (n < 10000) return out;
-  for (const k of new Set([Math.round(n / 1000), Math.floor(n / 1000)])) out.push(number(`${k}[kK]\\+?`));
-  for (const d of [2, 3]) {
-    const f = floorSig(n, d);
-    if (f >= n) continue;
-    out.push(number(`${esc(en(f))}\\+|${f}\\+`));
-    out.push(new RegExp(`${APPROX}${esc(en(f))}(?![\\d,])`, "i"));
-    // A bare round number is a claim when what it counts follows: "15,000 academic journals".
-    out.push(new RegExp(`(?<![\\d.,])(?:${esc(en(f))}|${f})(?:[\\s-]+[A-Za-z]+){0,2}?[\\s-]+(?:${COUNTED})(?![A-Za-z])`, "i"));
-    if (f % 1000 === 0) out.push(number(`${f / 1000}[kK]\\+?`));
+/** Every way a count of this size is commonly written (see COUNTS for when
+ *  each form is a figure): 922097, 922,097, 922k, 920,000+, 920K+, ~920,000,
+ *  a bare 920,000 or 920K, 0.92 million, 0.9M. */
+function countTokens(n, { headline, needs }) {
+  const number = (src, near = null) =>
+    Object.assign(new RegExp(`(?<![\\d.,])(?:${src})(?![\\d,]|[A-Za-z])`, "i"), near ? { needs: near } : {});
+  const always = [esc(String(n)), esc(en(n))];
+  const plus = [];
+  const weak = [];
+  if (n >= 10000) {
+    for (const k of new Set([Math.round(n / 1000), Math.floor(n / 1000)])) {
+      // "922k" is as specific as the count itself; "15k" is not.
+      (k >= 100 ? always : weak).push(`${k}k(?!\\+)`);
+      (k >= 100 ? always : plus).push(`${k}k\\+`);
+    }
+    for (const d of [2, 3]) {
+      const f = floorSig(n, d);
+      if (f >= n) continue;
+      plus.push(`${esc(en(f))}\\+`, `${f}\\+`);
+      weak.push(`${esc(en(f))}(?!\\+)`, `${f}(?!\\+)`, `${APPROX}(?:${esc(en(f))}|${f})`);
+      if (f % 1000 === 0) plus.push(`${f / 1000}k\\+`), weak.push(`${f / 1000}k(?!\\+)`);
+    }
   }
   if (n >= 100000) {
-    const millions = new Set([1, 2].flatMap((d) => [(n / 1e6).toFixed(d), (floorSig(n, d) / 1e6).toFixed(d)]));
-    for (const m of millions) out.push(new RegExp(`(?<![\\d.,])${esc(m)}\\s?(?:M\\b|million\\b)`, "i"));
+    for (const d of [1, 2]) {
+      for (const m of new Set([(n / 1e6).toFixed(d), (floorSig(n, d) / 1e6).toFixed(d)])) {
+        (d === 2 ? plus : weak).push(`${esc(m)}\\s?(?:m|million)`);
+      }
+    }
   }
-  return out;
+  return [
+    ...always.map((src) => number(src)),
+    ...plus.map((src) => number(src, headline ? null : needs)),
+    ...weak.map((src) => number(src, needs)),
+  ];
 }
 
 /** "25.2%" is specific enough to match its context on a neighbouring line;
  *  a rounded "25%" is common, so its context must be on the same line. */
 function pctTokens(v) {
-  const unit = "\\s?(?:%|percent\\b|per cent\\b)";
+  const unit = PERCENT;
   const token = (t, sameLine) => Object.assign(new RegExp(`(?<![\\d.])${esc(t)}${unit}`, "i"), { sameLine });
   const one = v.toFixed(1);
   const rounded = String(Math.round(v));
@@ -96,8 +193,8 @@ export function figures({ summary, release, countries }) {
     if (value === null || value === undefined) return;
     f[id] = { value: String(value), label, patterns, context };
   };
-  for (const key of ["total_records", "unique_editors", "unique_journals", "with_orcid", "records_with_h_index"]) {
-    if (typeof summary?.[key] === "number" && summary[key] >= 1000) add(key, summary[key], key, countTokens(summary[key]));
+  for (const [key, kind] of Object.entries(COUNTS)) {
+    if (typeof summary?.[key] === "number" && summary[key] >= 1000) add(key, summary[key], key, countTokens(summary[key], kind));
   }
   for (const [role, n] of Object.entries(summary?.role_distribution ?? {})) {
     if (typeof n === "number" && n >= 1000) {
@@ -129,7 +226,7 @@ export function figures({ summary, release, countries }) {
   }
   for (const c of countries ?? []) {
     if (!(c.editors >= MIN_COUNTRY_EDITORS)) continue;
-    const names = words((ALIASES[c.country] ?? [c.country]).map(esc));
+    const names = countryNames(c.country);
     for (const key of ["pct_gender_classified", "pct_female"]) {
       if (typeof c[key] === "number") add(`${c.country}:${key}`, c[key], `${c.country} ${key}`, pctTokens(c[key]), names);
     }
@@ -153,18 +250,28 @@ export function checksFor(current, previous = null, previousRef = "the previous 
   return checks;
 }
 
-/** A line that is only a comment. In Markdown a leading "*" is a bullet, not a comment. */
-function commentOnly(line, markdown) {
+/** Whether a line is only comment, following comments across lines: `state.close`
+ *  holds the end of a comment still open ("*" + "/" or "-->"). A line inside one
+ *  is comment up to its end; text after the end, or after a comment closed on
+ *  the same line, is checked. Markdown has only HTML comments ("*" is a bullet). */
+function commentOnly(line, markdown, state) {
   const t = line.trim();
-  const closedAtEnd = (open, close) => {
-    const end = t.indexOf(close, open.length);
-    return end === -1 || end + close.length === t.length;
+  const restAfter = (close, from) => {
+    const end = t.indexOf(close, from);
+    if (end === -1) {
+      state.close = close;
+      return "";
+    }
+    state.close = null;
+    return t.slice(end + close.length).trim();
   };
-  if (t.startsWith("<!--")) return closedAtEnd("<!--", "-->");
-  if (markdown) return false;
-  if (t.startsWith("//")) return true;
-  if (t.startsWith("{/*")) return closedAtEnd("{/*", "*/}");
-  if (t.startsWith("/*") || t.startsWith("*")) return closedAtEnd("/*", "*/");
+  if (state.close) return /^}?$/.test(restAfter(state.close, 0));
+  if (!markdown && t.startsWith("//")) return true;
+  const opens = markdown ? [["<!--", "-->"]] : [["<!--", "-->"], ["{/*", "*/"], ["/*", "*/"]];
+  for (const [open, close] of opens) {
+    // "{/* ... */}" closes with "*/}"; the "}" left over is part of the comment.
+    if (t.startsWith(open)) return /^}?$/.test(restAfter(close, open.length));
+  }
   return false;
 }
 
@@ -176,7 +283,20 @@ export function scanText(file, text, checks) {
   const lines = text.split(/\r?\n/);
   const markdown = /\.mdx?$/.test(file);
   let frozenAt = 0;
+  const comments = { close: null };
+  let commentAt = 0;
   lines.forEach((line, i) => {
+    // Every line moves the comment state, a fence marker's line included.
+    const wasOpen = comments.close;
+    const comment = commentOnly(line, markdown, comments);
+    if (!comments.close) commentAt = 0;
+    else if (!wasOpen) commentAt = i + 1;
+    // A stray "/*" or "<!--" (in a string, say) would hide the rest of the file:
+    // a comment that runs on and on is reported, and so is one never closed.
+    if (commentAt && i + 1 - commentAt === MAX_COMMENT_LINES) {
+      problems.push(`${file}:${commentAt}: a comment opened here is still open ${MAX_COMMENT_LINES} lines on; `
+        + "if it is not a comment, the check is skipping real text");
+    }
     if (line.includes(FROZEN_START)) {
       if (frozenAt) problems.push(`${file}:${i + 1}: ${FROZEN_START} inside the fence opened at line ${frozenAt}`);
       frozenAt = i + 1;
@@ -187,16 +307,19 @@ export function scanText(file, text, checks) {
       frozenAt = 0;
       return;
     }
-    if (frozenAt || commentOnly(line, markdown)) return;
-    const around = [lines[i - 1] ?? "", line, lines[i + 1] ?? ""].join(" ");
+    if (frozenAt || comment) return;
+    const around = lines.slice(Math.max(0, i - 1), i + 2).join(" ");
+    const wide = lines.slice(Math.max(0, i - NOUN_WINDOW), i + NOUN_WINDOW + 1).join(" ");
     for (const { label, patterns, context, kind } of checks) {
       const m = patterns
         .filter((re) => !context || context.test(re.sameLine ? line : around))
+        .filter((re) => !re.needs || re.needs.test(wide))
         .map((re) => line.match(re)).find(Boolean);
       if (m) problems.push(`${file}:${i + 1}: ${kind} ${label} typed as "${m[0].trim()}"`);
     }
   });
   if (frozenAt) problems.push(`${file}:${frozenAt}: ${FROZEN_START} is never closed with ${FROZEN_END}`);
+  if (commentAt) problems.push(`${file}:${commentAt}: a comment opened here never closes`);
   return problems;
 }
 
@@ -236,7 +359,17 @@ function dataAt(ref) {
       throw new UsageError(`--previous-ref ${ref}: cannot read public/api/${file} there (${String(err.message).split("\n")[0]})`);
     }
   }
+  const problem = baselineProblem(out);
+  if (problem) throw new UsageError(`--previous-ref ${ref}: ${problem}; compare against a released commit`);
   return out;
+}
+
+/** Why a baseline's data is not a release's, or null. Without a version or a
+ *  record count, comparing against it would skip the Zenodo check and most figures. */
+export function baselineProblem({ summary, release }) {
+  if (typeof release?.version !== "string" || !release.version) return "its release_meta.json has no version";
+  if (typeof summary?.total_records !== "number") return "its summary.json has no total_records";
+  return null;
 }
 
 function zenodoRecordId(text) {
@@ -289,7 +422,7 @@ function main(args) {
     return 1;
   }
   const baseline = previous
-    ? `, including ${previousRef}${previous.release?.version ? ` at v${previous.release.version}` : ""}` : "";
+    ? `, including ${previousRef} at v${previous.release.version}` : "";
   console.log(`check-figures: no typed dataset figures (${checks.length} checked${baseline}).`);
   return 0;
 }
