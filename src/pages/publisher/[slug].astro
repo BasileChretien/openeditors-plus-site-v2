@@ -8,11 +8,11 @@ export async function getStaticPaths() {
   const sorted = [...publishers].sort((a, b) => b.records - a.records);
   return publishers.map((p) => {
     const rank = sorted.findIndex(s => s.publisher === p.publisher) + 1;
-    return { params: { slug: slugify(p.publisher) }, props: { pub: p, rank } };
+    return { params: { slug: slugify(p.publisher) }, props: { pub: p, rank, count: publishers.length } };
   });
 }
 
-const { pub, rank } = Astro.props;
+const { pub, rank, count } = Astro.props;
 const slug = slugify(pub.publisher);
 const oaPct = pub.records > 0 ? (pub.oa_records / pub.records * 100).toFixed(0) : "0";
 const topCountries = Object.entries(pub.top_countries || {}).slice(0, 10);
@@ -26,7 +26,7 @@ const topCountries = Object.entries(pub.top_countries || {}).slice(0, 10);
       <span class="text-sm text-text-muted bg-surface-dim px-3 py-1 rounded-full">{"#" + rank + " publisher"}</span>
     </div>
     <p class="text-text-secondary text-lg mb-8">{pub.journals.toLocaleString() + " journals covered"}</p>
-    <EntityStats name={pub.publisher} records={pub.records} editors={pub.editors} journals={pub.journals} extraLabel="Countries" extraValue={pub.countries} gd={pub.gender_distribution} pct_gender_classified={pub.pct_gender_classified} country_shannon={pub.country_shannon} field_shannon={pub.field_shannon} org_type_shannon={pub.org_type_shannon} academic_age_stats={pub.academic_age_stats} topEntries={topCountries} topType="countries" mean_h_index={pub.mean_h_index} rank={rank} rankTotal="48 publishers" oaPct={oaPct} entityType="publisher" entityValue={pub.publisher} />
+    <EntityStats name={pub.publisher} records={pub.records} editors={pub.editors} journals={pub.journals} extraLabel="Countries" extraValue={pub.countries} gd={pub.gender_distribution} pct_gender_classified={pub.pct_gender_classified} country_shannon={pub.country_shannon} field_shannon={pub.field_shannon} org_type_shannon={pub.org_type_shannon} academic_age_stats={pub.academic_age_stats} topEntries={topCountries} topType="countries" mean_h_index={pub.mean_h_index} rank={rank} rankTotal={count + " publishers"} oaPct={oaPct} entityType="publisher" entityValue={pub.publisher} />
     <div class="border-t border-border pt-8"><h2 class="font-bold text-lg mb-4">Browse more</h2><div class="flex flex-wrap gap-2"><a href="/publisher" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All publishers</a><a href="/country" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All countries</a><a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All fields</a></div></div>
   </div>
 </Base>
