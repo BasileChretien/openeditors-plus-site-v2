@@ -8,7 +8,11 @@
 /** An ISSN-L as the dataset writes it: hyphenated, with an upper-case check digit. */
 export const ISSN_L = /^\d{4}-\d{3}[\dX]$/;
 
-/** Below this many editors with an inferred gender, the share of women is not shown. */
+/**
+ * Below this many editors with an inferred gender the share of women is not
+ * published: aggregate_data.py writes it as null in journal_pages.json (its
+ * JOURNAL_PAGE_MIN_GENDER), and the page says so.
+ */
 export const MIN_GENDER_RESOLVED = 5;
 
 export interface JournalTable {
@@ -21,7 +25,8 @@ export interface Listing {
   publisher: string;
   board_size: number;
   country_count: number;
-  pct_female: number;
+  /** null when fewer than MIN_GENDER_RESOLVED editors have an inferred gender. */
+  pct_female: number | null;
   mean_h_index: number;
   field: string;
   is_oa: boolean;
@@ -35,7 +40,7 @@ export interface Listing {
   source_url: string;
   collected: string;
   positions: number;
-  gender_resolved: number;
+  gender_resolved: number | null;
 }
 
 export interface JournalPage {
@@ -59,7 +64,8 @@ export const ROLE_LABELS: Record<string, string> = {
 };
 
 const TEXT = ["journal", "publisher", "field", "npi_level", "impact_quartile", "issn_l", "source_url", "collected"] as const;
-const NUMBER = ["board_size", "country_count", "pct_female", "mean_h_index", "positions", "gender_resolved"] as const;
+const NUMBER = ["board_size", "country_count", "mean_h_index", "positions"] as const;
+const NULLABLE = ["pct_female", "gender_resolved"] as const;
 const FLAG = ["is_oa", "indexed_scopus", "indexed_wos", "indexed_pubmed"] as const;
 
 function column(table: JournalTable, name: string): number {
@@ -70,10 +76,12 @@ function column(table: JournalTable, name: string): number {
 
 export function listings(table: JournalTable): Listing[] {
   const at = (names: readonly string[]) => names.map((n) => [n, column(table, n)] as const);
-  const text = at(TEXT), number = at(NUMBER), flag = at(FLAG), roles = at(Object.keys(ROLE_LABELS));
+  const text = at(TEXT), number = at(NUMBER), nullable = at(NULLABLE), flag = at(FLAG);
+  const roles = at(Object.keys(ROLE_LABELS));
   return table.rows.map((r) => ({
     ...Object.fromEntries(text.map(([n, i]) => [n, String(r[i] ?? "")])),
     ...Object.fromEntries(number.map(([n, i]) => [n, Number(r[i]) || 0])),
+    ...Object.fromEntries(nullable.map(([n, i]) => [n, r[i] === null || r[i] === undefined ? null : Number(r[i])])),
     ...Object.fromEntries(flag.map(([n, i]) => [n, r[i] === true])),
     roles: Object.fromEntries(roles.map(([n, i]) => [n, Number(r[i]) || 0])),
   }) as Listing);
@@ -92,4 +100,23 @@ export function journalPages(table: JournalTable): JournalPage[] {
     issn_l,
     listings: [...group].sort((a, b) => b.board_size - a.board_size),
   }));
+}
+
+/**
+ * The board page URL, or "" when it cannot be followed: only http(s), and
+ * not the ScienceDirect addresses the scraper wrote with an empty journal
+ * slug ("sciencedirect.com/journal//about/editorial-board").
+ */
+export function boardUrl(url: string): string {
+  const m = /^https?:\/\/[^/\s]+(\/\S*)?$/.exec(url.trim());
+  return m && !(m[1] ?? "").includes("//") ? url.trim() : "";
+}
+
+/**
+ * A journal name for display. The scraper wrote "&" as a colon and two
+ * spaces ("Social Science:  Medicine"); the dataset keeps the name as
+ * scraped, the page shows the journal's own.
+ */
+export function displayTitle(name: string): string {
+  return name.replace(/:\s{2,}/g, " & ").replace(/\s+/g, " ").trim();
 }

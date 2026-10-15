@@ -9,7 +9,7 @@ import release from "../../../public/api/release_meta.json";
 import { slugify } from "../../lib/slugify";
 import { oneDecimal } from "../../lib/figures";
 import {
-  journalPages, MIN_GENDER_RESOLVED, ROLE_LABELS,
+  boardUrl, displayTitle, journalPages, MIN_GENDER_RESOLVED, ROLE_LABELS,
   type JournalPage, type JournalTable,
 } from "../../lib/journals";
 
@@ -28,18 +28,19 @@ const dateLabel = (iso: string) => iso
   ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
   : "";
 const yesNo = (v: boolean) => (v ? "Yes" : "No");
-const title = `${main.journal} — Editorial Board Indicators`;
-const description = `Editorial board of ${main.journal} (ISSN-L ${page.issn_l}): size, countries, inferred gender balance and roles, from Open Editors Plus ${release.version}.`;
+const name = displayTitle(main.journal);
+const title = `${name} — Editorial Board Indicators`;
+const description = `Editorial board of ${name} (ISSN-L ${page.issn_l}): size, countries, inferred gender balance and roles, from Open Editors Plus ${release.version}.`;
 const path = `journal/${page.issn_l}`;
 ---
 
 <Base title={title} description={description} path={path}
-  breadcrumbs={[{ name: "Journals", url: "journals" }, { name: main.journal, url: path }]}>
+  breadcrumbs={[{ name: "Journals", url: "journals" }, { name, url: path }]}>
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <nav class="text-xs text-text-muted mb-6">
-      <a href="/">Home</a> / <a href="/journals">Journals</a> / <span class="text-text-primary font-medium">{main.journal}</span>
+      <a href="/">Home</a> / <a href="/journals">Journals</a> / <span class="text-text-primary font-medium">{name}</span>
     </nav>
-    <h1 class="text-3xl sm:text-4xl font-bold mb-2">{main.journal}</h1>
+    <h1 class="text-3xl sm:text-4xl font-bold mb-2">{name}</h1>
     <p class="text-text-secondary text-lg mb-1">
       <a href={"/publisher/" + slugify(main.publisher)} class="text-brand-600 hover:underline">{main.publisher}</a>
       <span class="mx-2 text-text-muted">·</span>
@@ -52,11 +53,13 @@ const path = `journal/${page.issn_l}`;
 
     {page.listings.map((l) => {
       const roles = Object.entries(ROLE_LABELS).filter(([key]) => l.roles[key] > 0);
-      const showGender = l.gender_resolved >= MIN_GENDER_RESOLVED;
+      const showGender = l.pct_female !== null && (l.gender_resolved ?? 0) >= MIN_GENDER_RESOLVED;
+      const board = boardUrl(l.source_url);
+      const explore = "/explore?journal=" + encodeURIComponent(l.journal) + "&publisher=" + encodeURIComponent(l.publisher);
       return (
         <section class="mb-12">
           {others.length > 0 && (
-            <h2 class="text-xl font-bold mb-4">{l.journal} <span class="text-sm font-normal text-text-muted">({l.publisher})</span></h2>
+            <h2 class="text-xl font-bold mb-4">{displayTitle(l.journal)} <span class="text-sm font-normal text-text-muted">({l.publisher})</span></h2>
           )}
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
             <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm">
@@ -72,7 +75,7 @@ const path = `journal/${page.issn_l}`;
               <div class="text-[10px] text-text-muted mt-1">Countries</div>
             </div>
             <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm">
-              <div class="text-xl font-bold text-brand-800">{showGender ? oneDecimal(l.pct_female) + "%" : "—"}</div>
+              <div class="text-xl font-bold text-brand-800">{showGender ? oneDecimal(l.pct_female as number) + "%" : "—"}</div>
               <div class="text-[10px] text-text-muted mt-1">Women (inferred)</div>
             </div>
             <div class="bg-white rounded-xl border border-border p-4 text-center shadow-sm">
@@ -123,16 +126,16 @@ const path = `journal/${page.issn_l}`;
 
           <p class="text-[11px] text-text-muted mb-6">
             {showGender
-              ? `Women (inferred): share of the ${l.gender_resolved.toLocaleString("en-US")} editors whose gender could be inferred from their first name; not self-reported.`
-              : `The share of women is not shown when fewer than ${MIN_GENDER_RESOLVED} editors have an inferred gender.`}
+              ? `Women (inferred): share of the ${(l.gender_resolved ?? 0).toLocaleString("en-US")} editors whose gender could be inferred from their first name; not self-reported.`
+              : `The share of women is not published for a board with fewer than ${MIN_GENDER_RESOLVED} editors of inferred gender.`}
             {" "}Each editor is counted once per board.
           </p>
 
           <div class="flex flex-wrap gap-2">
-            {l.source_url && (
-              <a href={l.source_url} target="_blank" rel="noopener" class="px-3 py-1.5 text-xs text-white bg-brand-600 rounded-full hover:bg-brand-700">Current board on the publisher's site</a>
+            {board && (
+              <a href={board} target="_blank" rel="noopener" class="px-3 py-1.5 text-xs text-white bg-brand-600 rounded-full hover:bg-brand-700">Current board on the publisher's site</a>
             )}
-            <a href={"/explore?journal=" + encodeURIComponent(l.journal)} class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Board members in the explorer</a>
+            <a href={explore} class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Board members in the explorer</a>
           </div>
         </section>
       );
