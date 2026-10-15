@@ -73,6 +73,7 @@ const topPublishers = [
 
     <!-- Notes -->
     <div class="mt-4 p-4 bg-surface-dim rounded-xl border border-border text-xs text-text-muted space-y-1">
+      <p><strong>Journal:</strong> opens the journal's page, at an address built from its ISSN-L alone, so it does not change between releases: <code class="font-mono">openeditors-plus.org/journal/&lt;ISSN-L&gt;</code>, for example <a href="/journal/2045-2322" class="underline">/journal/2045-2322</a>. A journal without an ISSN-L links to a web search instead.</p>
       <p><strong>Board size:</strong> Total editorial positions collected for this journal (one person may hold multiple roles).</p>
       <p><strong>% Female:</strong> Percentage of board members with inferred female gender (algorithmically inferred from first names, not self-reported).</p>
       <p><strong>Countries:</strong> Number of distinct countries represented on the editorial board. Higher = more geographically diverse.</p>
@@ -87,6 +88,8 @@ const topPublishers = [
   </div>
 
   <script>
+    import { ISSN_L } from "../../lib/journals";
+
     const COLS = [
       { key: 0,  label: "Journal",       sortable: true,  filterable: true,  visible: true },
       { key: 1,  label: "Publisher",      sortable: true,  filterable: true,  visible: true },
@@ -219,7 +222,13 @@ const topPublishers = [
         : '<span class="text-gray-300">&#10005;</span>';
 
       const cellRenderers: Record<number, (row: any) => string> = {
-        0: (r) => `<td class="py-1.5 px-2 font-medium max-w-[200px] truncate" title="${esc(r[0])}"><a href="https://duckduckgo.com/?q=${encodeURIComponent(r[0] + ' ' + r[1] + ' journal official site')}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(r[0])}</a></td>`,
+        // A journal with an ISSN-L has its own page (src/pages/journal/[issn].astro);
+        // the others fall back to a web search for the journal's site.
+        0: (r) => `<td class="py-1.5 px-2 font-medium max-w-[200px] truncate" title="${esc(r[0])}">${
+          ISSN_L.test(String(r[13]))
+            ? `<a href="/journal/${r[13]}" class="text-brand-600 hover:underline">${esc(r[0])}</a>`
+            : `<a href="https://duckduckgo.com/?q=${encodeURIComponent(r[0] + ' ' + r[1] + ' journal official site')}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(r[0])}</a>`
+        }</td>`,
         1: (r) => `<td class="py-1.5 px-2 text-xs"><a href="/publisher/${r[1].normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(r[1])}</a></td>`,
         2: (r) => `<td class="py-1.5 px-2 text-center tabular-nums font-medium">${r[2]}</td>`,
         3: (r) => `<td class="py-1.5 px-2 text-center tabular-nums">${r[3]}</td>`,
