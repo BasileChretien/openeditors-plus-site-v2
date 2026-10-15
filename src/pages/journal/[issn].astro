@@ -127,7 +127,7 @@ const path = `journal/${page.issn_l}`;
           <p class="text-[11px] text-text-muted mb-6">
             {showGender
               ? `Women (inferred): share of the ${(l.gender_resolved ?? 0).toLocaleString("en-US")} editors whose gender could be inferred from their first name; not self-reported.`
-              : `The share of women is not published for a board with fewer than ${MIN_GENDER_RESOLVED} editors of inferred gender.`}
+              : `This page does not show the share of women for a board with fewer than ${MIN_GENDER_RESOLVED} editors of inferred gender.`}
             {" "}Each editor is counted once per board.
           </p>
 

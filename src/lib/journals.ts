@@ -9,9 +9,10 @@
 export const ISSN_L = /^\d{4}-\d{3}[\dX]$/;
 
 /**
- * Below this many editors with an inferred gender the share of women is not
- * published: aggregate_data.py writes it as null in journal_pages.json (its
- * JOURNAL_PAGE_MIN_GENDER), and the page says so.
+ * Below this many editors with an inferred gender the page does not show the
+ * share of women: aggregate_data.py writes it as null in journal_pages.json
+ * (its JOURNAL_PAGE_MIN_GENDER). journals.json, and so the /journals table,
+ * still carry it for every journal.
  */
 export const MIN_GENDER_RESOLVED = 5;
 
@@ -108,14 +109,16 @@ export function journalPages(table: JournalTable): JournalPage[] {
  * slug ("sciencedirect.com/journal//about/editorial-board").
  */
 export function boardUrl(url: string): string {
-  const m = /^https?:\/\/[^/\s]+(\/\S*)?$/.exec(url.trim());
-  return m && !(m[1] ?? "").includes("//") ? url.trim() : "";
+  const m = /^https?:\/\/[^/?#\s]+([^?#\s]*)(?:[?#]\S*)?$/.exec(url.trim());
+  return m && !m[1].includes("//") ? url.trim() : "";
 }
 
 /**
  * A journal name for display. The scraper wrote "&" as a colon and two
  * spaces ("Social Science:  Medicine"); the dataset keeps the name as
- * scraped, the page shows the journal's own.
+ * scraped, the page shows the journal's own. It also wrote "," as ": ", which
+ * cannot be told from a real colon here, so "Chaos: Solitons & Fractals"
+ * stays until the data is corrected.
  */
 export function displayTitle(name: string): string {
   return name.replace(/:\s{2,}/g, " & ").replace(/\s+/g, " ").trim();
