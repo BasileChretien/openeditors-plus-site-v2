@@ -8,19 +8,27 @@ import Base from "../../layouts/Base.astro";
 import RetiredJournal from "../../components/RetiredJournal.astro";
 import table from "../../../public/api/journal_pages.json";
 import fields from "../../../public/api/fields.json";
+import publishers from "../../../public/api/publishers.json";
 import release from "../../../public/api/release_meta.json";
+import releaseNotes from "../release-notes/index.astro?raw";
 import { slugify } from "../../lib/slugify";
 import { oneDecimal } from "../../lib/figures";
 import {
-  boardUrl, displayTitle, journalPages, MIN_GENDER_RESOLVED, retiredPages, ROLE_LABELS,
+  boardUrl, displayTitle, journalPages, MIN_GENDER_RESOLVED, releaseNoteVersions, retiredPages, ROLE_LABELS,
   type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
 } from "../../lib/journals";
 
 export function getStaticPaths() {
   const pages = journalPages(table as JournalTable);
+  // What a retired page links to: its publisher's page and its release's notes.
+  const links = {
+    publisherPages: new Set((publishers as { publisher: string }[]).map((p) => slugify(p.publisher))),
+    releaseNotes: releaseNoteVersions(releaseNotes),
+    version: release.version,
+  };
   return [
     ...pages.map((page) => ({ params: { issn: page.issn_l }, props: { page } })),
-    ...retiredPages(pages).map((retired) => ({ params: { issn: retired.issn_l }, props: { retired } })),
+    ...retiredPages(pages, links).map((retired) => ({ params: { issn: retired.issn_l }, props: { retired } })),
   ];
 }
 
