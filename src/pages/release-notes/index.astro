@@ -15,8 +15,71 @@ const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 // frozen-figures:start (every note below describes its own release)
 // The version the newest notes describe. The build fails when the site
 // serves another release, so a data update cannot ship without its notes.
-const NEWEST_NOTES = "4.0.1";
-const NOTES_DESCRIPTION = "What changed in Open Editors Plus v4.0.1 (city and state filled for every institution-matched record) and v4.0.0 (journal fields from each journal's own articles, impact quartiles ranked within each field, repaired institution matches, current OpenAlex sources). Notes for v3.0.0 follow.";
+const NEWEST_NOTES = "5.0.0";
+const NOTES_DESCRIPTION = "What changed in Open Editors Plus v5.0.0 (journals matched to another journal's OpenAlex source corrected, indexing flags rebuilt, board URLs corrected, three listings that were not their journal's board removed), v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+
+// v5.0.0 (2026-10-16), a corrected release.
+const changesV5 = [
+  {
+    id: "journal-sources",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Journals matched to another journal's OpenAlex source",
+    body: `The enrichment matched each journal to an OpenAlex source by searching its title and taking the first result from the same publisher. Where a short title is part of a longer one, that result was often the longer journal: Breast Cancer Research took Breast Cancer Research and Treatment, and Development took Environment, Development and Sustainability. The source brings the ISSN-L, the journal metrics, open-access status, funders, indexing, NPI and field, so all of them were another journal's. An audit compared every journal's title and publisher with its source's, and every mismatch was resolved, by hand where the rules could not decide.`,
+    stat: "195 journals (8,833 positions). 153 take their own journal's source and everything that comes from it. The 42 for which no source can be trusted lose these columns, like the journals that never had a source. 93 of the 195 change field. Quartiles are ranked within each field, so they move for 256 journals: 144 of the corrected ones and 112 others. ISSN-Ls shared by two or more titles fall from 117 to 23, each the same journal listed twice.",
+  },
+  {
+    id: "indexing-rebuilt",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Indexing flags rebuilt for every journal",
+    body: `In April 2026, after the indexing stage had run, a restore put back the ISSN-L, DOAJ status and NPI columns of many journals without recomputing their flags. Every journal's Web of Science and NPI flags are now recomputed by the enrichment's own rules from its stored ISSN-L, and its DOAJ flag from its stored DOAJ status. PubMed was checked again in the NLM Catalog for the journals whose ISSN-L changed after their first check.`,
+    stat: "Outside the corrected journals: indexed_wos turns true on 392 journals; indexed_doaj on 399 (false on 1); indexed_npi on 972 (false on 2); indexed_pubmed on 151 (false on 33) of the 3,129 rechecked. In all, 1,358 journals change an indexing column.",
+  },
+  {
+    id: "board-urls",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Board URLs corrected",
+    body: `Mir@bel, which links its journal records to these boards, sent back corrected board URLs: SAGE's issue lists become its editorial-board pages, APA and Brill URLs point at the board itself, Lippincott journals move to Ovid, and MDPI's API addresses become its public pages. Each was accepted only as the old URL rewritten by the publisher's rule. The same rules were then applied to the publishers' other journals, after a sample of pages had been checked without crawling.`,
+    stat: "2,217 journals take a corrected source_url on 207,833 positions, 718 of them from Mir@bel's list. 14 corrections are held back: two Ovid pages that return 404, two APA digests with no board page, two journal-package listings, seven Brill journals whose board no capture shows, and the removed listing below.",
+  },
+  {
+    id: "removed-listings",
+    tag: "Removed",
+    tagClass: fixed,
+    title: "Three listings that were not their journal's board",
+    body: `SAGE's journal listing names two journal packages beside their member journals, and the scraper took them for journals; their boards repeat their member journals' boards. Economic and Industrial Democracy held the board of Ergonomics in Design, which SAGE's listing served at its address when the boards were collected, and none of its people is on Economic and Industrial Democracy's own board. The rows are removed. The journal will return with its own board at the next collection; until then, its page keeps its address and says why it is empty.`,
+    stat: "137 positions removed: 70 for Economic and Industrial Democracy, 67 for the two packages. Unique editors: 744,797 (v4.0.1: 744,842). 92 editors lose a board, and 76 of them are now on one board only.",
+  },
+];
+
+const rerunV5 = [
+  {
+    what: "Anything joined or grouped by issn_l or openalex_source_id",
+    why: "195 journals had another journal's identifiers; 153 now carry their own and 42 none. A join from another catalogue on their ISSN-L reached the wrong journal.",
+  },
+  {
+    what: "Journal metrics, open access and funders",
+    why: "For the 195 corrected journals, the four oa_ journal metrics, is_oa, is_in_doaj and the top funders came from another journal.",
+  },
+  {
+    what: "Indexing flags and indexing_count",
+    why: "The Web of Science, DOAJ, NPI and PubMed flags change on 1,358 other journals, mostly from false to true.",
+  },
+  {
+    what: "Fields and quartiles of the affected journals",
+    why: "93 corrected journals change field, and quartiles move for 256 journals in all.",
+  },
+  {
+    what: "Board URLs",
+    why: "Use the corrected source_url: the old SAGE and MDPI addresses no longer lead to the board.",
+  },
+  {
+    what: "Editor and board counts",
+    why: "137 positions are removed. Use 744,797 unique editors and the published editor_key.",
+  },
+];
 
 // v4.0.1 (2026-09-25), a patch to v4.0.0.
 const changesV401 = [
@@ -191,12 +254,11 @@ if (NEWEST_NOTES !== release.version) {
 
     <!-- frozen-figures:start (the notes describe their own releases) -->
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v4.0.1 is a <strong>patch</strong> to v4.0.0: it fills the city and state of
-      institution-matched records that v4.0.0 left empty, and changes nothing else. v4.0.0
-      was a <strong>corrected</strong> release: it changed values in existing columns, so
-      analyses built on v3.0.0 that use journal fields, impact quartiles, institutions or
-      editor counts need to be re-run. The paper that describes the dataset uses v3.0.0,
-      which stays available on Zenodo.
+      v5.0.0 is a <strong>corrected</strong> release. It changes values in existing columns
+      and removes three listings that were not their journal's board, so analyses built on
+      v4.0.x that use ISSN-Ls, journal metrics, indexing flags, fields, quartiles, board URLs
+      or editor counts need to be re-run. The schema is unchanged. The paper that describes
+      the dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -216,7 +278,60 @@ if (NEWEST_NOTES !== release.version) {
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4" id="v4.0.1">What changed in v4.0.1</h2>
+    <h2 class="text-2xl font-bold mb-4" id="v5.0.0">What changed in v5.0.0</h2>
+    <div class="space-y-5 mb-12">
+      {changesV5.map((c, i) => (
+        <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+          <div class="flex items-start gap-3 mb-2">
+            <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+            <div class="min-w-0">
+              <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                {c.tag}
+              </span>
+              <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+          <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+            {c.stat}
+          </p>
+        </section>
+      ))}
+    </div>
+
+    <h2 class="text-2xl font-bold mb-2">If you used v4.0.x</h2>
+    <p class="text-sm text-text-secondary mb-4">
+      Apart from the removed rows, analyses that touch only the collected columns (publisher,
+      journal, editor, role, affiliation, scraped_at), gender or editor bibliometrics are
+      unaffected. Re-run anything that touches the following.
+    </p>
+    <div class="overflow-x-auto border border-border rounded-lg mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-surface-dim border-b border-border">
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Re-run</th>
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rerunV5.map((r, i) => (
+            <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+              <td class="py-2.5 px-3 align-top font-medium whitespace-normal">{r.what}</td>
+              <td class="py-2.5 px-3 align-top text-text-secondary">{r.why}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4" id="v4.0.1">
+      <h2 class="text-2xl font-bold">What changed in v4.0.1</h2>
+      <span class="text-sm text-text-muted">released 2026-09-25 &middot; data_version 2026.4</span>
+    </div>
+    <p class="text-text-secondary mb-6 leading-relaxed">
+      A patch to v4.0.0: it filled the city and state of institution-matched records that
+      v4.0.0 left empty, and changed nothing else.
+    </p>
     <div class="space-y-5 mb-12">
       {changesV401.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">
