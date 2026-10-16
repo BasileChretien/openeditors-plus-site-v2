@@ -36,7 +36,7 @@ test("the publisher must have a page under its slug", () => {
 });
 
 test("removed_in must be a release, no newer than the site's, with a section in the release notes", () => {
-  for (const removed_in of ["v5.0.0", "5.0", "5.0.0-rc.1", ""]) {
+  for (const removed_in of ["v5.0.0", "5.0", "5.0.0-rc.1", "05.0.0", ""]) {
     assert.deepEqual(problems({ removed_in }), [
       `retired journal page 0143-831X: removed_in "${removed_in}" is not a release number (N.N.N)`], removed_in);
   }
@@ -48,6 +48,11 @@ test("removed_in must be a release, no newer than the site's, with a section in 
   assert.deepEqual(problems({ removed_in: "10.0.0" }, site({ version: "9.1.0", releaseNotes: new Set(["10.0.0"]) })), [
     `retired journal page 0143-831X: removed_in 10.0.0 is newer than the release the site serves (9.1.0)`]);
   assert.deepEqual(problems({ removed_in: "9.0.0" }, site({ version: "10.0.0", releaseNotes: new Set(["9.0.0"]) })), []);
+});
+
+test("a served version that is not a release number fails the build", () => {
+  assert.deepEqual(retiredPageProblems([], site({ version: "5.0" }), []), [
+    `the site serves "5.0", not a release number (N.N.N)`]);
 });
 
 test("board_url must be empty or a board URL the page can link", () => {
@@ -80,6 +85,11 @@ test("the build fails with every problem in one message", () => {
 test("the release notes' sections are read from their ids", () => {
   const notes = `<h2 id="v5.0.0">What changed</h2>\n<div class="x" id="v4.0.1">\n<section id={c.id}>\n<a href="#v3.0.0">`;
   assert.deepEqual(releaseNoteVersions(notes), new Set(["5.0.0", "4.0.1"]));
+  assert.deepEqual(releaseNoteVersions(`<h2 id='v5.0.0'> <h2 id={"v4.0.1"}> <h2 id={\`v4.0.0\`}>`),
+    new Set(["5.0.0", "4.0.1", "4.0.0"]));
+  // Only anchors the page renders: none in an HTML comment or in the frontmatter.
+  const page = `---\nconst old = '<h2 id="v2.0.0">';\n---\n<!-- <h2 id="v3.0.0"> -->\n<h2 id="v5.0.0">`;
+  assert.deepEqual(releaseNoteVersions(page), new Set(["5.0.0"]));
   // On the real page, the release the site serves has a section.
   const source = readFileSync(new URL("../src/pages/release-notes/index.astro", import.meta.url), "utf-8");
   const meta = JSON.parse(readFileSync(new URL("../public/api/release_meta.json", import.meta.url), "utf-8"));

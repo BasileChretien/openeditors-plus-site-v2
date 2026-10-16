@@ -151,8 +151,8 @@ export interface RetiredPageLinks {
   version: string;
 }
 
-/** A release number as release_meta.json writes it. */
-const RELEASE = /^(\d+)\.(\d+)\.(\d+)$/;
+/** A release number as release_meta.json writes it: N.N.N, no leading zeros. */
+const RELEASE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 function newerRelease(a: string, b: string): boolean {
   const [x, y] = [a, b].map((v) => (RELEASE.exec(v) ?? []).slice(1).map(Number));
@@ -160,9 +160,15 @@ function newerRelease(a: string, b: string): boolean {
   return i >= 0 && x[i] > y[i];
 }
 
-/** The releases whose section the release notes page anchors as id="v<release>". */
+/**
+ * The releases whose section the release notes page renders with the anchor
+ * id="v<release>", the id quoted or a string in braces. Read from the page's
+ * source: its template after the frontmatter, less its HTML comments. An id
+ * computed from data is not seen, so it fails the build rather than passing.
+ */
 export function releaseNoteVersions(source: string): Set<string> {
-  return new Set([...source.matchAll(/\sid="v(\d+\.\d+\.\d+)"/g)].map((m) => m[1]));
+  const template = source.replace(/^---\r?\n[\s\S]*?\r?\n---/, "").replace(/<!--[\s\S]*?-->/g, "");
+  return new Set([...template.matchAll(/\sid=\{?(["'`])v(\d+\.\d+\.\d+)\1\}?/g)].map((m) => m[2]));
 }
 
 /**
