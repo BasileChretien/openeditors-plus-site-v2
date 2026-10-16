@@ -26,7 +26,7 @@ const changesV5 = [
     tagClass: fixed,
     title: "Journals matched to another journal's OpenAlex source",
     body: `The enrichment matched each journal to an OpenAlex source by searching its title and taking the first result from the same publisher. Where a short title is part of a longer one, that result was often the longer journal: Breast Cancer Research took Breast Cancer Research and Treatment, and Development took Environment, Development and Sustainability. The source brings the ISSN-L, the journal metrics, open-access status, funders, indexing, NPI and field, so all of them were another journal's. An audit compared every journal's title and publisher with its source's, and every mismatch was resolved, by hand where the rules could not decide.`,
-    stat: "195 journals (8,833 positions). 153 take their own journal's source and everything that comes from it. The 42 for which no source can be trusted lose these columns, like the journals that never had a source. 93 of the 195 change field. ISSN-Ls shared by two or more titles fall from 117 to 23, each the same journal listed twice.",
+    stat: "195 journals (8,833 positions). 153 take their own journal's source and everything that comes from it. The 42 for which no source can be trusted lose these columns, like the journals that never had a source. 93 of the 195 change field. Quartiles are ranked within each field, so they move for 256 journals: 144 of the corrected ones and 112 others. ISSN-Ls shared by two or more titles fall from 117 to 23, each the same journal listed twice.",
   },
   {
     id: "indexing-rebuilt",
@@ -34,7 +34,7 @@ const changesV5 = [
     tagClass: fixed,
     title: "Indexing flags rebuilt for every journal",
     body: `In April 2026, after the indexing stage had run, a restore put back the ISSN-L, DOAJ status and NPI columns of many journals without recomputing their flags. Every journal's Web of Science and NPI flags are now recomputed by the enrichment's own rules from its stored ISSN-L, and its DOAJ flag from its stored DOAJ status. PubMed was checked again in the NLM Catalog for the journals whose ISSN-L changed after their first check.`,
-    stat: "Outside the corrected journals: indexed_wos turns true on 392 journals; indexed_doaj on 399 (false on 1); indexed_npi on 972 (false on 2); indexed_pubmed on 151 (false on 33) of the 3,129 rechecked. In all, 1,358 journals change an indexing column. Quartiles, ranked within each field, move for 112 other journals.",
+    stat: "Outside the corrected journals: indexed_wos turns true on 392 journals; indexed_doaj on 399 (false on 1); indexed_npi on 972 (false on 2); indexed_pubmed on 151 (false on 33) of the 3,129 rechecked. In all, 1,358 journals change an indexing column.",
   },
   {
     id: "board-urls",

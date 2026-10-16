@@ -45,7 +45,7 @@
     "indexed_doaj": "True if the journal is listed in the Directory of Open Access Journals (DOAJ).",
     "indexed_cope": "True if the publisher is a member of COPE (Committee on Publication Ethics). Publisher-level flag applied to all of that publisher's journals.",
     "indexed_npi": "True if the journal appears in the Norwegian Publishing Indicator register (at either level 1 or level 2). See the separate 'Norwegian Publishing Indicator' group below for the level and discipline fields.",
-    "npi_level": "Norwegian Publishing Indicator level. Level 2 marks the top ~20% of journals in the register; level 1 is the remainder of the register; 0 and X denote entries the register carries without a scoring level. Scope is limited to Nordic-relevant disciplines. Stored as a string; 0 rows carry the float-formatted variants '1.0' and '2.0', which downstream code should fold into '1' and '2'.",
+    "npi_level": "Norwegian Publishing Indicator level. Level 2 marks the top ~20% of journals in the register; level 1 is the remainder of the register; 0 and X denote entries the register carries without a scoring level. Scope is limited to Nordic-relevant disciplines. Stored as a string. Earlier releases carried the float spellings '1.0' and '2.0' on some rows; v5.0.0 folded them into '1' and '2', and 0 rows carry them now.",
     "npi_discipline": "Broad discipline in the NPI register.",
     "npi_field": "Specific field in the NPI register.",
     "indexing_count": "Sum of the indexed_* flags (PubMed, Scopus, WoS, DOAJ, COPE, NPI). Range 0–6. A rough journal-quality proxy independent of citation metrics. Used as the indexing weight in the experimental 'weighted power' score on the Network page.",
