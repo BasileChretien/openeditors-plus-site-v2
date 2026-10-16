@@ -4,6 +4,10 @@
 // keys journals, plus the fields only the pages show. The URL is the stable
 // link a catalogue builds from an ISSN-L, so it must not change between
 // releases.
+//
+// Imports name their .ts file, so `node --test scripts/journals.test.mjs` can
+// load this module without a bundler.
+import { slugify } from "./slugify.ts";
 
 /** An ISSN-L as the dataset writes it: hyphenated, with an upper-case check digit. */
 export const ISSN_L = /^\d{4}-\d{3}[\dX]$/;
@@ -107,7 +111,10 @@ export function journalPages(table: JournalTable): JournalPage[] {
  * A journal page whose ISSN-L has left the dataset. Its URL keeps answering,
  * saying why the journal is not in the current release and where its board
  * is, because catalogues link to it by ISSN-L. An ISSN-L that comes back
- * must be taken off the list: the build fails while it is on both.
+ * must be taken off the list: the build fails while it is on both. The page
+ * links its publisher's page, the release notes of the release that removed
+ * it and its board, so the build also fails on an entry whose publisher has
+ * no page, whose release has no notes or whose board URL cannot be followed.
  */
 export interface RetiredJournalPage {
   issn_l: string;
@@ -134,17 +141,77 @@ export const RETIRED_JOURNAL_PAGES: RetiredJournalPage[] = [
 ];
 // frozen-figures:end
 
-/** The retired pages, each with a well-formed ISSN-L, once, and none also a live page. */
-export function retiredPages(live: JournalPage[], retired: RetiredJournalPage[] = RETIRED_JOURNAL_PAGES): RetiredJournalPage[] {
+/** What the rest of the site offers a retired page to link to. */
+export interface RetiredPageLinks {
+  /** The slug of every publisher page (slugify of each name in publishers.json). */
+  publisherPages: ReadonlySet<string>;
+  /** The releases with a section in the release notes (releaseNoteVersions). */
+  releaseNotes: ReadonlySet<string>;
+  /** The release the site serves (release_meta.json). */
+  version: string;
+}
+
+/** A release number as release_meta.json writes it: N.N.N, no leading zeros. */
+const RELEASE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+
+function newerRelease(a: string, b: string): boolean {
+  const [x, y] = [a, b].map((v) => (RELEASE.exec(v) ?? []).slice(1).map(Number));
+  const i = x.findIndex((n, k) => n !== y[k]);
+  return i >= 0 && x[i] > y[i];
+}
+
+/**
+ * The releases whose section the release notes page renders with the anchor
+ * id="v<release>", the id quoted or a string in braces. Read from the page's
+ * source: its template after the frontmatter, less its HTML comments. An id
+ * computed from data is not seen, so it fails the build rather than passing.
+ */
+export function releaseNoteVersions(source: string): Set<string> {
+  const template = source.replace(/^---\r?\n[\s\S]*?\r?\n---/, "").replace(/<!--[\s\S]*?-->/g, "");
+  return new Set([...template.matchAll(/\sid=\{?(["'`])v(\d+\.\d+\.\d+)\1\}?/g)].map((m) => m[2]));
+}
+
+/**
+ * Why `retired` cannot be published, or [] when it can: each ISSN-L well
+ * formed, listed once and not a live page, and each link of the page valid.
+ */
+export function retiredPageProblems(live: JournalPage[], links: RetiredPageLinks,
+  retired: RetiredJournalPage[] = RETIRED_JOURNAL_PAGES): string[] {
   const liveIssns = new Set(live.map((p) => p.issn_l));
   const seen = new Set<string>();
+  const problems: string[] = [];
+  if (!RELEASE.test(links.version)) problems.push(`the site serves "${links.version}", not a release number (N.N.N)`);
   for (const r of retired) {
-    if (!ISSN_L.test(r.issn_l)) throw new Error(`retired journal page "${r.journal}": "${r.issn_l}" is not NNNN-NNNC`);
-    if (seen.has(r.issn_l)) throw new Error(`retired journal page ${r.issn_l} is listed twice`);
-    if (liveIssns.has(r.issn_l)) {
-      throw new Error(`${r.issn_l} (${r.journal}) is back in the data: take it off RETIRED_JOURNAL_PAGES`);
-    }
+    const page = `retired journal page ${r.issn_l}`;
+    if (!ISSN_L.test(r.issn_l)) problems.push(`retired journal page "${r.journal}": "${r.issn_l}" is not NNNN-NNNC`);
+    if (seen.has(r.issn_l)) problems.push(`${page} is listed twice`);
+    if (liveIssns.has(r.issn_l)) problems.push(`${r.issn_l} (${r.journal}) is back in the data: take it off RETIRED_JOURNAL_PAGES`);
     seen.add(r.issn_l);
+    const publisher = slugify(r.publisher);
+    if (!links.publisherPages.has(publisher)) {
+      problems.push(`${page}: no publisher page /publisher/${publisher} for "${r.publisher}"`);
+    }
+    if (!RELEASE.test(r.removed_in)) {
+      problems.push(`${page}: removed_in "${r.removed_in}" is not a release number (N.N.N)`);
+    } else if (newerRelease(r.removed_in, links.version)) {
+      problems.push(`${page}: removed_in ${r.removed_in} is newer than the release the site serves (${links.version})`);
+    } else if (!links.releaseNotes.has(r.removed_in)) {
+      problems.push(`${page}: removed_in ${r.removed_in} has no section in the release notes (/release-notes#v${r.removed_in})`);
+    }
+    if (boardUrl(r.board_url) !== r.board_url) {
+      problems.push(`${page}: board_url "${r.board_url}" is neither empty nor a followable board URL`);
+    }
+  }
+  return problems;
+}
+
+/** The retired pages to build. The build fails, naming every problem, unless each passes retiredPageProblems. */
+export function retiredPages(live: JournalPage[], links: RetiredPageLinks,
+  retired: RetiredJournalPage[] = RETIRED_JOURNAL_PAGES): RetiredJournalPage[] {
+  const problems = retiredPageProblems(live, links, retired);
+  if (problems.length) {
+    throw new Error(`RETIRED_JOURNAL_PAGES in src/lib/journals.ts: ${problems.length} problem${problems.length > 1 ? "s" : ""}\n`
+      + problems.map((p) => `- ${p}`).join("\n"));
   }
   return retired;
 }

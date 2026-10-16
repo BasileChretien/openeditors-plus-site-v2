@@ -21,7 +21,7 @@ jobs:
 
       - run: npm ci
 
-      - run: node --test scripts/check-figures.test.mjs
+      - run: node --test scripts/check-figures.test.mjs scripts/journals.test.mjs
 
       # Fails on a dataset figure typed into src/ instead of read from public/api/.
       - run: node scripts/check-figures.mjs
