@@ -104,6 +104,52 @@ export function journalPages(table: JournalTable): JournalPage[] {
 }
 
 /**
+ * A journal page whose ISSN-L has left the dataset. Its URL keeps answering,
+ * saying why the journal is not in the current release and where its board
+ * is, because catalogues link to it by ISSN-L. An ISSN-L that comes back
+ * must be taken off the list: the build fails while it is on both.
+ */
+export interface RetiredJournalPage {
+  issn_l: string;
+  journal: string;
+  publisher: string;
+  /** The release that removed it. */
+  removed_in: string;
+  /** Why, for the page. */
+  reason: string;
+  /** The journal's board on the publisher's site, or "". */
+  board_url: string;
+}
+
+// frozen-figures:start (each entry describes the release that removed it)
+export const RETIRED_JOURNAL_PAGES: RetiredJournalPage[] = [
+  {
+    issn_l: "0143-831X",
+    journal: "Economic and Industrial Democracy",
+    publisher: "SAGE",
+    removed_in: "5.0.0",
+    reason: "Until v4.0.1 this page showed the editorial board of Ergonomics in Design, which SAGE's journal listing served at this journal's address when the boards were collected on 31 March 2026. None of the people listed was on this journal's board, so v5.0.0 removed the rows. The journal will return when its own board is collected.",
+    board_url: "https://journals.sagepub.com/editorial-board/eid",
+  },
+];
+// frozen-figures:end
+
+/** The retired pages, each with a well-formed ISSN-L, once, and none also a live page. */
+export function retiredPages(live: JournalPage[], retired: RetiredJournalPage[] = RETIRED_JOURNAL_PAGES): RetiredJournalPage[] {
+  const liveIssns = new Set(live.map((p) => p.issn_l));
+  const seen = new Set<string>();
+  for (const r of retired) {
+    if (!ISSN_L.test(r.issn_l)) throw new Error(`retired journal page "${r.journal}": "${r.issn_l}" is not NNNN-NNNC`);
+    if (seen.has(r.issn_l)) throw new Error(`retired journal page ${r.issn_l} is listed twice`);
+    if (liveIssns.has(r.issn_l)) {
+      throw new Error(`${r.issn_l} (${r.journal}) is back in the data: take it off RETIRED_JOURNAL_PAGES`);
+    }
+    seen.add(r.issn_l);
+  }
+  return retired;
+}
+
+/**
  * The board page URL, or "" when it cannot be followed: only http(s), and
  * not the ScienceDirect addresses the scraper wrote with an empty journal
  * slug ("sciencedirect.com/journal//about/editorial-board").

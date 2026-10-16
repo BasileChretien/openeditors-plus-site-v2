@@ -1,25 +1,31 @@
 ---
 // One page per ISSN-L: /journal/<ISSN-L>. Aggregates only. The members
 // themselves stay in the explorer, which reads them in the browser, and on the
-// publisher's own page, which this page links to as the current list.
+// publisher's own page, which this page links to as the current list. An
+// ISSN-L that has left the dataset keeps its URL with a short page instead
+// (RetiredJournal).
 import Base from "../../layouts/Base.astro";
+import RetiredJournal from "../../components/RetiredJournal.astro";
 import table from "../../../public/api/journal_pages.json";
 import fields from "../../../public/api/fields.json";
 import release from "../../../public/api/release_meta.json";
 import { slugify } from "../../lib/slugify";
 import { oneDecimal } from "../../lib/figures";
 import {
-  boardUrl, displayTitle, journalPages, MIN_GENDER_RESOLVED, ROLE_LABELS,
-  type JournalPage, type JournalTable,
+  boardUrl, displayTitle, journalPages, MIN_GENDER_RESOLVED, retiredPages, ROLE_LABELS,
+  type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
 } from "../../lib/journals";
 
 export function getStaticPaths() {
-  return journalPages(table as JournalTable)
-    .map((page) => ({ params: { issn: page.issn_l }, props: { page } }));
+  const pages = journalPages(table as JournalTable);
+  return [
+    ...pages.map((page) => ({ params: { issn: page.issn_l }, props: { page } })),
+    ...retiredPages(pages).map((retired) => ({ params: { issn: retired.issn_l }, props: { retired } })),
+  ];
 }
 
-const { page } = Astro.props as { page: JournalPage };
-const [main, ...others] = page.listings;
+const { page, retired } = Astro.props as { page?: JournalPage; retired?: RetiredJournalPage };
+const [main, ...others] = page?.listings ?? ([] as Listing[]);
 const fieldPages = new Set((fields as { field: string }[]).map((f) => f.field));
 const releaseDate = new Date(`${release.release_date}T00:00:00Z`).toLocaleDateString("en-US", {
   year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
@@ -28,12 +34,13 @@ const dateLabel = (iso: string) => iso
   ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
   : "";
 const yesNo = (v: boolean) => (v ? "Yes" : "No");
-const name = displayTitle(main.journal);
+const name = main ? displayTitle(main.journal) : "";
 const title = `${name} — Editorial Board Indicators`;
-const description = `Editorial board of ${name} (ISSN-L ${page.issn_l}): size, countries, inferred gender balance and roles, from Open Editors Plus ${release.version}.`;
-const path = `journal/${page.issn_l}`;
+const description = `Editorial board of ${name} (ISSN-L ${page?.issn_l}): size, countries, inferred gender balance and roles, from Open Editors Plus ${release.version}.`;
+const path = `journal/${page?.issn_l}`;
 ---
 
+{retired ? <RetiredJournal retired={retired} /> : (
 <Base title={title} description={description} path={path}
   breadcrumbs={[{ name: "Journals", url: "journals" }, { name, url: path }]}>
   <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -51,7 +58,7 @@ const path = `journal/${page.issn_l}`;
       Open Editors Plus {release.version} ({releaseDate}). Boards change; the publisher's page is the current list.
     </p>
 
-    {page.listings.map((l) => {
+    {(page?.listings ?? []).map((l) => {
       const roles = Object.entries(ROLE_LABELS).filter(([key]) => l.roles[key] > 0);
       const showGender = l.pct_female !== null && (l.gender_resolved ?? 0) >= MIN_GENDER_RESOLVED;
       const board = boardUrl(l.source_url);
@@ -151,3 +158,4 @@ const path = `journal/${page.issn_l}`;
     </div>
   </div>
 </Base>
+)}

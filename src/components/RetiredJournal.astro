@@ -1,0 +1,52 @@
+---
+// The page of an ISSN-L that has left the dataset (RETIRED_JOURNAL_PAGES in
+// lib/journals.ts): catalogues link to /journal/<ISSN-L>, so the URL keeps
+// answering with why the journal is not in this release and where its board is.
+import Base from "../layouts/Base.astro";
+import release from "../../public/api/release_meta.json";
+import { slugify } from "../lib/slugify";
+import { boardUrl, displayTitle, type RetiredJournalPage } from "../lib/journals";
+
+interface Props {
+  retired: RetiredJournalPage;
+}
+
+const { retired } = Astro.props;
+const name = displayTitle(retired.journal);
+const path = `journal/${retired.issn_l}`;
+const board = boardUrl(retired.board_url);
+---
+
+<Base title={`${name} — not in Open Editors Plus ${release.version}`}
+  description={`${name} (ISSN-L ${retired.issn_l}) is not in Open Editors Plus ${release.version}: why, and where its editorial board is.`}
+  path={path}
+  breadcrumbs={[{ name: "Journals", url: "journals" }, { name, url: path }]}>
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <nav class="text-xs text-text-muted mb-6">
+      <a href="/">Home</a> / <a href="/journals">Journals</a> / <span class="text-text-primary font-medium">{name}</span>
+    </nav>
+    <h1 class="text-3xl sm:text-4xl font-bold mb-2">{name}</h1>
+    <p class="text-text-secondary text-lg mb-8">
+      <a href={"/publisher/" + slugify(retired.publisher)} class="text-brand-600 hover:underline">{retired.publisher}</a>
+      <span class="mx-2 text-text-muted">·</span>
+      ISSN-L <a href={"https://portal.issn.org/resource/ISSN/" + retired.issn_l} target="_blank" rel="noopener" class="font-mono text-brand-600 hover:underline">{retired.issn_l}</a>
+    </p>
+
+    <div class="bg-white rounded-xl border border-border p-6 shadow-sm mb-8">
+      <h2 class="font-bold text-lg mb-3">Not in this release</h2>
+      <p class="text-sm text-text-secondary leading-relaxed mb-3">
+        This journal has had no records in Open Editors Plus since v{retired.removed_in}, so this
+        page shows no board indicators.
+      </p>
+      <p class="text-sm text-text-secondary leading-relaxed">{retired.reason}</p>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      {board && (
+        <a href={board} target="_blank" rel="noopener" class="px-3 py-1.5 text-xs text-white bg-brand-600 rounded-full hover:bg-brand-700">Current board on the publisher's site</a>
+      )}
+      <a href={"/release-notes#v" + retired.removed_in} class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">Release notes</a>
+      <a href="/journals" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All journals</a>
+    </div>
+  </div>
+</Base>
