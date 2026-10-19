@@ -6,7 +6,7 @@ import ContactEmail from "../../components/ContactEmail.astro";
 <Base
   title="Corrections, removal & data rights — Open Editors Plus"
   path="corrections"
-  description="Request correction or removal of your editorial-board record in Open Editors Plus, or report a data error. No reason required, no charge; acknowledged within 5 business days."
+  description="Request correction or removal of your editorial-board record in Open Editors Plus, report a data error, or suggest a missing journal. No reason required, no charge; acknowledged within 5 business days."
   breadcrumbs={[{ name: "Corrections & data rights", url: "corrections" }]}
 >
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
@@ -72,6 +72,44 @@ import ContactEmail from "../../components/ContactEmail.astro";
           (<ContactEmail subject="Open Editors Plus — data error report" />)
           with your name and the journal(s) concerned.
         </p>
+      </section>
+
+      <!-- Suggest a journal -->
+      <section id="suggest-a-journal">
+        <h2 class="text-2xl font-bold mt-10 mb-4">Is a journal missing?</h2>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Boards are collected publisher by publisher, so many journals are not
+          covered yet, especially those of small and non-commercial publishers. If
+          a journal you edit, publish or read is missing, send us its
+          <strong>title</strong>, its <strong>ISSN</strong> and the address of its
+          <strong>public editorial-board page</strong>. New journals are added at
+          the next yearly collection of the boards.
+        </p>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          A journal's team can also send its board as a spreadsheet (CSV or
+          Excel), with one row per person and per role, and these columns:
+        </p>
+        <ul class="list-disc pl-5 text-text-secondary space-y-1.5 text-sm mb-4">
+          <li>Journal title and ISSN</li>
+          <li>Family name</li>
+          <li>Given name</li>
+          <li>Role, as shown on the journal's site (editor-in-chief, editorial board, scientific advisory board…)</li>
+          <li>Affiliation: institution, city, country</li>
+          <li>ORCID iD, if known</li>
+          <li>Address of the board page</li>
+        </ul>
+        <p class="text-text-secondary leading-relaxed mb-4">
+          Please send only what the journal already shows on that page, and no
+          email addresses. We check the file against the page and keep only what
+          the page shows; each record then links to that page as its source, as
+          the <a href="/privacy" class="text-brand-600 hover:underline">privacy notice</a> describes.
+        </p>
+        <div class="bg-surface-dim border border-border rounded-lg p-5">
+          <p class="text-text-secondary leading-relaxed">
+            <span class="font-semibold text-text-primary">Contact:</span>
+            <ContactEmail subject="Open Editors Plus — journal suggestion" />
+          </p>
+        </div>
       </section>
 
       <!-- Honest limitation about CC0 copies -->
