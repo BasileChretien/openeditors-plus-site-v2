@@ -46,7 +46,32 @@ export interface Listing {
   collected: string;
   positions: number;
   gender_resolved: number | null;
+  /** The print ISSN and the E-ISSN, "" where the release has none (see ISSN_COLUMNS). */
+  issn_print: string;
+  issn_electronic: string;
+  /** Which open sources typed them (ISSN_SOURCES, two joined by "+"), "" when both are empty. */
+  issn_type_source: string;
 }
+
+/**
+ * The print and electronic ISSN of each journal, which aggregate_data.py
+ * copies from the table the release build adds them from (journal_issns.csv,
+ * NLM Catalog first, then DOAJ, then Crossref). A journal_pages.json written
+ * before they existed has none of the three, and the pages show the ISSN-L
+ * only; once the release the site serves describes them (releaseHasIssns),
+ * the file must carry all three.
+ */
+export const ISSN_COLUMNS = ["issn_print", "issn_electronic", "issn_type_source"] as const;
+
+/** The sources issn_type_source names, in the order the data writes two of them. */
+export const ISSN_SOURCES: Record<string, string> = {
+  nlm: "the NLM Catalog",
+  doaj: "DOAJ",
+  crossref: "Crossref",
+};
+
+const SOURCE_KEYS = Object.keys(ISSN_SOURCES);
+const PROVENANCE = new Set([...SOURCE_KEYS, ...SOURCE_KEYS.flatMap((a, i) => SOURCE_KEYS.slice(i + 1).map((b) => `${a}+${b}`))]);
 
 export interface JournalPage {
   issn_l: string;
@@ -79,26 +104,70 @@ function column(table: JournalTable, name: string): number {
   return i;
 }
 
-export function listings(table: JournalTable): Listing[] {
+export interface ListingOptions {
+  /** The release the site serves has the ISSN columns, so journal_pages.json must carry them. */
+  issnsReleased?: boolean;
+}
+
+/** Whether the release the site serves has the ISSN columns: its codebook.json describes one of them. */
+export function releaseHasIssns(codebook: { descriptions: Record<string, string> }): boolean {
+  return ISSN_COLUMNS.some((n) => n in codebook.descriptions);
+}
+
+/** The ISSN columns' indexes: none for a file that predates them, unless required; all three, or the build fails. */
+function issnColumns(table: JournalTable, required: boolean): (readonly [string, number])[] {
+  if (!required && !ISSN_COLUMNS.some((n) => table.cols.includes(n))) return [];
+  return ISSN_COLUMNS.map((n) => [n, column(table, n)] as const);
+}
+
+export function listings(table: JournalTable, { issnsReleased = false }: ListingOptions = {}): Listing[] {
   const at = (names: readonly string[]) => names.map((n) => [n, column(table, n)] as const);
   const text = at(TEXT), number = at(NUMBER), nullable = at(NULLABLE), flag = at(FLAG);
   const roles = at(Object.keys(ROLE_LABELS));
+  const issns = issnColumns(table, issnsReleased);
   return table.rows.map((r) => ({
     ...Object.fromEntries(text.map(([n, i]) => [n, String(r[i] ?? "")])),
     ...Object.fromEntries(number.map(([n, i]) => [n, Number(r[i]) || 0])),
     ...Object.fromEntries(nullable.map(([n, i]) => [n, r[i] === null || r[i] === undefined ? null : Number(r[i])])),
     ...Object.fromEntries(flag.map(([n, i]) => [n, r[i] === true])),
+    ...Object.fromEntries(ISSN_COLUMNS.map((n) => [n, ""])),
+    ...Object.fromEntries(issns.map(([n, i]) => [n, String(r[i] ?? "")])),
     roles: Object.fromEntries(roles.map(([n, i]) => [n, Number(r[i]) || 0])),
   }) as Listing);
 }
 
-/** Every listing grouped by ISSN-L. An ISSN-L in any other form fails the build. */
-export function journalPages(table: JournalTable): JournalPage[] {
+/** What is wrong with a listing's ISSN columns, or "" when they can be shown. */
+export function issnProblem(l: Listing): string {
+  const where = `"${l.journal}" (${l.publisher})`;
+  for (const [label, value] of [["print ISSN", l.issn_print], ["E-ISSN", l.issn_electronic]]) {
+    if (value && !ISSN_L.test(value)) return `${where} has the ${label} "${value}", not NNNN-NNNC`;
+  }
+  if (l.issn_print && l.issn_print === l.issn_electronic) return `${where} has the same print ISSN and E-ISSN`;
+  const typed = Boolean(l.issn_print || l.issn_electronic);
+  if (typed && !PROVENANCE.has(l.issn_type_source)) {
+    return `${where} has the ISSN source "${l.issn_type_source}", not one of ${[...PROVENANCE].join(", ")}`;
+  }
+  if (!typed && l.issn_type_source) return `${where} has an ISSN source but no ISSN`;
+  return "";
+}
+
+/** Who typed a listing's ISSNs as print or electronic, for the page: "the NLM Catalog and Crossref". */
+export function issnSources(source: string): string {
+  return source ? source.split("+").map((s) => ISSN_SOURCES[s] ?? s).join(" and ") : "";
+}
+
+/**
+ * Every listing grouped by ISSN-L. An ISSN-L in any other form, or ISSN
+ * columns that issnProblem rejects, fail the build.
+ */
+export function journalPages(table: JournalTable, options: ListingOptions = {}): JournalPage[] {
   const byIssn = new Map<string, Listing[]>();
-  for (const listing of listings(table)) {
+  for (const listing of listings(table, options)) {
     if (!ISSN_L.test(listing.issn_l)) {
       throw new Error(`"${listing.journal}" (${listing.publisher}) has the ISSN-L "${listing.issn_l}", not NNNN-NNNC`);
     }
+    const problem = issnProblem(listing);
+    if (problem) throw new Error(`journal_pages.json: ${problem}`);
     byIssn.set(listing.issn_l, [...(byIssn.get(listing.issn_l) ?? []), listing]);
   }
   return [...byIssn].map(([issn_l, group]) => ({
