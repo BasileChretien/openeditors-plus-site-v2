@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
-  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, releaseHasIssns, RETIRED_JOURNAL_PAGES,
+  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, RETIRED_JOURNAL_PAGES,
   releaseNoteVersions, retiredPageProblems, retiredPages,
 } from "../src/lib/journals.ts";
 import { slugify } from "../src/lib/slugify.ts";
@@ -126,15 +126,15 @@ const both = { issn_print: "0002-9920", issn_electronic: "1088-9477", issn_type_
 test("the ISSN columns are read when journal_pages.json has them", () => {
   const [l] = listings(pagesTable(both));
   assert.deepEqual([l.issn_print, l.issn_electronic, l.issn_type_source], ["0002-9920", "1088-9477", "nlm"]);
-  const [page] = journalPages(pagesTable(both), { issnsReleased: true });
+  const [page] = journalPages(pagesTable(both));
   assert.equal(page.listings[0].issn_electronic, "1088-9477");
 });
 
-test("a file that predates them gives empty ISSNs, until the served release has them", () => {
+test("a file without them gives empty ISSNs, and the pages still build", () => {
   const [l] = listings(pagesTable(null));
   assert.deepEqual([l.issn_print, l.issn_electronic, l.issn_type_source], ["", "", ""]);
-  assert.throws(() => journalPages(pagesTable(null), { issnsReleased: true }),
-    /journal_pages\.json has no "issn_print" column: regenerate public\/api\//);
+  const [page] = journalPages(pagesTable(null));
+  assert.equal(page.listings[0].issn_print, "");
 });
 
 test("a file with only some of the ISSN columns fails the build", () => {
@@ -142,11 +142,6 @@ test("a file with only some of the ISSN columns fails the build", () => {
   const at = table.cols.indexOf("issn_type_source");
   const partial = { cols: table.cols.filter((_, i) => i !== at), rows: table.rows.map((r) => r.filter((_, i) => i !== at)) };
   assert.throws(() => listings(partial), /no "issn_type_source" column/);
-});
-
-test("the served release has the ISSNs when its codebook describes them", () => {
-  assert.equal(releaseHasIssns({ descriptions: { issn_l: "Linking ISSN" } }), false);
-  assert.equal(releaseHasIssns({ descriptions: { issn_l: "Linking ISSN", issn_print: "Print ISSN" } }), true);
 });
 
 test("ISSN columns the page cannot show fail the build", () => {
@@ -179,5 +174,5 @@ test("the source note names the sources that typed the ISSNs", () => {
 
 test("the served journal pages pass the ISSN checks", () => {
   const read = (name) => JSON.parse(readFileSync(new URL(`../public/api/${name}`, import.meta.url), "utf-8"));
-  assert.ok(journalPages(read("journal_pages.json"), { issnsReleased: releaseHasIssns(read("codebook.json")) }).length > 0);
+  assert.ok(journalPages(read("journal_pages.json")).length > 0);
 });
