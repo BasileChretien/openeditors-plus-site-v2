@@ -50,7 +50,7 @@ const changesV6 = [
     tagClass: fixed,
     title: "Organizations matched again (ROR)",
     body: `The affiliation lookup had kept failed requests as "no organization" since v3.0.0. Every affiliation without an organization was asked again. An organization already in the dataset keeps its recorded name, country and coordinates; ror_city and ror_state come from ROR, and matches to an organization the affiliation does not name are cleared, as before, for the nine organizations on the watchlist.`,
-    stat: "120,494 positions gain an organization: 81.1% of positions carry one (68.1% in v5.0.0). 3,344 organizations are new to the dataset, and countries go from 189 to 194.",
+    stat: "120,494 positions gain an organization: 81.1% of positions carry one (68.1% in v5.0.0). 3,344 organizations are new to the dataset, and countries go from 189 to 194. 41 false matches to a watched organization are cleared; one of them is then matched to its own.",
   },
   {
     id: "gender-and-editors",
@@ -64,8 +64,8 @@ const changesV6 = [
     id: "issn",
     tag: "Added",
     tagClass: added,
-    title: "Print and electronic ISSN, and 46 more ISSN-L corrections",
-    body: `issn_print, issn_electronic and issn_type_source give each journal's print ISSN and E-ISSN as the NLM Catalog, DOAJ or Crossref types them, from records that list the journal's ISSN-L; each journal's page shows them. 46 more journals take their audited ISSN-L, among them Molecules (1420-3049), with the metrics, indexing and field that follow.`,
+    title: "Print and electronic ISSN, and more ISSN-L corrections",
+    body: `issn_print, issn_electronic and issn_type_source give each journal's print ISSN and E-ISSN as the NLM Catalog, DOAJ or Crossref types them, from records that list the journal's ISSN-L; each journal's page shows them. 45 more journals take their audited ISSN-L, among them Molecules (1420-3049), and one is corrected again (Eurasian Economic Review), with the metrics, indexing and field that follow.`,
     stat: "Print or electronic ISSN for 14,263 journals: 13,865 electronic, 11,379 print, 10,981 both. Audited ISSN-L corrections now apply to 240 journals (195 in v5.0.0).",
   },
 ];
@@ -113,7 +113,7 @@ const rerunV6 = [
   },
   {
     what: "Institutions and countries (ror_id, ror_name, ror_country, ror_city, ror_state, org_type, coordinates)",
-    why: "120,494 positions gain an organization and 41 lose a false one; 194 countries instead of 189.",
+    why: "120,494 positions gain an organization and 41 lose a false match to a watched organization; 194 countries instead of 189.",
   },
   {
     what: "Gender, and any share of women",
@@ -125,7 +125,7 @@ const rerunV6 = [
   },
   {
     what: "Anything joined or grouped by issn_l for the newly corrected journals",
-    why: "46 more journals take their audited ISSN-L, with the metrics, indexing, NPI columns and field that follow.",
+    why: "45 more journals take their audited ISSN-L and one is corrected again, with the metrics, indexing, NPI columns and field that follow.",
   },
 ];
 
