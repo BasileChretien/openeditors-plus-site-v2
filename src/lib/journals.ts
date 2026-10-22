@@ -148,6 +148,10 @@ export function issnProblem(l: Listing): string {
     return `${where} has the ISSN source "${l.issn_type_source}", not one of ${[...PROVENANCE].join(", ")}`;
   }
   if (!typed && l.issn_type_source) return `${where} has an ISSN source but no ISSN`;
+  // Two sources each gave one column: a label naming two cannot sit beside an empty column.
+  if (l.issn_type_source.includes("+") && !(l.issn_print && l.issn_electronic)) {
+    return `${where} has two ISSN sources ("${l.issn_type_source}") but one ISSN`;
+  }
   return "";
 }
 

@@ -153,6 +153,7 @@ test("ISSN columns the page cannot show fail the build", () => {
   const listing = (over) => ({ journal: "Notices", publisher: "AMS", ...both, ...over });
   assert.equal(issnProblem(listing({})), "");
   assert.equal(issnProblem(listing({ issn_print: "", issn_type_source: "crossref" })), "");
+  assert.equal(issnProblem(listing({ issn_type_source: "nlm+crossref" })), "");
   assert.equal(issnProblem(listing({ issn_print: "", issn_electronic: "", issn_type_source: "" })), "");
   for (const source of ["nlm+doaj", "nlm+crossref", "doaj+crossref", "doaj"]) {
     assert.equal(issnProblem(listing({ issn_type_source: source })), "", source);
@@ -163,6 +164,8 @@ test("ISSN columns the page cannot show fail the build", () => {
   assert.match(issnProblem(listing({ issn_type_source: "crossref+nlm" })), /ISSN source "crossref\+nlm", not one of nlm, doaj, crossref, nlm\+doaj/);
   assert.match(issnProblem(listing({ issn_type_source: "" })), /ISSN source "", not one of/);
   assert.equal(issnProblem(listing({ issn_print: "", issn_electronic: "" })), `"Notices" (AMS) has an ISSN source but no ISSN`);
+  assert.equal(issnProblem(listing({ issn_print: "", issn_type_source: "nlm+crossref" })),
+    `"Notices" (AMS) has two ISSN sources ("nlm+crossref") but one ISSN`);
   assert.throws(() => journalPages(pagesTable({ ...both, issn_type_source: "issn" })),
     /journal_pages\.json: "Notices" \(AMS\) has the ISSN source "issn"/);
 });
