@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import { slugify } from "../../lib/slugify";
+import { GENDER_COVERAGE_WARN } from "../../lib/genderCoverage";
 import countries from "../../../public/api/countries.json";
 import countryMetrics from "../../../public/api/country_metrics.json";
 import fields from "../../../public/api/fields.json";
@@ -30,7 +31,7 @@ const fieldList = [...fields]
         <div>
           <h2 class="font-semibold text-sm">% female editors per country</h2>
           <p class="text-[11px] text-text-muted mt-0.5">
-            Red ≈ 0% · yellow ≈ 25% · green ≥ 50%. Grey = below the editor threshold. Hatched = low gender-inference coverage (&lt; 60% of editors classifiable; see <a href="/methodology#gender-coverage" class="underline">methodology</a>).
+            Red ≈ 0% · yellow ≈ 25% · green ≥ 50%. Grey = below the editor threshold. Hatched = low gender-inference coverage (&lt; {GENDER_COVERAGE_WARN}% of editors classifiable; see <a href="/methodology#gender-coverage" class="underline">methodology</a>).
           </p>
         </div>
         <label class="text-xs text-text-secondary flex items-center gap-2">
@@ -208,6 +209,7 @@ const fieldList = [...fields]
   <!-- Data payloads -->
   <script id="country-metrics-data" type="application/json" set:html={JSON.stringify(countryMetrics)}></script>
   <script id="fields-data" type="application/json" set:html={JSON.stringify(fieldList)}></script>
+  <script id="coverage-warn-data" type="application/json" set:html={JSON.stringify(GENDER_COVERAGE_WARN)}></script>
 
   <script is:inline>
     // @ts-nocheck
@@ -320,7 +322,8 @@ const fieldList = [...fields]
       const geo = await loadGeo();
       const map = buildMap("map-gender");
       let threshold = 50;
-      const COVERAGE_WARN = 60;  // % classified below which we mark the country as low-confidence
+      // % classified below which we mark the country as low-confidence (lib/genderCoverage.ts)
+      const COVERAGE_WARN = JSON.parse(document.getElementById("coverage-warn-data").textContent);
 
       // Build a reusable style function. Countries with low gender-
       // inference coverage get a dashed stroke AND a lower fillOpacity

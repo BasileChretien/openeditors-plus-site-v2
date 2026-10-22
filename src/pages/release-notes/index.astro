@@ -41,8 +41,8 @@ const changesV6 = [
     tag: "Added",
     tagClass: added,
     title: "Chief editors per board (board_eic_count, board_roles_suspect)",
-    body: `board_eic_count gives the number of distinct current chief editors of each journal, former ones excluded. Where chief editors are at least half of a board of ten or more, the parser carried a chief heading over the whole board; board_roles_suspect marks those journals and their count is left empty.`,
-    stat: "56 journals marked suspect. Of the others, 4,444 have no chief editor, 7,912 one, 1,896 two, 667 three or four and 218 five or more.",
+    body: `board_eic_count gives the number of distinct current chief editors of each journal, former ones excluded. Where chief editors are at least half of a board of ten or more, the parser most likely carried a chief heading over the whole board; board_roles_suspect marks those journals and their count is left empty.`,
+    stat: "56 journals marked suspect. Of the others, 4,444 have no chief editor, 7,912 one, 1,896 two, 667 three or four and 218 five or more. These counts are by publisher and journal, so a title listed by two publishers counts twice.",
   },
   {
     id: "ror-refresh",
@@ -66,7 +66,7 @@ const changesV6 = [
     tagClass: added,
     title: "Print and electronic ISSN, and 46 more ISSN-L corrections",
     body: `issn_print, issn_electronic and issn_type_source give each journal's print ISSN and E-ISSN as the NLM Catalog, DOAJ or Crossref types them, from records that list the journal's ISSN-L; each journal's page shows them. 46 more journals take their audited ISSN-L, among them Molecules (1420-3049), with the metrics, indexing and field that follow.`,
-    stat: "Print or electronic ISSN for 14,263 journals: 13,865 electronic, 11,379 print, 10,981 both. ISSN-L corrections now cover 242 journals.",
+    stat: "Print or electronic ISSN for 14,263 journals: 13,865 electronic, 11,379 print, 10,981 both. Audited ISSN-L corrections now apply to 240 journals (195 in v5.0.0).",
   },
 ];
 
@@ -103,6 +103,29 @@ const changesV5 = [
     title: "Three listings that were not their journal's board",
     body: `SAGE's journal listing names two journal packages beside their member journals, and the scraper took them for journals; their boards repeat their member journals' boards. Economic and Industrial Democracy held the board of Ergonomics in Design, which SAGE's listing served at its address when the boards were collected, and none of its people is on Economic and Industrial Democracy's own board. The rows are removed. The journal will return with its own board at the next collection; until then, its page keeps its address and says why it is empty.`,
     stat: "137 positions removed: 70 for Economic and Industrial Democracy, 67 for the two packages. Unique editors: 744,797 (v4.0.1: 744,842). 92 editors lose a board, and 76 of them are now on one board only.",
+  },
+];
+
+const rerunV6 = [
+  {
+    what: "Anything by role (role_std): chief editors, board composition by role",
+    why: "105,765 positions change role_std: plural chief headings, advisory roles and committees, handling editors, book review editors and editorial staff are classified anew. Chief editors go from 17,239 to 19,409.",
+  },
+  {
+    what: "Institutions and countries (ror_id, ror_name, ror_country, ror_city, ror_state, org_type, coordinates)",
+    why: "120,494 positions gain an organization and 41 lose a false one; 194 countries instead of 189.",
+  },
+  {
+    what: "Gender, and any share of women",
+    why: "Gender is recomputed where the country changed or the stored value was stale: 5,505 positions change gender.",
+  },
+  {
+    what: "Unique editors, editor_key, multi-board and board statistics",
+    why: "Editors listed at one institution under several affiliation texts now share one editor_key: 731,251 unique editors instead of 744,797, and more editors on several boards.",
+  },
+  {
+    what: "Anything joined or grouped by issn_l for the newly corrected journals",
+    why: "46 more journals take their audited ISSN-L, with the metrics, indexing, NPI columns and field that follow.",
   },
 ];
 
@@ -351,7 +374,36 @@ if (NEWEST_NOTES !== release.version) {
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4" id="v5.0.0">What changed in v5.0.0</h2>
+    <h2 class="text-2xl font-bold mb-2">If you used v5.0.0</h2>
+    <p class="text-sm text-text-secondary mb-4">
+      Analyses that touch only the collected columns (publisher, journal, editor, role,
+      affiliation, source_url, scraped_at) or editor bibliometrics are unaffected. Re-run
+      anything that touches the following. New columns you may want: role_is_former,
+      board_eic_count, board_roles_suspect, issn_print, issn_electronic.
+    </p>
+    <div class="overflow-x-auto border border-border rounded-lg mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-surface-dim border-b border-border">
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Re-run</th>
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rerunV6.map((r, i) => (
+            <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+              <td class="py-2.5 px-3 align-top font-medium whitespace-normal">{r.what}</td>
+              <td class="py-2.5 px-3 align-top text-text-secondary">{r.why}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4" id="v5.0.0">
+      <h2 class="text-2xl font-bold">What changed in v5.0.0</h2>
+      <span class="text-sm text-text-muted">released 2026-10-16 &middot; data_version 2026.5</span>
+    </div>
     <div class="space-y-5 mb-12">
       {changesV5.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">
@@ -374,9 +426,10 @@ if (NEWEST_NOTES !== release.version) {
 
     <h2 class="text-2xl font-bold mb-2">If you used v4.0.x</h2>
     <p class="text-sm text-text-secondary mb-4">
-      Apart from the removed rows, analyses that touch only the collected columns (publisher,
-      journal, editor, role, affiliation, scraped_at), gender or editor bibliometrics are
-      unaffected. Re-run anything that touches the following.
+      From v4.0.x to v5.0.0, apart from the removed rows, analyses that touched only the
+      collected columns (publisher, journal, editor, role, affiliation, scraped_at), gender or
+      editor bibliometrics were unaffected; the v6.0.0 changes above apply on top. Re-run
+      anything that touches the following.
     </p>
     <div class="overflow-x-auto border border-border rounded-lg mb-12">
       <table class="w-full text-sm">
