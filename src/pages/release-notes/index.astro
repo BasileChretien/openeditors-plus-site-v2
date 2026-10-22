@@ -15,8 +15,60 @@ const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 // frozen-figures:start (every note below describes its own release)
 // The version the newest notes describe. The build fails when the site
 // serves another release, so a data update cannot ship without its notes.
-const NEWEST_NOTES = "5.0.0";
-const NOTES_DESCRIPTION = "What changed in Open Editors Plus v5.0.0 (journals matched to another journal's OpenAlex source corrected, indexing flags rebuilt, board URLs corrected, three listings that were not their journal's board removed), v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+const NEWEST_NOTES = "6.0.0";
+const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.0.0 (editorial roles corrected, former editors flagged, chief editors per board, organizations matched again, print and electronic ISSN), v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+
+// v6.0.0 (2026-10-23), a corrected release with six new columns.
+const changesV6 = [
+  {
+    id: "roles",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Editorial roles: chief editors and five other kinds of role",
+    body: `The rule that standardizes roles looked for "editor-in-chief" and so missed plural headings such as "Editors-in-Chief": thousands of chief editors were labelled plain editors in every release since v2.7.0. Plural, spaced, abbreviated and French, German, Spanish and Portuguese chief headings now give editor_in_chief; a ranked chief (associate, deputy, assistant) gives deputy_editor and a section chief section_editor. Frontiers' Specialty Chief Editors lead one section and are section editors, except in single-specialty journals without a Field Chief Editor. Advisory roles and committees (MDPI's Topical Advisory Panel, consulting and advisory editors) are board members; academic, handling and action editors, who handle manuscripts, are associate editors; book review editors are section editors; editorial staff (managing editors, editorial assistants, social media editors) are other, except in journals where they are the only editor-type role.`,
+    stat: "role_std changes on 105,765 positions. Chief editors go from 17,239 to 19,409, and 1,791 journals gain their first; plain editor goes from 108,425 to 50,290 and other from 55,810 to 22,100; board members go from 470,656 to 533,679 and associate editors from 182,365 to 203,602.",
+  },
+  {
+    id: "former-editors",
+    tag: "Added",
+    tagClass: added,
+    title: "Former editors flagged (role_is_former)",
+    body: `Boards often list former, honorary, emeritus or founding editors beside the serving ones. role_is_former is true when the heading names such a role, in English, French, German, Spanish, Portuguese or Italian, so they can be set aside. Titles that people hold while serving (Professor Emeritus, Past President of a society sitting ex officio) are not flagged.`,
+    stat: "10,533 positions flagged, 1,913 of them chief editors.",
+  },
+  {
+    id: "chief-editors-per-board",
+    tag: "Added",
+    tagClass: added,
+    title: "Chief editors per board (board_eic_count, board_roles_suspect)",
+    body: `board_eic_count gives the number of distinct current chief editors of each journal, former ones excluded. Where chief editors are at least half of a board of ten or more, the parser carried a chief heading over the whole board; board_roles_suspect marks those journals and their count is left empty.`,
+    stat: "56 journals marked suspect. Of the others, 4,444 have no chief editor, 7,912 one, 1,896 two, 667 three or four and 218 five or more.",
+  },
+  {
+    id: "ror-refresh",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Organizations matched again (ROR)",
+    body: `The affiliation lookup had kept failed requests as "no organization" since v3.0.0. Every affiliation without an organization was asked again. An organization already in the dataset keeps its recorded name, country and coordinates; ror_city and ror_state come from ROR, and matches to an organization the affiliation does not name are cleared, as before, for the nine organizations on the watchlist.`,
+    stat: "120,494 positions gain an organization: 81.1% of positions carry one (68.1% in v5.0.0). 3,344 organizations are new to the dataset, and countries go from 189 to 194.",
+  },
+  {
+    id: "gender-and-editors",
+    tag: "Recomputed",
+    tagClass: recomputed,
+    title: "Gender and unique editors",
+    body: `Gender inference uses the institution's country, so it is recomputed where the country changed, and where an earlier repair had left it stale. The editor identity key includes the organization, so editors listed at one institution under several affiliation texts are now one editor.`,
+    stat: "5,505 positions change gender (3,625 from unknown to a gender); women are 32.1% of resolved positions (32.2%). Unique editors go from 744,797 to 731,251, and editors on several boards from 111,980 to 119,201.",
+  },
+  {
+    id: "issn",
+    tag: "Added",
+    tagClass: added,
+    title: "Print and electronic ISSN, and 46 more ISSN-L corrections",
+    body: `issn_print, issn_electronic and issn_type_source give each journal's print ISSN and E-ISSN as the NLM Catalog, DOAJ or Crossref types them, from records that list the journal's ISSN-L; each journal's page shows them. 46 more journals take their audited ISSN-L, among them Molecules (1420-3049), with the metrics, indexing and field that follow.`,
+    stat: "Print or electronic ISSN for 14,263 journals: 13,865 electronic, 11,379 print, 10,981 both. ISSN-L corrections now cover 242 journals.",
+  },
+];
 
 // v5.0.0 (2026-10-16), a corrected release.
 const changesV5 = [
@@ -254,11 +306,11 @@ if (NEWEST_NOTES !== release.version) {
 
     <!-- frozen-figures:start (the notes describe their own releases) -->
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v5.0.0 is a <strong>corrected</strong> release. It changes values in existing columns
-      and removes three listings that were not their journal's board, so analyses built on
-      v4.0.x that use ISSN-Ls, journal metrics, indexing flags, fields, quartiles, board URLs
-      or editor counts need to be re-run. The schema is unchanged. The paper that describes
-      the dataset uses v3.0.0, which stays available on Zenodo.
+      v6.0.0 is a <strong>corrected</strong> release with six new columns. It changes values
+      in existing columns (roles, organizations, gender, the editor identity key and the
+      ISSN-L of 46 journals), so analyses built on v5.0.0 by role, organization, country,
+      gender or editor, and joins on ISSN-L, need to be re-run. The paper that describes the
+      dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -275,6 +327,27 @@ if (NEWEST_NOTES !== release.version) {
           <div class="text-xl font-bold text-text-primary">{s.value}</div>
           <div class="text-[11px] uppercase tracking-wide text-text-muted mt-0.5">{s.label}</div>
         </div>
+      ))}
+    </div>
+
+    <h2 class="text-2xl font-bold mb-4" id="v6.0.0">What changed in v6.0.0</h2>
+    <div class="space-y-5 mb-12">
+      {changesV6.map((c, i) => (
+        <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+          <div class="flex items-start gap-3 mb-2">
+            <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+            <div class="min-w-0">
+              <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                {c.tag}
+              </span>
+              <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+          <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+            {c.stat}
+          </p>
+        </section>
       ))}
     </div>
 

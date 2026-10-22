@@ -1,4 +1,5 @@
 ---
+import { GENDER_COVERAGE_CAUTION, GENDER_COVERAGE_WARN } from "../lib/genderCoverage";
 import { slugify } from "../lib/slugify";
 import summary from "../../public/api/summary.json";
 import { pct } from "../lib/figures";
@@ -52,8 +53,8 @@ const hComp = (mean_h_index || 0) > GLOBAL_MEAN_H ? "above" : "below";
 // simply doesn't render.
 const { pct_gender_classified } = Astro.props as { pct_gender_classified?: number };
 const coveragePct = typeof pct_gender_classified === "number" ? pct_gender_classified : null;
-const COVERAGE_THRESHOLD = 60;   // below this we show a prominent warning
-const COVERAGE_CAUTION   = 80;   // below this we show a softer note
+const COVERAGE_THRESHOLD = GENDER_COVERAGE_WARN;   // below this we show a prominent warning
+const COVERAGE_CAUTION   = GENDER_COVERAGE_CAUTION;   // below this we show a softer note
 const coverageState = coveragePct === null
   ? "unknown"
   : coveragePct < COVERAGE_THRESHOLD ? "warn"

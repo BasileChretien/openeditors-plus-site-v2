@@ -3,6 +3,7 @@ import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
 import countries from "../../../public/api/countries.json";
 import { fmt, oneDecimal, pct } from "../../lib/figures";
+import { GENDER_COVERAGE_WARN } from "../../lib/genderCoverage";
 
 // Role-count rows are rendered from summary.role_distribution so the
 // numbers stay in lock-step with each release. The pattern column maps
@@ -417,7 +418,7 @@ const coverageBands = BANDS.map((band, i) => ({
               <!-- frozen-figures:start (what the v2.7 switch did, when it was made) -->
               The largest gain is on East Asian editorial-board members: classification of editors affiliated to Chinese institutions rose from 8.0% under the v2.6 gender-guesser pipeline to <strong>44.6%</strong> under the v2.7 WGND pipeline, and South Korea from 11.6% to <strong>40.2%</strong> (after applying the <code class="bg-amber-100 px-1 rounded">gender_prob ≥ 0.75</code> confidence floor described below).
               <!-- frozen-figures:end -->
-              Transliterated CJK-script names from Taiwan ({cls("Taiwan")} classified in the current release) and Hong Kong ({cls("Hong Kong")}) remain the principal residual gap. Every per-entity page on this site reports <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> alongside the female share, and entities below 60% coverage display a prominent warning band: the reported female share is then a fraction of the classifiable minority, not of the whole board.
+              Transliterated CJK-script names from Taiwan ({cls("Taiwan")} classified in the current release) and Hong Kong ({cls("Hong Kong")}) remain the principal residual gap. Every per-entity page on this site reports <code class="bg-amber-100 px-1 rounded">pct_gender_classified</code> alongside the female share, and entities below {GENDER_COVERAGE_WARN}% coverage display a prominent warning band: the reported female share is then a fraction of the classifiable minority, not of the whole board.
             </p>
             <p class="text-xs text-amber-800 mb-2">
               Concretely in the current release:
