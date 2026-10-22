@@ -1,9 +1,13 @@
-// Tests for the retired journal pages' checks in src/lib/journals.ts: run with
+// Tests for the journal pages' checks in src/lib/journals.ts (the retired pages,
+// the print and electronic ISSNs): run with
 // `node --test scripts/journals.test.mjs` (Node strips the TypeScript types).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { RETIRED_JOURNAL_PAGES, releaseNoteVersions, retiredPageProblems, retiredPages } from "../src/lib/journals.ts";
+import {
+  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, RETIRED_JOURNAL_PAGES,
+  releaseNoteVersions, retiredPageProblems, retiredPages,
+} from "../src/lib/journals.ts";
 import { slugify } from "../src/lib/slugify.ts";
 
 const site = (over = {}) => ({
@@ -105,4 +109,70 @@ test("the shipped retired pages pass against the served data", () => {
     version: read("release_meta.json").version,
   };
   assert.deepEqual(retiredPageProblems([], served, RETIRED_JOURNAL_PAGES), []);
+});
+
+// A journal_pages.json table: the columns the served file has, one row, and the
+// ISSN columns when `issns` is given (aggregate_data.py appends them last).
+const servedCols = JSON.parse(readFileSync(new URL("../public/api/journal_pages.json", import.meta.url), "utf-8")).cols
+  .filter((c) => !ISSN_COLUMNS.includes(c));
+const pagesTable = (issns, over = {}) => {
+  const values = { journal: "Notices", publisher: "AMS", issn_l: "0002-9920", board_size: 3, ...over };
+  const cols = issns ? [...servedCols, ...ISSN_COLUMNS] : servedCols;
+  const row = cols.map((c) => (c in values ? values[c] : c in (issns ?? {}) ? issns[c] : 0));
+  return { cols, rows: [row] };
+};
+const both = { issn_print: "0002-9920", issn_electronic: "1088-9477", issn_type_source: "nlm" };
+
+test("the ISSN columns are read when journal_pages.json has them", () => {
+  const [l] = listings(pagesTable(both));
+  assert.deepEqual([l.issn_print, l.issn_electronic, l.issn_type_source], ["0002-9920", "1088-9477", "nlm"]);
+  const [page] = journalPages(pagesTable(both));
+  assert.equal(page.listings[0].issn_electronic, "1088-9477");
+});
+
+test("a file without them gives empty ISSNs, and the pages still build", () => {
+  const [l] = listings(pagesTable(null));
+  assert.deepEqual([l.issn_print, l.issn_electronic, l.issn_type_source], ["", "", ""]);
+  const [page] = journalPages(pagesTable(null));
+  assert.equal(page.listings[0].issn_print, "");
+});
+
+test("a file with only some of the ISSN columns fails the build", () => {
+  const table = pagesTable(both);
+  const at = table.cols.indexOf("issn_type_source");
+  const partial = { cols: table.cols.filter((_, i) => i !== at), rows: table.rows.map((r) => r.filter((_, i) => i !== at)) };
+  assert.throws(() => listings(partial), /no "issn_type_source" column/);
+});
+
+test("ISSN columns the page cannot show fail the build", () => {
+  const listing = (over) => ({ journal: "Notices", publisher: "AMS", ...both, ...over });
+  assert.equal(issnProblem(listing({})), "");
+  assert.equal(issnProblem(listing({ issn_print: "", issn_type_source: "crossref" })), "");
+  assert.equal(issnProblem(listing({ issn_type_source: "nlm+crossref" })), "");
+  assert.equal(issnProblem(listing({ issn_print: "", issn_electronic: "", issn_type_source: "" })), "");
+  for (const source of ["nlm+doaj", "nlm+crossref", "doaj+crossref", "doaj"]) {
+    assert.equal(issnProblem(listing({ issn_type_source: source })), "", source);
+  }
+  assert.equal(issnProblem(listing({ issn_print: "0002-992x" })), `"Notices" (AMS) has the print ISSN "0002-992x", not NNNN-NNNC`);
+  assert.equal(issnProblem(listing({ issn_electronic: "10889477" })), `"Notices" (AMS) has the E-ISSN "10889477", not NNNN-NNNC`);
+  assert.equal(issnProblem(listing({ issn_electronic: "0002-9920" })), `"Notices" (AMS) has the same print ISSN and E-ISSN`);
+  assert.match(issnProblem(listing({ issn_type_source: "crossref+nlm" })), /ISSN source "crossref\+nlm", not one of nlm, doaj, crossref, nlm\+doaj/);
+  assert.match(issnProblem(listing({ issn_type_source: "" })), /ISSN source "", not one of/);
+  assert.equal(issnProblem(listing({ issn_print: "", issn_electronic: "" })), `"Notices" (AMS) has an ISSN source but no ISSN`);
+  assert.equal(issnProblem(listing({ issn_print: "", issn_type_source: "nlm+crossref" })),
+    `"Notices" (AMS) has two ISSN sources ("nlm+crossref") but one ISSN`);
+  assert.throws(() => journalPages(pagesTable({ ...both, issn_type_source: "issn" })),
+    /journal_pages\.json: "Notices" \(AMS\) has the ISSN source "issn"/);
+});
+
+test("the source note names the sources that typed the ISSNs", () => {
+  assert.equal(issnSources("nlm"), "the NLM Catalog");
+  assert.equal(issnSources("nlm+crossref"), "the NLM Catalog and Crossref");
+  assert.equal(issnSources("doaj+crossref"), "DOAJ and Crossref");
+  assert.equal(issnSources(""), "");
+});
+
+test("the served journal pages pass the ISSN checks", () => {
+  const read = (name) => JSON.parse(readFileSync(new URL(`../public/api/${name}`, import.meta.url), "utf-8"));
+  assert.ok(journalPages(read("journal_pages.json")).length > 0);
 });
