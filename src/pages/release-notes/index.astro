@@ -50,7 +50,7 @@ const changesV6 = [
     tagClass: fixed,
     title: "Organizations matched again (ROR)",
     body: `The affiliation lookup had kept failed requests as "no organization" since v3.0.0. Every affiliation without an organization was asked again. An organization already in the dataset keeps its recorded name, country and coordinates; ror_city and ror_state come from ROR, and matches to an organization the affiliation does not name are cleared, as before, for the nine organizations on the watchlist.`,
-    stat: "120,494 positions gain an organization: 81.1% of positions carry one (68.1% in v5.0.0). 3,344 organizations are new to the dataset, and countries go from 189 to 194. 41 false matches to a watched organization are cleared.",
+    stat: "120,494 positions gain an organization: 81.1% of positions carry one (68.1% in v5.0.0). 3,345 organizations are new to the dataset, and countries go from 189 to 194. 41 false matches to a watched organization are cleared, and 32 overrides correct 202 positions where ROR's matcher was wrong (Purdue University had Hue University of Education).",
   },
   {
     id: "gender-and-editors",
@@ -58,7 +58,7 @@ const changesV6 = [
     tagClass: recomputed,
     title: "Gender and unique editors",
     body: `Gender inference uses the institution's country, so it is recomputed where the country changed, and where an earlier repair had left it stale. The editor identity key includes the organization, so editors listed at one institution under several affiliation texts are now one editor.`,
-    stat: "5,505 positions change gender (3,625 from unknown to a gender); women are 32.1% of resolved positions (32.2%). Unique editors go from 744,797 to 731,251, and editors on several boards from 111,980 to 119,201.",
+    stat: "5,513 positions change gender (3,632 from unknown to a gender); women are 32.1% of resolved positions (32.2%). Unique editors go from 744,797 to 731,230, and editors on several boards from 111,980 to 119,210.",
   },
   {
     id: "issn",
@@ -117,11 +117,11 @@ const rerunV6 = [
   },
   {
     what: "Gender, and any share of women",
-    why: "Gender is recomputed where the country changed or the stored value was stale: 5,505 positions change gender.",
+    why: "Gender is recomputed where the country changed or the stored value was stale: 5,513 positions change gender.",
   },
   {
     what: "Unique editors, editor_key, multi-board and board statistics",
-    why: "Editors listed at one institution under several affiliation texts now share one editor_key: 731,251 unique editors instead of 744,797, and more editors on several boards.",
+    why: "Editors listed at one institution under several affiliation texts now share one editor_key: 731,230 unique editors instead of 744,797, and more editors on several boards.",
   },
   {
     what: "Anything joined or grouped by issn_l for the newly corrected journals",
