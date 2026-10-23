@@ -28,6 +28,7 @@ const columns = [
     { name: "last_name", display: "Last name", type: "string", source: "computed" as Source },
     { name: "role", display: "Role (raw)", type: "string", source: "collected" as Source },
     { name: "role_std", display: "Role (standardized)", type: "string", source: "computed" as Source },
+    { name: "role_is_former", display: "Former editor", type: "bool", source: "computed" as Source },
     { name: "affiliation", display: "Affiliation", type: "string", source: "collected" as Source },
     { name: "orcid", display: "ORCID", type: "string", source: "collected" as Source },
     { name: "source_url", display: "Source URL", type: "string", source: "collected" as Source },
@@ -62,6 +63,9 @@ const columns = [
   { group: "Journal identifiers", cols: [
     { name: "openalex_source_id", display: "OpenAlex source ID", type: "string", source: "external" as Source },
     { name: "issn_l", display: "ISSN-L", type: "string", source: "external" as Source },
+    { name: "issn_print", display: "ISSN (print)", type: "string", source: "external" as Source },
+    { name: "issn_electronic", display: "E-ISSN", type: "string", source: "external" as Source },
+    { name: "issn_type_source", display: "ISSN source", type: "string", source: "external" as Source },
   ]},
   { group: "Journal metrics", cols: [
     { name: "oa_2yr_mean_citedness", display: "Mean citedness (2yr)", type: "float", source: "external" as Source },
@@ -105,6 +109,8 @@ const columns = [
   ]},
   { group: "Board diversity", cols: [
     { name: "board_size", display: "Board size", type: "int", source: "computed" as Source },
+    { name: "board_eic_count", display: "Chief editors", type: "int", source: "computed" as Source },
+    { name: "board_roles_suspect", display: "Chief-editor labels suspect", type: "bool", source: "computed" as Source },
     { name: "board_pct_female", display: "% female", type: "float", source: "computed" as Source },
     { name: "board_country_count", display: "Countries on board", type: "int", source: "computed" as Source },
     { name: "board_country_hhi", display: "Country HHI", type: "float", source: "computed" as Source },

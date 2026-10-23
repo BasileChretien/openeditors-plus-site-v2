@@ -14,11 +14,12 @@ import releaseNotes from "../release-notes/index.astro?raw";
 import { slugify } from "../../lib/slugify";
 import { oneDecimal } from "../../lib/figures";
 import {
-  boardUrl, displayTitle, journalPages, MIN_GENDER_RESOLVED, releaseNoteVersions, retiredPages, ROLE_LABELS,
-  type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
+  boardUrl, displayTitle, issnSources, journalPages, MIN_GENDER_RESOLVED, releaseNoteVersions, retiredPages,
+  ROLE_LABELS, type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
 } from "../../lib/journals";
 
 export function getStaticPaths() {
+  // The print and electronic ISSNs show where journal_pages.json has them.
   const pages = journalPages(table as JournalTable);
   // What a retired page links to: its publisher's page and its release's notes.
   const links = {
@@ -42,6 +43,12 @@ const dateLabel = (iso: string) => iso
   ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })
   : "";
 const yesNo = (v: boolean) => (v ? "Yes" : "No");
+const issnPortal = (issn: string) => "https://portal.issn.org/resource/ISSN/" + issn;
+// "ISSN (print) and E-ISSN as typed by the NLM Catalog.", or "" for a listing with neither.
+const issnNote = (l: Listing) => {
+  const typed = [l.issn_print && "ISSN (print)", l.issn_electronic && "E-ISSN"].filter(Boolean);
+  return typed.length ? `${typed.join(" and ")} as typed by ${issnSources(l.issn_type_source)}. ` : "";
+};
 const name = main ? displayTitle(main.journal) : "";
 const title = `${name} — Editorial Board Indicators`;
 const description = `Editorial board of ${name} (ISSN-L ${page?.issn_l}): size, countries, inferred gender balance and roles, from Open Editors Plus ${release.version}.`;
@@ -59,7 +66,7 @@ const path = `journal/${page?.issn_l}`;
     <p class="text-text-secondary text-lg mb-1">
       <a href={"/publisher/" + slugify(main.publisher)} class="text-brand-600 hover:underline">{main.publisher}</a>
       <span class="mx-2 text-text-muted">·</span>
-      ISSN-L <a href={"https://portal.issn.org/resource/ISSN/" + page.issn_l} target="_blank" rel="noopener" class="font-mono text-brand-600 hover:underline">{page.issn_l}</a>
+      ISSN-L <a href={issnPortal(page.issn_l)} target="_blank" rel="noopener" class="font-mono text-brand-600 hover:underline">{page.issn_l}</a>
     </p>
     <p class="text-xs text-text-muted mb-8">
       Snapshot: board collected {dateLabel(main.collected) || "in " + release.data_version}, released in
@@ -124,6 +131,14 @@ const path = `journal/${page?.issn_l}`;
             <div class="bg-white rounded-xl border border-border p-6 shadow-sm">
               <h3 class="font-bold text-lg mb-4">Journal</h3>
               <dl class="grid grid-cols-2 gap-y-1.5 text-sm">
+                {l.issn_print && (<>
+                  <dt class="text-text-muted">ISSN (print)</dt>
+                  <dd><a href={issnPortal(l.issn_print)} target="_blank" rel="noopener" class="font-mono text-brand-600 hover:underline">{l.issn_print}</a></dd>
+                </>)}
+                {l.issn_electronic && (<>
+                  <dt class="text-text-muted">E-ISSN</dt>
+                  <dd><a href={issnPortal(l.issn_electronic)} target="_blank" rel="noopener" class="font-mono text-brand-600 hover:underline">{l.issn_electronic}</a></dd>
+                </>)}
                 <dt class="text-text-muted">Field</dt>
                 <dd>{l.field ? (fieldPages.has(l.field) ? <a href={"/field/" + slugify(l.field)} class="text-brand-600 hover:underline">{l.field}</a> : l.field) : "—"}</dd>
                 <dt class="text-text-muted">Open access (DOAJ)</dt><dd>{yesNo(l.is_oa)}</dd>
@@ -134,7 +149,7 @@ const path = `journal/${page?.issn_l}`;
                 <dt class="text-text-muted">Citedness quartile</dt><dd>{l.impact_quartile || "—"}</dd>
               </dl>
               <p class="text-[10px] text-text-muted mt-3">
-                The citedness quartile is computed within the field from OpenAlex citations, not taken from Clarivate or Scopus. See the notes on the <a href="/journals" class="underline">journal statistics</a> page.
+                {issnNote(l)}The citedness quartile is computed within the field from OpenAlex citations, not taken from Clarivate or Scopus. See the notes on the <a href="/journals" class="underline">journal statistics</a> page.
               </p>
             </div>
           </div>
