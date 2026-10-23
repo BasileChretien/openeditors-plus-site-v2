@@ -28,6 +28,12 @@ const payload = JSON.stringify(sorted);
       by name, city, or country — every institution is searchable, not just the top of
       the ranking.
     </p>
+    <p class="text-sm text-text-secondary mb-6">
+      An institution's positions and editors include those of its sub-units in ROR
+      (laboratories, institutes, campuses, hospitals recorded under it). An editor of a joint
+      unit counts under each of its parents, so the totals overlap and do not add up
+      (<a href="/methodology#institution-hierarchy" class="text-brand-600 hover:underline">methodology</a>).
+    </p>
 
     <div class="mb-4 flex flex-wrap items-center gap-3">
       <input
@@ -133,12 +139,15 @@ const payload = JSON.stringify(sorted);
           // filtered rank), so "Harvard #4" stays #4 even after filter.
           const rank = idx + 1;
           const city = item.ror_city ? `<span class="text-text-muted text-xs ml-1">· ${escapeHtml(item.ror_city)}</span>` : "";
+          const units = item.subunits
+            ? `<span class="block text-[11px] text-text-muted">incl. ${item.subunits.toLocaleString()} sub-unit${item.subunits === 1 ? "" : "s"}</span>`
+            : "";
           const nameLink = `<a href="/institution/${item.ror_id}" class="text-brand-700 font-medium hover:underline">${escapeHtml(item.name)}</a>`;
           const country = item.ror_country ? escapeHtml(item.ror_country) : "—";
           parts.push(
             '<tr class="border-t border-border hover:bg-brand-50">' +
               `<td class="py-2 px-3 text-text-muted">${rank}</td>` +
-              `<td class="py-2 px-3">${nameLink}${city}</td>` +
+              `<td class="py-2 px-3">${nameLink}${city}${units}</td>` +
               `<td class="py-2 px-3 text-text-secondary">${country}</td>` +
               `<td class="py-2 px-3 text-right font-semibold">${item.records.toLocaleString()}</td>` +
               `<td class="py-2 px-3 text-right">${item.editors.toLocaleString()}</td>` +

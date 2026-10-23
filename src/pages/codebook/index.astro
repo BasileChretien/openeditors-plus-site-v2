@@ -53,6 +53,10 @@ const columns = [
     { name: "org_type", display: "Org type", type: "string", source: "external" as Source },
     { name: "latitude", display: "Latitude", type: "float", source: "external" as Source },
     { name: "longitude", display: "Longitude", type: "float", source: "external" as Source },
+    { name: "ror_parent_ids", display: "Parent organisations (ROR)", type: "string", source: "external" as Source },
+    { name: "ror_parent_names", display: "Parent organisation names (ROR)", type: "string", source: "external" as Source },
+    { name: "ror_ancestor_ids", display: "Ancestor organisations (ROR)", type: "string", source: "external" as Source },
+    { name: "ror_ancestor_names", display: "Ancestor organisation names (ROR)", type: "string", source: "external" as Source },
   ]},
   { group: "Classification (OpenAlex)", cols: [
     { name: "scientific_domain", display: "Domain", type: "string", source: "external" as Source },

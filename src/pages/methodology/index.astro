@@ -105,6 +105,11 @@ const coverageBands = BANDS.map((band, i) => ({
                 <td class="py-3">ror_id, ror_name, ror_country, org_type, lat/lon</td>
               </tr>
               <tr class="border-b border-border/50">
+                <td class="py-3 pr-4">Institution hierarchy</td>
+                <td class="py-3 pr-4">ROR API (parent relationships)</td>
+                <td class="py-3">ror_parent_ids/names, ror_ancestor_ids/names</td>
+              </tr>
+              <tr class="border-b border-border/50">
                 <td class="py-3 pr-4">Gender inference (country-aware)</td>
                 <td class="py-3 pr-4">WGND 2.0 (Raffo &amp; Lax-Martinez, WIPO) → gender-guesser fallback</td>
                 <td class="py-3">gender, gender_prob, gender_nobs, gender_source</td>
@@ -147,6 +152,19 @@ const coverageBands = BANDS.map((band, i) => ({
             </tbody>
           </table>
         </div>
+
+        <h3 id="institution-hierarchy" class="text-lg font-semibold mt-6 mb-3">Institutions and their sub-units</h3>
+        <p class="text-text-secondary leading-relaxed">
+          Each position carries the most specific ROR record its affiliation was matched to: a CNRS
+          laboratory, a CSIC institute, a university hospital. ROR records name the organisations
+          they belong to, and a joint unit such as a French UMR often names several (CNRS, a
+          university, INSERM or INRAE). The pipeline follows these parent links to the top of ROR's
+          hierarchy (<code class="font-mono">ror_ancestor_ids</code>). An institution's page and the
+          explorer's institution filter count the positions of the institution's own record and of
+          every record below it, and the page breaks the total down by sub-unit. An editor of a
+          joint unit therefore counts under each of its parents: institution totals overlap and do
+          not add up.
+        </p>
       </section>
 
       <!-- Role taxonomy -->
