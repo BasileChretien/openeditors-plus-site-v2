@@ -155,15 +155,17 @@ const coverageBands = BANDS.map((band, i) => ({
 
         <h3 id="institution-hierarchy" class="text-lg font-semibold mt-6 mb-3">Institutions and their sub-units</h3>
         <p class="text-text-secondary leading-relaxed">
-          Each position carries the most specific ROR record its affiliation was matched to: a CNRS
-          laboratory, a CSIC institute, a university hospital. ROR records name the organisations
+          Each position carries the ROR record its affiliation was matched to, often a CNRS
+          laboratory, a CSIC institute or a university hospital. ROR records name the organisations
           they belong to, and a joint unit such as a French UMR often names several (CNRS, a
           university, INSERM or INRAE). The pipeline follows these parent links to the top of ROR's
           hierarchy (<code class="font-mono">ror_ancestor_ids</code>). An institution's page and the
           explorer's institution filter count the positions of the institution's own record and of
           every record below it, and the page breaks the total down by sub-unit. An editor of a
           joint unit therefore counts under each of its parents: institution totals overlap and do
-          not add up.
+          not add up. Within one institution, an editor with an ORCID iD counts once however many of
+          its records list them; an editor without one counts once per record, since the same name at
+          two records may be two people.
         </p>
       </section>
 

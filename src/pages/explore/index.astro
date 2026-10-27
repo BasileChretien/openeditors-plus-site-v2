@@ -16,7 +16,10 @@ const topFields = Object.entries(summary.top_fields).slice(0, 10);
 // mix cached bytes from an old file with fresh bytes from a new one and
 // fail with "No magic bytes found at end of file".
 const parquetPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public/data/editors.parquet");
-const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest("hex").slice(0, 10);
+const parquetBytes = readFileSync(parquetPath);
+const parquetHash = createHash("sha1").update(parquetBytes).digest("hex").slice(0, 10);
+// The size the loading message quotes, from the file this build serves.
+const parquetMB = Math.round(parquetBytes.length / 1_000_000);
 ---
 
 <Base title="Explore — Open Editors Plus" path="explore" description="Interactive dashboard: explore editorial board composition with maps, charts, and a searchable table.">
@@ -159,7 +162,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     }
   </style>
 
-  <script type="module" define:vars={{ parquetHash }}>
+  <script type="module" define:vars={{ parquetHash, parquetMB }}>
     import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm";
 
     // ─── Column config ───
@@ -186,8 +189,8 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       { key: "longitude",label: "Longitude",          filterable: false, visible: false, sortable: false },
       // Every organisation above the row's ROR record, nearest first ("|"-joined).
       // The institution filter matches them, so a laboratory's editors show under CNRS.
-      { key: "ror_ancestor_names", label: "ROR parent organisations", filterable: false, visible: false, sortable: false },
-      { key: "ror_ancestor_ids", label: "ROR parent IDs",   filterable: false, visible: false, sortable: false },
+      { key: "ror_ancestor_names", label: "ROR ancestor organisations", filterable: false, visible: false, sortable: false },
+      { key: "ror_ancestor_ids", label: "ROR ancestor IDs", filterable: false, visible: false, sortable: false },
     ];
 
     const ROLE_LABELS = {
@@ -286,9 +289,10 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       if (!conn || !f || f.mode !== "in" || !f.values.length) return;
       const list = f.values.map(v => `'${String(v).replace(/'/g, "''")}'`).join(", ");
       try {
-        await ensureOrgTable();
+        await Promise.all([ensureOrgTable(), loadAncestorCountries()]);
         const res = await conn.query(`SELECT id, name, country FROM ror_orgs WHERE id IN (${list})`);
-        res.toArray().forEach(r => rememberInstitution(String(r.id), { name: String(r.name || ""), country: String(r.country || "") }));
+        res.toArray().forEach(r => rememberInstitution(String(r.id), {
+          name: String(r.name || ""), country: String(r.country || ancestorCountries.get(String(r.id)) || "") }));
       } catch (err) { console.error("institution info query failed:", err); }
       loadAliasIndex();
     }
@@ -296,6 +300,19 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     // matched to and every organisation above one (ror_ancestor_ids), with n the
     // positions at it and its sub-units together. Built once, on first use.
     let orgTablePromise = null;
+    // Country of each organisation no position is matched to directly (it is
+    // reached only as a parent), which editors.parquet does not carry.
+    const ancestorCountries = new Map();
+    let ancestorCountriesPromise = null;
+    function loadAncestorCountries() {
+      if (!ancestorCountriesPromise) {
+        ancestorCountriesPromise = fetch("/api/ror_ancestor_countries.json")
+          .then(r => (r.ok ? r.json() : {}))
+          .then(map => { for (const [id, country] of Object.entries(map)) ancestorCountries.set("https://ror.org/" + id, country); })
+          .catch(err => console.error("ancestor countries unavailable:", err));
+      }
+      return ancestorCountriesPromise;
+    }
     function ensureOrgTable() {
       if (!orgTablePromise) {
         orgTablePromise = conn.query(`CREATE TABLE ror_orgs AS
@@ -431,7 +448,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
       conn = await db.connect();
 
-      statusEl.textContent = "Loading dataset (27 MB)...";
+      statusEl.textContent = `Loading dataset (${parquetMB} MB)...`;
       // parquetHash is injected at build time (see frontmatter) and changes
       // whenever editors.parquet changes, so a new URL defeats HTTP range
       // caches that would otherwise mix stale bytes with fresh ones.
@@ -1070,7 +1087,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       let html = menuHeader(key, label);
       if (key === "affiliation" && !t) html += affiliationHelp();
       if (t) {
-        const hint = key === "affiliation" ? ` <span class="font-normal text-[10px] text-text-muted">in affiliation text, including unresolved</span>` : "";
+        const hint = key === "affiliation" ? ` <span class="font-normal text-[10px] text-text-muted">in affiliation text, ROR names and the names of the organisations above them, including unresolved</span>` : "";
         html += `<label class="flex items-center gap-2 px-1 py-1 mb-1 rounded hover:bg-brand-50 cursor-pointer border-b border-border">
           <input type="checkbox" data-selall ${containsActive ? "checked" : ""} class="rounded border-gray-300 text-brand-600">
           <span class="font-medium">Select all matching “${esc(t)}”${hint}</span>
@@ -1154,12 +1171,12 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       const cond = parts.length ? `WHERE ${parts.join(" OR ")}` : "";
       const sql = `SELECT id, name, country, n FROM ror_orgs ${cond} ORDER BY n DESC LIMIT 50`;
       try {
-        await ensureOrgTable();
+        await Promise.all([ensureOrgTable(), loadAncestorCountries()]);
         const res = await conn.query(sql);
         const acr = new Set(typedId ? [typedId, ...hits.acronym] : hits.acronym);
         const rows = res.toArray().map(r => {
           const id = String(r.id);
-          rememberInstitution(id, { name: String(r.name || ""), country: String(r.country || "") });
+          rememberInstitution(id, { name: String(r.name || ""), country: String(r.country || ancestorCountries.get(id) || "") });
           const info = rorInfo.get(id) || {};
           return { v: id, name: info.name || "", country: info.country || "", acronym: info.acronym || "", n: Number(r.n) };
         });
@@ -1190,7 +1207,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     function affiliationHelp() {
       return `<div class="px-1 pb-2 mb-1 border-b border-border text-[11px] text-text-secondary leading-snug space-y-1">
         <p><strong>Find an institution</strong> by name, acronym (e.g. <code>INRAE</code>) or ROR identifier (<code>003vg9w96</code>). Tick one or more to keep only the positions resolved to those ROR records or to any record below them in ROR (laboratories, institutes, campuses). Clicking an institution name in the table does the same.</p>
-        <p>Affiliations that could not be resolved to ROR are not reached that way. To search the collected text instead, type a term and use <em>Select all matching</em>; the <span class="font-mono">[raw]</span> button in the table shows that text.</p>
+        <p>Affiliations that could not be resolved to ROR are not reached that way. To search by text instead, type a term and use <em>Select all matching</em>: it matches the collected affiliation text, the ROR name and the names of the organisations above that record. The <span class="font-mono">[raw]</span> button in the table shows the collected text.</p>
       </div>`;
     }
 
