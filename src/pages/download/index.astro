@@ -32,13 +32,22 @@ const parquetShort = parquet.sha256.slice(0, 16);
 // frozen-figures:start (each entry describes its own release)
 const versions = [
   {
+    version: "6.1.0",
+    date: "2026-10-28",
+    title: "Corrected release: organization matches audited and repaired, parent organizations added",
+    summary:
+      "Minor release with four new columns (87 in all). Changes values in the organization columns, so analyses built on v6.0.0 by organization, institution or country, or on unique editors, must be re-run. (1) Every new organization match of the v6.0.0 ROR refresh was audited, by hand or by screens and a sample; curated rules correct wrong matches, give research institutes named with their parent their own record, and clear matches to strings that name no organization: 14,359 positions change organization. (2) Positions on an inactive ROR record move to its successor where ROR names one (408), and organization names and countries follow ROR's current records. (3) ror_parent_ids, ror_parent_names, ror_ancestor_ids and ror_ancestor_names give the organizations above each record (157,933 positions have a parent). (4) Gender changes on 57 positions; 731,244 unique editors (was 731,230). data_version is 2026.7. See the release notes page for the full re-run guidance.",
+    doi: "10.5281/zenodo.23718040",
+    latest: true,
+  },
+  {
     version: "6.0.0",
     date: "2026-10-23",
     title: "Corrected release: roles corrected, organizations matched again, former editors flagged, print and electronic ISSN",
     summary:
       "Major release with six new columns (83 in all). Changes values in existing columns, so analyses built on v5.0.0 by role, organization, country, gender or editor, and joins on ISSN-L, must be re-run. (1) The role rule missed plural chief headings such as Editors-in-Chief; with new rules for advisory, handling, staff and book-review roles, role_std changes on 105,765 positions and chief editors go from 17,239 to 19,409. (2) role_is_former flags 10,533 positions held by former, honorary or emeritus editors; board_eic_count counts each journal's current chief editors, and board_roles_suspect marks 56 journals whose chief labels look carried over. (3) Affiliations without an organization were matched to ROR again: 120,494 positions gain one (81.1% now carry one) and countries go from 189 to 194. (4) Gender is recomputed where the country changed or the stored value was stale (5,513 positions change), and editors listed at one institution under several affiliation texts merge: 731,230 unique editors (was 744,797). (5) Print and electronic ISSN for 14,263 journals, 45 more journals with an audited ISSN-L, and one corrected again. data_version is 2026.6. See the release notes page for the full re-run guidance.",
     doi: "10.5281/zenodo.23565445",
-    latest: true,
+    latest: false,
   },
   {
     version: "5.0.0",

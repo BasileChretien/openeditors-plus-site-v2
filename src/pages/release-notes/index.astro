@@ -15,8 +15,59 @@ const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 // frozen-figures:start (every note below describes its own release)
 // The version the newest notes describe. The build fails when the site
 // serves another release, so a data update cannot ship without its notes.
-const NEWEST_NOTES = "6.0.0";
-const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.0.0 (editorial roles corrected, former editors flagged, chief editors per board, organizations matched again, print and electronic ISSN), v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+const NEWEST_NOTES = "6.1.0";
+const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.1.0 (organization matches audited and repaired, research institutes on their own record, parent organizations added), v6.0.0, v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+
+// v6.1.0 (2026-10-28), a corrected release with four new columns.
+const changesV61 = [
+  {
+    id: "ror-audit",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Organization matches audited and repaired",
+    body: `Every new organization match of the v6.0.0 ROR refresh was audited. The matches that share fewer than half of their organization's name words were all read by hand; of the others, those flagged by screens (a city or country that disagrees with the record, namesakes, generic names) were read and a sample was drawn. Most errors came from a ROR alias that is a common phrase ("The Council", "Chinese Academy" for Academia Sinica) or from a namesake (UT Southwestern read as Southwestern Medical Center in Lawton). Curated rules now give these affiliations the organization they name, clear matches to strings that name no organization in ROR (a place, a degree), and a watchlist of 47 organizations accepts a match only when the affiliation names them.`,
+    stat: "13.4% of the low-overlap positions were wrong, and 2.5% of the high-overlap positions were found wrong among those screened or sampled; about 0.3% more are estimated to remain wrong (95% interval 0.07% to 0.76%). 14,359 positions change ror_id: 13,433 move to another organization, 777 lose their match and 149 gain one. 747,516 positions (81.1%) carry an organization, on 24,966 ROR records.",
+  },
+  {
+    id: "research-institutes",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Research institutes get their own record",
+    body: `An affiliation such as "Institute of Soil Science, Chinese Academy of Sciences, Nanjing" had been matched to the parent organization. It now carries the institute's own ROR record when the string names it in full and gives the institute's own city; system records are likewise sharpened to the campus or member a string names (University at Buffalo for the State University of New York). Institutes written at another site than their record's city, peers and second affiliations stay where they were.`,
+    stat: "The Chinese Academy of Sciences keeps 1,688 positions on its own record (5,245 in v6.0.0); its institutes carry the rest, and the University of Michigan now has the most positions on its own record.",
+  },
+  {
+    id: "current-ror-records",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Current ROR records, names and countries",
+    body: `Positions on an inactive or withdrawn ROR record move to the one active record ROR names as its successor (Tokyo Institute of Technology to Institute of Science Tokyo). ror_name is ROR's current name, and ror_country follows the ROR record, with its coordinates where the country changes (ICARDA, now in Lebanon). NIT Hamirpur keeps India: its ROR record wrongly says Bangladesh, and the error is reported to ROR.`,
+    stat: "408 positions on 36 ROR records move to their successor; 104 on 22 ROR records stay, as ROR names no successor or several. 6,420 positions of 300 renamed organizations take the new name; 8 positions change country.",
+  },
+  {
+    id: "parent-organizations",
+    tag: "Added",
+    tagClass: added,
+    title: "Parent organizations (ror_parent_*, ror_ancestor_*)",
+    body: `ror_parent_ids and ror_parent_names give the organizations a position's ROR record names as its parents; ror_ancestor_ids and ror_ancestor_names give every organization above it, nearest first. A French joint unit typically has several parents (CNRS, a university, INSERM or INRAE). On this site an institution's page now counts the editors of its sub-units and breaks its total down by sub-unit, and the explorer finds an editor through any organization above their record. An editor of a joint unit counts under each of its parents, so institution totals do not add up.`,
+    stat: "157,933 positions, on 7,207 ROR records, have a parent in ROR. 87 columns in all (83 in v6.0.0).",
+  },
+];
+
+const rerunV61 = [
+  {
+    what: "Institutions and countries (ror_id, ror_name, ror_country, ror_city, ror_state, org_type, coordinates)",
+    why: "14,359 positions change organization, 6,420 take ROR's current name and 8 change country.",
+  },
+  {
+    what: "Unique editors, editor_key, multi-board and board statistics",
+    why: "editor_key includes the organization: 731,244 unique editors instead of 731,230, and 1,654 boards change their institution count. 7 more positions carry orcid_shared_flag, as an ORCID iD whose positions now name an institute and its parent counts more organizations.",
+  },
+  {
+    what: "Gender, and any share of women",
+    why: "Gender is recomputed where the country changed or the stored value was stale: 57 positions change gender.",
+  },
+];
 
 // v6.0.0 (2026-10-23), a corrected release with six new columns.
 const changesV6 = [
@@ -329,11 +380,11 @@ if (NEWEST_NOTES !== release.version) {
 
     <!-- frozen-figures:start (the notes describe their own releases) -->
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v6.0.0 is a <strong>corrected</strong> release with six new columns. It changes values
-      in existing columns (roles, organizations, gender, the editor identity key and the
-      ISSN-L of 46 journals), so analyses built on v5.0.0 by role, organization, country,
-      gender or editor, and joins on ISSN-L, need to be re-run. The paper that describes the
-      dataset uses v3.0.0, which stays available on Zenodo.
+      v6.1.0 is a <strong>corrected</strong> release with four new columns. It changes values
+      in the organization columns (and the gender and editor identity key that follow them),
+      so analyses built on v6.0.0 by organization, institution or country, or on unique
+      editors, need to be re-run. The paper that describes the dataset uses v3.0.0, which
+      stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -353,7 +404,56 @@ if (NEWEST_NOTES !== release.version) {
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4" id="v6.0.0">What changed in v6.0.0</h2>
+    <h2 class="text-2xl font-bold mb-4" id="v6.1.0">What changed in v6.1.0</h2>
+    <div class="space-y-5 mb-12">
+      {changesV61.map((c, i) => (
+        <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+          <div class="flex items-start gap-3 mb-2">
+            <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+            <div class="min-w-0">
+              <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                {c.tag}
+              </span>
+              <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+          <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+            {c.stat}
+          </p>
+        </section>
+      ))}
+    </div>
+
+    <h2 class="text-2xl font-bold mb-2">If you used v6.0.0</h2>
+    <p class="text-sm text-text-secondary mb-4">
+      Analyses that touch only the collected columns, roles, journals or editor bibliometrics
+      are unaffected. Re-run anything that touches the following. New columns you may want:
+      ror_parent_ids, ror_parent_names, ror_ancestor_ids, ror_ancestor_names.
+    </p>
+    <div class="overflow-x-auto border border-border rounded-lg mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-surface-dim border-b border-border">
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Re-run</th>
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rerunV61.map((r, i) => (
+            <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+              <td class="py-2.5 px-3 align-top font-medium whitespace-normal">{r.what}</td>
+              <td class="py-2.5 px-3 align-top text-text-secondary">{r.why}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4" id="v6.0.0">
+      <h2 class="text-2xl font-bold">What changed in v6.0.0</h2>
+      <span class="text-sm text-text-muted">released 2026-10-23 &middot; data_version 2026.6</span>
+    </div>
     <div class="space-y-5 mb-12">
       {changesV6.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">

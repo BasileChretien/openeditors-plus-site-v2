@@ -16,7 +16,10 @@ const topFields = Object.entries(summary.top_fields).slice(0, 10);
 // mix cached bytes from an old file with fresh bytes from a new one and
 // fail with "No magic bytes found at end of file".
 const parquetPath = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public/data/editors.parquet");
-const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest("hex").slice(0, 10);
+const parquetBytes = readFileSync(parquetPath);
+const parquetHash = createHash("sha1").update(parquetBytes).digest("hex").slice(0, 10);
+// The size the loading message quotes, from the file this build serves.
+const parquetMB = Math.round(parquetBytes.length / 1_000_000);
 ---
 
 <Base title="Explore — Open Editors Plus" path="explore" description="Interactive dashboard: explore editorial board composition with maps, charts, and a searchable table.">
@@ -139,7 +142,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     <!-- Notes -->
     <div class="mt-4 p-4 bg-surface-dim rounded-xl border border-border text-xs text-text-muted space-y-1">
       <p><strong>Gender (inferred*):</strong> Country-aware inference from first name + country of affiliation using <a href="https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/MSEGSJ" class="underline" target="_blank" rel="noopener noreferrer">WGND 2.0</a> (Raffo &amp; Lax-Martinez, WIPO 2021), with <a href="https://pypi.org/project/gender-guesser/" class="underline" target="_blank" rel="noopener noreferrer">gender-guesser</a> as a tertiary fallback. Not self-reported gender identity. Values are <code>male</code>, <code>female</code>, or <code>unknown</code>. (The legacy <code>andy</code>/androgynous category from v2.6 is gone — WGND 2.0 does not emit it.)</p>
-      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text. Click the Affiliation filter to find an institution by name, acronym (e.g. INRAE) or ROR identifier, or click an institution name in the table to keep only that institution; [page] opens its page on this site. Institution selections filter on the ROR record, so affiliations that could not be resolved to ROR are only reachable through the text search (<em>Select all matching</em>).</p>
+      <p><strong>Affiliation:</strong> Shows the ROR canonical name when matched. Click [ROR] for the registry entry, [raw] to see the originally collected text. Click the Affiliation filter to find an institution by name, acronym (e.g. INRAE) or ROR identifier, or click an institution name in the table to keep only that institution; [page] opens its page on this site. Institution selections filter on the ROR record and on every record below it in ROR, so selecting CNRS also keeps the positions at its laboratories, and an editor of a joint unit is found under each of its parents. Affiliations that could not be resolved to ROR are only reachable through the text search (<em>Select all matching</em>).</p>
       <p><strong>h-index:</strong> From <a href="https://openalex.org" class="underline" target="_blank" rel="noopener noreferrer">OpenAlex</a>. Missing when no author profile was matched.</p>
       <p><strong>Roles:</strong> Standardized from publisher-specific titles.</p>
       <p><strong>Powered by <a href="https://duckdb.org/docs/api/wasm/overview" class="underline" target="_blank" rel="noopener noreferrer">DuckDB-WASM</a></strong> — all {thousandsAtLeast(summary.total_records)} records queried locally in your browser. No server needed.</p>
@@ -159,7 +162,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
     }
   </style>
 
-  <script type="module" define:vars={{ parquetHash }}>
+  <script type="module" define:vars={{ parquetHash, parquetMB }}>
     import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm";
 
     // ─── Column config ───
@@ -184,6 +187,10 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       { key: "ror_name", label: "ROR Institution",    filterable: true,  visible: false, sortable: true },
       { key: "latitude", label: "Latitude",           filterable: false, visible: false, sortable: false },
       { key: "longitude",label: "Longitude",          filterable: false, visible: false, sortable: false },
+      // Every organisation above the row's ROR record, nearest first ("|"-joined).
+      // The institution filter matches them, so a laboratory's editors show under CNRS.
+      { key: "ror_ancestor_names", label: "ROR ancestor organisations", filterable: false, visible: false, sortable: false },
+      { key: "ror_ancestor_ids", label: "ROR ancestor IDs", filterable: false, visible: false, sortable: false },
     ];
 
     const ROLE_LABELS = {
@@ -282,11 +289,59 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       if (!conn || !f || f.mode !== "in" || !f.values.length) return;
       const list = f.values.map(v => `'${String(v).replace(/'/g, "''")}'`).join(", ");
       try {
-        const res = await conn.query(`SELECT ror_id, ror_name, ror_country FROM editors WHERE ror_id IN (${list}) GROUP BY ror_id, ror_name, ror_country`);
-        res.toArray().forEach(r => rememberInstitution(String(r.ror_id), { name: String(r.ror_name || ""), country: String(r.ror_country || "") }));
+        await Promise.all([ensureOrgTable(), loadAncestorCountries()]);
+        const res = await conn.query(`SELECT id, name, country FROM ror_orgs WHERE id IN (${list})`);
+        res.toArray().forEach(r => rememberInstitution(String(r.id), {
+          name: String(r.name || ""), country: String(r.country || ancestorCountries.get(String(r.id)) || "") }));
       } catch (err) { console.error("institution info query failed:", err); }
       loadAliasIndex();
     }
+    // One row per organisation the data reaches: every ROR record a position is
+    // matched to and every organisation above one (ror_ancestor_ids), with n the
+    // positions at it and its sub-units together. Built once, on first use.
+    let orgTablePromise = null;
+    // Country of each organisation no position is matched to directly (it is
+    // reached only as a parent), which editors.parquet does not carry.
+    const ancestorCountries = new Map();
+    let ancestorCountriesPromise = null;
+    function loadAncestorCountries() {
+      if (!ancestorCountriesPromise) {
+        ancestorCountriesPromise = fetch("/api/ror_ancestor_countries.json")
+          .then(r => (r.ok ? r.json() : {}))
+          .then(map => { for (const [id, country] of Object.entries(map)) ancestorCountries.set("https://ror.org/" + id, country); })
+          .catch(err => console.error("ancestor countries unavailable:", err));
+      }
+      return ancestorCountriesPromise;
+    }
+    function ensureOrgTable() {
+      if (!orgTablePromise) {
+        orgTablePromise = conn.query(`CREATE TABLE ror_orgs AS
+          WITH own AS (
+            SELECT ror_id AS id, first(ror_name) AS name, first(ror_country) AS country, COUNT(*) AS n
+            FROM editors WHERE ror_id IS NOT NULL AND ror_id <> '' GROUP BY ror_id
+          ), below AS (
+            SELECT id, first(name) AS name, COUNT(*) AS n FROM (
+              SELECT unnest(string_split(ror_ancestor_ids, '|')) AS id, unnest(string_split(ror_ancestor_names, '|')) AS name
+              FROM editors WHERE ror_ancestor_ids IS NOT NULL AND ror_ancestor_ids <> ''
+            ) GROUP BY id
+          )
+          SELECT COALESCE(own.id, below.id) AS id, COALESCE(own.name, below.name) AS name,
+            COALESCE(own.country, '') AS country, COALESCE(own.n, 0) + COALESCE(below.n, 0) AS n
+          FROM own FULL OUTER JOIN below ON own.id = below.id`)
+          .catch(err => { orgTablePromise = null; throw err; });
+      }
+      return orgTablePromise;
+    }
+
+    // Positions at the given institutions (ROR URLs): their own records or any
+    // record below them in ROR. Ids that are not ROR identifiers match nothing.
+    function institutionCondition(values) {
+      const ids = values.map(normaliseRorId).filter(Boolean);
+      if (!ids.length) return "FALSE";
+      const below = ids.map(id => `ror_ancestor_ids LIKE '%${id}%'`).join(" OR ");
+      return `(ror_id IN (${ids.map(id => `'${id}'`).join(", ")}) OR ${below})`;
+    }
+
     // Keep ?ror_id= in the address bar in step with the institution selection
     // so a filtered view can be shared or bookmarked.
     function syncRorParam() {
@@ -393,7 +448,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
       conn = await db.connect();
 
-      statusEl.textContent = "Loading dataset (27 MB)...";
+      statusEl.textContent = `Loading dataset (${parquetMB} MB)...`;
       // parquetHash is injected at build time (see frontmatter) and changes
       // whenever editors.parquet changes, so a new URL defeats HTTP range
       // caches that would otherwise mix stale bytes with fresh ones.
@@ -496,10 +551,11 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
           if (key === "affiliation") {
             const ror = normaliseRorId(f.contains);
             if (ror) {
-              // A pasted ROR identifier selects the institution exactly.
-              conditions.push(`ror_id = '${sq(ror)}'`);
+              // A pasted ROR identifier selects the institution and its sub-units.
+              conditions.push(institutionCondition([ror]));
             } else {
-              conditions.push(`(affiliation ILIKE '%${t}%' OR ror_name ILIKE '%${t}%')`);
+              // The organisations above a record count too: "CNRS" reaches its laboratories.
+              conditions.push(`(affiliation ILIKE '%${t}%' OR ror_name ILIKE '%${t}%' OR ror_ancestor_names ILIKE '%${t}%')`);
             }
           } else {
             conditions.push(`${key} ILIKE '%${t}%'`);
@@ -507,8 +563,9 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
         } else {
           const list = f.values.map(v => `'${sq(v)}'`).join(", ");
           if (key === "affiliation") {
-            // Values are ROR ids (URL form) chosen in the institution picker.
-            conditions.push(`ror_id IN (${list})`);
+            // Values are ROR ids (URL form) chosen in the institution picker;
+            // each keeps its sub-units too.
+            conditions.push(institutionCondition(f.values));
           } else {
             conditions.push(`${key} IN (${list})`);
           }
@@ -1030,7 +1087,7 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       let html = menuHeader(key, label);
       if (key === "affiliation" && !t) html += affiliationHelp();
       if (t) {
-        const hint = key === "affiliation" ? ` <span class="font-normal text-[10px] text-text-muted">in affiliation text, including unresolved</span>` : "";
+        const hint = key === "affiliation" ? ` <span class="font-normal text-[10px] text-text-muted">in affiliation text, ROR names and the names of the organisations above them, including unresolved</span>` : "";
         html += `<label class="flex items-center gap-2 px-1 py-1 mb-1 rounded hover:bg-brand-50 cursor-pointer border-b border-border">
           <input type="checkbox" data-selall ${containsActive ? "checked" : ""} class="rounded border-gray-300 text-brand-600">
           <span class="font-medium">Select all matching “${esc(t)}”${hint}</span>
@@ -1095,9 +1152,10 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       }
     }
 
-    // Affiliation suggestions are ROR institutions, one row per ror_id, found
-    // by canonical name in the data OR by acronym / alternate name in the
-    // alias index. Returns [{ v: ror_id URL, name, country, acronym, n }],
+    // Affiliation suggestions are ROR organisations, one row per id: the records
+    // positions are matched to and the organisations above them, found by name
+    // OR by acronym / alternate name in the alias index. n counts positions with
+    // sub-units. Returns [{ v: ror_id URL, name, country, acronym, n }],
     // acronym hits first, then by number of positions.
     async function fetchInstitutionSuggestions(term) {
       const t = (term || "").trim();
@@ -1105,21 +1163,20 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
       const hits = searchAliases(t);
       const sq = (v) => String(v).replace(/'/g, "''");
       const parts = [];
-      if (t) parts.push(`ror_name ILIKE '%${sq(t)}%'`);
+      if (t) parts.push(`name ILIKE '%${sq(t)}%'`);
       const typedId = normaliseRorId(t);
-      if (typedId) parts.push(`ror_id = '${sq(typedId)}'`);
+      if (typedId) parts.push(`id = '${sq(typedId)}'`);
       const aliasIds = [...hits.acronym, ...hits.other];
-      if (aliasIds.length) parts.push(`ror_id IN (${aliasIds.map(id => `'${sq(id)}'`).join(", ")})`);
-      const cond = parts.length ? `AND (${parts.join(" OR ")})` : "";
-      const sql = `SELECT ror_id AS id, ror_name AS name, ror_country AS country, COUNT(*) AS n FROM editors
-        WHERE ror_id IS NOT NULL AND ror_id <> '' ${cond}
-        GROUP BY ror_id, ror_name, ror_country ORDER BY n DESC LIMIT 50`;
+      if (aliasIds.length) parts.push(`id IN (${aliasIds.map(id => `'${sq(id)}'`).join(", ")})`);
+      const cond = parts.length ? `WHERE ${parts.join(" OR ")}` : "";
+      const sql = `SELECT id, name, country, n FROM ror_orgs ${cond} ORDER BY n DESC LIMIT 50`;
       try {
+        await Promise.all([ensureOrgTable(), loadAncestorCountries()]);
         const res = await conn.query(sql);
         const acr = new Set(typedId ? [typedId, ...hits.acronym] : hits.acronym);
         const rows = res.toArray().map(r => {
           const id = String(r.id);
-          rememberInstitution(id, { name: String(r.name || ""), country: String(r.country || "") });
+          rememberInstitution(id, { name: String(r.name || ""), country: String(r.country || ancestorCountries.get(id) || "") });
           const info = rorInfo.get(id) || {};
           return { v: id, name: info.name || "", country: info.country || "", acronym: info.acronym || "", n: Number(r.n) };
         });
@@ -1142,15 +1199,15 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
             <span class="block truncate" title="${esc(s.name)}">${esc(s.name || bare)}${badge}</span>
             <span class="block text-[10px] text-text-muted truncate">${esc(s.country)}${s.country ? " · " : ""}<span class="font-mono">${esc(bare)}</span></span>
           </span>
-          <span class="text-[10px] text-text-muted tabular-nums">${s.n.toLocaleString()}</span>
+          <span class="text-[10px] text-text-muted tabular-nums" title="Positions, sub-units included">${s.n.toLocaleString()}</span>
         </label>`;
     }
 
     // Shown at the top of the Affiliation picker until the user types.
     function affiliationHelp() {
       return `<div class="px-1 pb-2 mb-1 border-b border-border text-[11px] text-text-secondary leading-snug space-y-1">
-        <p><strong>Find an institution</strong> by name, acronym (e.g. <code>INRAE</code>) or ROR identifier (<code>003vg9w96</code>). Tick one or more to keep only the positions resolved to those ROR records. Clicking an institution name in the table does the same.</p>
-        <p>Affiliations that could not be resolved to ROR are not reached that way. To search the collected text instead, type a term and use <em>Select all matching</em>; the <span class="font-mono">[raw]</span> button in the table shows that text.</p>
+        <p><strong>Find an institution</strong> by name, acronym (e.g. <code>INRAE</code>) or ROR identifier (<code>003vg9w96</code>). Tick one or more to keep only the positions resolved to those ROR records or to any record below them in ROR (laboratories, institutes, campuses). Clicking an institution name in the table does the same.</p>
+        <p>Affiliations that could not be resolved to ROR are not reached that way. To search by text instead, type a term and use <em>Select all matching</em>: it matches the collected affiliation text, the ROR name and the names of the organisations above that record. The <span class="font-mono">[raw]</span> button in the table shows the collected text.</p>
       </div>`;
     }
 
@@ -1245,6 +1302,9 @@ const parquetHash = createHash("sha1").update(readFileSync(parquetPath)).digest(
               cells += `<td class="py-1.5 px-2 text-xs"><a href="${journalUrl}" target="_blank" rel="noopener" class="text-brand-600 hover:underline" title="View journal statistics">${esc(val)}</a></td>`;
             } else if (col.key === "scientific_field" && val) {
               cells += `<td class="py-1.5 px-2 text-xs"><a href="/field/${jsSlugify(val)}" target="_blank" rel="noopener" class="text-brand-600 hover:underline">${esc(val)}</a></td>`;
+            } else if (col.key === "ror_ancestor_names" || col.key === "ror_ancestor_ids") {
+              const shown = val.split("|").join(" · ");
+              cells += `<td class="py-1.5 px-2 text-xs text-text-secondary max-w-[260px] truncate" title="${esc(shown)}">${esc(shown) || '<span class="text-text-muted">—</span>'}</td>`;
             } else {
               cells += `<td class="py-1.5 px-2 text-xs text-text-secondary whitespace-nowrap max-w-[180px] truncate" title="${esc(val)}">${esc(val)}</td>`;
             }
