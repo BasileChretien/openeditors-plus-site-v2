@@ -1,6 +1,6 @@
 {
-  "version": "6.0.0",
-  "data_version": "2026.6",
+  "version": "6.1.0",
+  "data_version": "2026.7",
   "descriptions": {
     "publisher": "Publisher name (e.g., Elsevier, Springer Nature, Wiley), known from the collection configuration for each source.",
     "journal": "Journal title as listed on the publisher website.",
@@ -64,7 +64,7 @@
     "top_funder_2_count": "Count of funded articles.",
     "top_funder_3": "Third most common funder.",
     "top_funder_3_count": "Count of funded articles.",
-    "data_version": "Dataset version stamp for the row, matching CHANGELOG.md. 2026.6 for the v6.0.0 release (v4.0.0: 2026.3). Stored as a number, not a string.",
+    "data_version": "Dataset version stamp for the row, matching CHANGELOG.md. 2026.7 for the v6.1.0 release (v4.0.0: 2026.3). Stored as a number, not a string.",
     "enriched_at": "ISO timestamp of when enrichment completed for this row.",
     "first_name": "Given name extracted from `editor` via the probablepeople ML name parser. Used as the lookup key for WGND 2.0 gender inference; preserved in the public release so users can re-use the parsed value without rerunning probablepeople.",
     "last_name": "Surname extracted from `editor` via the probablepeople ML name parser. Empty when probablepeople could not parse the string; the original `editor` field is always preserved.",
@@ -74,7 +74,7 @@
     "gender_source": "Provenance of the inference: `wgnd_country` (matched on first_name + ror_country, strongest signal), `wgnd_global` (matched on first_name only, used when country was missing or the country-specific cell was empty), `gender_guesser` (tertiary fallback, country-blind), or `unknown`.",
     "name_is_initials": "True when the editor's given name is recorded only as initials (for example 'J. R. Smith'), which blocks first-name-based gender inference and weakens name-based OpenAlex matching. True on 26,763 records (2.9%). Added in v3.0.0 so these records can be excluded from name-sensitive analyses.",
     "orcid_n_names": "Number of distinct editor name strings that map to this record's ORCID iD in the OpenAlex snapshot. 1 for a clean one-to-one iD. Supporting column for orcid_shared_flag. Added in v3.0.0.",
-    "orcid_shared_flag": "True when one ORCID iD maps to several distinct name strings in the OpenAlex snapshot, which usually signals a data-entry error at the source rather than a genuine identity. True on 246 records. Added in v3.0.0 as a transparency flag; these records are retained, not removed.",
+    "orcid_shared_flag": "True when one ORCID iD maps to several distinct name strings in the OpenAlex snapshot, which usually signals a data-entry error at the source rather than a genuine identity. True on 253 records. Added in v3.0.0 as a transparency flag; these records are retained, not removed.",
     "openalex_author_id": "OpenAlex Author identifier for the matched profile, restoring direct interoperability with the OpenAlex graph. Populated on 531,377 records (57.6%), which is 98.7% of the 538,490 records that matched an OpenAlex author. Added in v3.0.0; earlier releases carried the derived bibliometrics (h_index and friends) without exposing the identifier they came from.",
     "oa_match_method": "How the OpenAlex author profile was resolved, so users can filter by match strength. Values: 'orcid' (matched on ORCID iD, the strongest signal, 344,935 records), 'name_ror' (matched on name plus the ROR-resolved institution, 107,161), 'name_only' (matched on name alone and therefore the weakest tier, most exposed to homonym error, 86,394), and 'unmatched' (no profile found, 383,470). Added in v3.0.0.",
     "board_size": "Total number of editors on this journal's board (number of distinct editor rows sharing the same journal).",
@@ -85,7 +85,7 @@
     "board_country_hhi": "Herfindahl–Hirschman Index of country concentration. Sum of squared country shares on the board. 0 = maximally diverse across many countries; 1 = all editors from a single country.",
     "board_institution_count": "Number of distinct ror_id values on the board.",
     "board_mean_h_index": "Arithmetic mean of h_index across board members with a resolved OpenAlex profile.",
-    "editor_key": "Composite identity key used to deduplicate editors across boards; the basis for the 731,230 unique-editor count. Resolved in priority order and prefixed with the tier that produced it: 'orcid:<orcid>|<ror>' when an ORCID iD is available (346,691 records, 249,699 unique editors); 'ror:<ror_id>|<name>' when there is no iD but the affiliation resolved to ROR (407,958 records, 326,022 unique); 'aff:<affiliation>|<name>' otherwise (167,311 records, 155,509 unique, of which 51,695 have an empty affiliation and so fall back to name alone). Published in v3.0.0 at reviewer request so the unique-editor count is reproducible without reconstructing the key. Because the lowest tier is name-based, distinct people who share a name and affiliation string can still collide there; the ORCID and ROR tiers are the reliable ones.",
+    "editor_key": "Composite identity key used to deduplicate editors across boards; the basis for the 731,244 unique-editor count. Resolved in priority order and prefixed with the tier that produced it: 'orcid:<orcid>|<ror>' when an ORCID iD is available (346,691 records, 249,803 unique editors); 'ror:<ror_id>|<name>' when there is no iD but the affiliation resolved to ROR (407,425 records, 325,428 unique); 'aff:<affiliation>|<name>' otherwise (167,844 records, 156,013 unique, of which 51,695 have an empty affiliation and so fall back to name alone). Published in v3.0.0 at reviewer request so the unique-editor count is reproducible without reconstructing the key. Because the lowest tier is name-based, distinct people who share a name and affiliation string can still collide there; the ORCID and ROR tiers are the reliable ones.",
     "boards_count": "Number of distinct editorial boards this editor serves on in the dataset.",
     "publishers_count": "Number of distinct publishers this editor serves across.",
     "is_multi_board": "True if boards_count >= 2."
