@@ -2,21 +2,35 @@
 import Base from "../../layouts/Base.astro";
 import EntityStats from "../../components/EntityStats.astro";
 
+type Unit = { ror_id: string; name: string; records: number; editors: number; via?: string[] };
+
+// Sub-units shown before the rest fold into "Show all".
+const SUBUNITS_SHOWN = 20;
+
 export async function getStaticPaths() {
   const { default: institutions } = await import("../../../public/api/institutions.json");
   const sorted = [...institutions].sort((a, b) => b.records - a.records);
   const total = sorted.length;
+  // Sub-units under the page threshold have no page; they link to /explore.
+  const withPage = new Set(sorted.map((i) => i.ror_id));
   return sorted.map((i, idx) => ({
     params: { slug: i.ror_id },
-    props: { data: i, rank: idx + 1, total },
+    props: { data: i, rank: idx + 1, total, withPage },
   }));
 }
 
-const { data, rank, total } = Astro.props;
+const { data, rank, total, withPage } = Astro.props;
 const topFields = Object.entries(data.top_fields || {}).slice(0, 10);
 const rorUrl = "https://ror.org/" + data.ror_id;
+const parents: { ror_id: string; name: string }[] = data.parents || [];
+const subunits: Unit[] = data.subunits || [];
+const hasSubunits = subunits.length > 0;
 const title = data.name + " - Editorial Board Representation";
-const descr = data.records.toLocaleString() + " editorial positions at " + data.name;
+const descr = data.records.toLocaleString() + " editorial positions at " + data.name
+  + (hasSubunits ? " and its sub-units" : "");
+const unitHref = (id: string) => (withPage.has(id) ? "/institution/" + id : "/explore?ror_id=" + id);
+const shown = subunits.slice(0, SUBUNITS_SHOWN);
+const folded = subunits.slice(SUBUNITS_SHOWN);
 ---
 
 <Base title={title} description={descr} path={"institution/" + data.ror_id}>
@@ -32,9 +46,29 @@ const descr = data.records.toLocaleString() + " editorial positions at " + data.
       {data.ror_city ? data.ror_city + ", " : ""}{data.ror_country}
       {data.org_type && <span class="ml-2 text-xs uppercase tracking-wide bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full">{data.org_type}</span>}
     </p>
+    {parents.length > 0 && (
+      <p class="text-sm text-text-secondary mb-2">
+        Part of{" "}
+        {parents.map((p, i) => (
+          <Fragment>{i > 0 && (i === parents.length - 1 ? " and " : ", ")}<a href={unitHref(p.ror_id)} class="text-brand-600 hover:underline">{p.name}</a></Fragment>
+        ))}
+        {" "}in ROR{parents.length > 1 ? "; its editors count under each of them." : "; its editors count there too."}
+      </p>
+    )}
     <p class="text-xs text-text-muted mb-8">
       <a href={rorUrl} target="_blank" rel="noopener" class="text-brand-600 hover:underline">ROR: {data.ror_id}</a>
     </p>
+
+    {hasSubunits && (
+      <p class="text-sm text-text-secondary bg-surface-dim rounded-lg px-4 py-3 mb-8">
+        These figures cover {data.name} and every organisation below it in ROR:
+        {" "}{data.own_records.toLocaleString()} positions at its own record and
+        {" "}{data.subunit_records.toLocaleString()} at {subunits.length.toLocaleString()} sub-unit{subunits.length === 1 ? "" : "s"}
+        {" "}(<a href="#subunits" class="text-brand-600 hover:underline">breakdown</a>).
+        An editor of a joint unit also counts under its other parents, so totals of different institutions overlap
+        and do not add up (<a href="/methodology#institution-hierarchy" class="text-brand-600 hover:underline">methodology</a>).
+      </p>
+    )}
 
     <EntityStats
       name={data.name}
@@ -53,10 +87,81 @@ const descr = data.records.toLocaleString() + " editorial positions at " + data.
       entityValue={data.ror_id}
     />
 
+    {hasSubunits && (
+      <section id="subunits" class="border-t border-border pt-8 mb-10">
+        <h2 class="font-bold text-lg mb-2">Breakdown by sub-unit</h2>
+        <p class="text-sm text-text-secondary mb-4">
+          Positions and editors at each ROR record below {data.name} that the data names, most positions first.
+          A sub-unit reached through another one says which. Positions add up to the total above; editors do not:
+          each row counts the editors of its own record, so a person with an ORCID iD from the board page listed at
+          several of these records appears on each of their rows but once in the total (an editor without one counts
+          once per record, as the same name at two records may be two people). Editors of a joint unit count under each
+          of its parents, so these rows can also appear on other institutions' pages.
+        </p>
+        <div class="overflow-x-auto bg-white rounded-xl border border-border shadow-sm">
+          <table class="w-full text-sm">
+            <caption class="sr-only">Positions and editors of {data.name} by ROR record</caption>
+            <thead class="bg-surface-dim text-text-secondary">
+              <tr>
+                <th scope="col" class="text-left py-2 px-3 font-semibold">Record</th>
+                <th scope="col" class="text-right py-2 px-3 font-semibold">Positions</th>
+                <th scope="col" class="text-right py-2 px-3 font-semibold">Editors</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-t border-border bg-brand-50/40">
+                <th scope="row" class="py-2 px-3 text-left font-normal"><span class="font-medium">{data.name}</span> <span class="text-xs text-text-muted">own record</span></th>
+                <td class="py-2 px-3 text-right">{data.own_records.toLocaleString()}</td>
+                <td class="py-2 px-3 text-right">{data.own_editors.toLocaleString()}</td>
+              </tr>
+              {shown.map((u) => (
+                <tr class="border-t border-border hover:bg-brand-50">
+                  <th scope="row" class="py-2 px-3 text-left font-normal">
+                    <a href={unitHref(u.ror_id)} class="text-brand-700 hover:underline">{u.name}</a>
+                    {u.via && u.via.length > 0 && <span class="block text-xs text-text-muted">via {u.via.join(", ")}</span>}
+                  </th>
+                  <td class="py-2 px-3 text-right">{u.records.toLocaleString()}</td>
+                  <td class="py-2 px-3 text-right">{u.editors.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {folded.length > 0 && (
+            <details class="border-t border-border">
+              <summary class="cursor-pointer px-3 py-2 text-sm text-brand-600 hover:underline">Show all {subunits.length.toLocaleString()} sub-units</summary>
+              <table class="w-full text-sm">
+                <caption class="sr-only">The other sub-units of {data.name}</caption>
+            <thead class="bg-surface-dim text-text-secondary">
+              <tr>
+                <th scope="col" class="text-left py-2 px-3 font-semibold">Record</th>
+                <th scope="col" class="text-right py-2 px-3 font-semibold">Positions</th>
+                <th scope="col" class="text-right py-2 px-3 font-semibold">Editors</th>
+              </tr>
+            </thead>
+                <tbody>
+                  {folded.map((u) => (
+                <tr class="border-t border-border hover:bg-brand-50">
+                  <th scope="row" class="py-2 px-3 text-left font-normal">
+                    <a href={unitHref(u.ror_id)} class="text-brand-700 hover:underline">{u.name}</a>
+                    {u.via && u.via.length > 0 && <span class="block text-xs text-text-muted">via {u.via.join(", ")}</span>}
+                  </th>
+                  <td class="py-2 px-3 text-right">{u.records.toLocaleString()}</td>
+                  <td class="py-2 px-3 text-right">{u.editors.toLocaleString()}</td>
+                </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
+        </div>
+      </section>
+    )}
+
     <div class="border-t border-border pt-8">
       <h2 class="font-bold text-lg mb-4">Browse more</h2>
       <div class="flex flex-wrap gap-2">
         <a href="/institution" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All institutions</a>
+        {parents.map((p) => <a href={unitHref(p.ror_id)} class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">{p.name}</a>)}
         {data.ror_country && <a href={"/country/" + data.ror_country.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")} class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">{data.ror_country} overview</a>}
         <a href="/field" class="px-3 py-1.5 text-xs text-brand-600 border border-brand-200 rounded-full hover:bg-brand-50">All fields</a>
       </div>
