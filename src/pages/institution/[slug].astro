@@ -77,6 +77,9 @@ const folded = subunits.slice(SUBUNITS_SHOWN);
       journals={data.journals}
       extraLabel="Publishers"
       extraValue={data.publishers}
+      identityRule={hasSubunits
+        ? `Across ${data.name} and its sub-units, an editor whose ORCID iD was published on the board page counts once however many of its records list them, unless several names share that iD; any other editor counts once per record, since the same name at two records may be two people.`
+        : undefined}
       gd={data.gender_distribution} pct_gender_classified={data.pct_gender_classified} country_shannon={data.country_shannon} field_shannon={data.field_shannon} org_type_shannon={data.org_type_shannon} academic_age_stats={data.academic_age_stats}
       topEntries={topFields}
       topType="fields"
