@@ -25,8 +25,8 @@ const changesV61 = [
     tag: "Fixed",
     tagClass: fixed,
     title: "Organization matches audited and repaired",
-    body: `Every new organization match of the v6.0.0 ROR refresh was checked. The matches that share fewer than half of their organization's name words were all read by hand, and of the others those flagged by screens (a city or country that disagrees with the record, namesakes, generic names) were read and a sample was drawn. Most errors came from a ROR alias that is a common phrase ("The Council", "Chinese Academy" for Academia Sinica) or from a namesake (UT Southwestern read as Southwestern Medical Center in Lawton). Curated rules now give these affiliations the organization they name, clear matches to strings that name no organization in ROR (a place, a degree), and a watchlist of 47 organizations accepts a match only when the affiliation names them.`,
-    stat: "13.4% of the low-overlap positions and 2.5% of the high-overlap ones were wrong; about 0.3% are estimated to remain. 14,359 positions change ror_id: 13,433 move to another organization, 777 lose their match and 149 gain one. 747,516 positions (81.1%) carry an organization, on 24,966 records.",
+    body: `Every new organization match of the v6.0.0 ROR refresh was audited. The matches that share fewer than half of their organization's name words were all read by hand; of the others, those flagged by screens (a city or country that disagrees with the record, namesakes, generic names) were read and a sample was drawn. Most errors came from a ROR alias that is a common phrase ("The Council", "Chinese Academy" for Academia Sinica) or from a namesake (UT Southwestern read as Southwestern Medical Center in Lawton). Curated rules now give these affiliations the organization they name, clear matches to strings that name no organization in ROR (a place, a degree), and a watchlist of 47 organizations accepts a match only when the affiliation names them.`,
+    stat: "13.4% of the low-overlap positions were wrong, and 2.5% of the high-overlap positions were found wrong among those screened or sampled; about 0.3% more are estimated to remain wrong (95% interval 0.07% to 0.76%). 14,359 positions change ror_id: 13,433 move to another organization, 777 lose their match and 149 gain one. 747,516 positions (81.1%) carry an organization, on 24,966 ROR records.",
   },
   {
     id: "research-institutes",
@@ -34,7 +34,7 @@ const changesV61 = [
     tagClass: fixed,
     title: "Research institutes get their own record",
     body: `An affiliation such as "Institute of Soil Science, Chinese Academy of Sciences, Nanjing" had been matched to the parent organization. It now carries the institute's own ROR record when the string names it in full and gives the institute's own city; system records are likewise sharpened to the campus or member a string names (University at Buffalo for the State University of New York). Institutes written at another site than their record's city, peers and second affiliations stay where they were.`,
-    stat: "The Chinese Academy of Sciences keeps 1,688 positions on its own record (5,245 in v6.0.0); its institutes carry the rest, and the University of Michigan now has the most positions.",
+    stat: "The Chinese Academy of Sciences keeps 1,688 positions on its own record (5,245 in v6.0.0); its institutes carry the rest, and the University of Michigan now has the most positions on its own record.",
   },
   {
     id: "current-ror-records",
@@ -42,7 +42,7 @@ const changesV61 = [
     tagClass: fixed,
     title: "Current ROR records, names and countries",
     body: `Positions on an inactive or withdrawn ROR record move to the one active record ROR names as its successor (Tokyo Institute of Technology to Institute of Science Tokyo). ror_name is ROR's current name, and ror_country follows the ROR record, with its coordinates where the country changes (ICARDA, now in Lebanon). NIT Hamirpur keeps India: its ROR record wrongly says Bangladesh, and the error is reported to ROR.`,
-    stat: "408 positions on 36 records move to their successor; 104 on 22 records stay, as ROR names no successor or several. 6,420 positions of 300 renamed organizations take the new name; 8 positions change country.",
+    stat: "408 positions on 36 ROR records move to their successor; 104 on 22 ROR records stay, as ROR names no successor or several. 6,420 positions of 300 renamed organizations take the new name; 8 positions change country.",
   },
   {
     id: "parent-organizations",
@@ -50,7 +50,7 @@ const changesV61 = [
     tagClass: added,
     title: "Parent organizations (ror_parent_*, ror_ancestor_*)",
     body: `ror_parent_ids and ror_parent_names give the organizations a position's ROR record names as its parents; ror_ancestor_ids and ror_ancestor_names give every organization above it, nearest first. A French joint unit typically has several parents (CNRS, a university, INSERM or INRAE). On this site an institution's page now counts the editors of its sub-units and breaks its total down by sub-unit, and the explorer finds an editor through any organization above their record. An editor of a joint unit counts under each of its parents, so institution totals do not add up.`,
-    stat: "157,933 positions, on 7,207 records, have a parent in ROR. 87 columns in all (83 in v6.0.0).",
+    stat: "157,933 positions, on 7,207 ROR records, have a parent in ROR. 87 columns in all (83 in v6.0.0).",
   },
 ];
 
@@ -61,7 +61,7 @@ const rerunV61 = [
   },
   {
     what: "Unique editors, editor_key, multi-board and board statistics",
-    why: "editor_key includes the organization: 731,244 unique editors instead of 731,230, and 1,654 boards change their institution count.",
+    why: "editor_key includes the organization: 731,244 unique editors instead of 731,230, and 1,654 boards change their institution count. 7 more positions carry orcid_shared_flag, as an ORCID iD whose positions now name an institute and its parent counts more organizations.",
   },
   {
     what: "Gender, and any share of women",
