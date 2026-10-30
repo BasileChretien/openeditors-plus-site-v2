@@ -32,13 +32,22 @@ const parquetShort = parquet.sha256.slice(0, 16);
 // frozen-figures:start (each entry describes its own release)
 const versions = [
   {
+    version: "6.2.0",
+    date: "2026-10-30",
+    title: "Corrected release: affiliations, names and roles repaired, blank affiliations matched to organizations",
+    summary:
+      "Minor release; the columns are unchanged. Changes values in the affiliation, name, role and organization columns and drops 994 rows, so analyses built on v6.1.0 by organization, institution, country or gender, or on unique editors, must be re-run. (1) 6,324 affiliations take the value their board page gives, 5,814 editor names are restored, and 52 ORCID iDs printed in an affiliation fill an empty orcid (orcid_source scraped_affiliation, a new value). (2) 994 rows that held no person or listed a person twice are dropped, with 19 journals whose only row was a page label. (3) 89 assistants to an editor move from editor to other. (4) Every organization match was audited and every affiliation without one read or matched: 70,657 positions change organization, and 93.2% of positions with an affiliation carry one (86.4% in v6.1.0). (5) Gender changes on 2,902 positions; 722,124 unique editors (was 731,244). data_version is 2026.8. See the release notes page for the full re-run guidance.",
+    doi: "10.5281/zenodo.23791792",
+    latest: true,
+  },
+  {
     version: "6.1.0",
     date: "2026-10-28",
     title: "Corrected release: organization matches audited and repaired, parent organizations added",
     summary:
       "Minor release with four new columns (87 in all). Changes values in the organization columns, so analyses built on v6.0.0 by organization, institution or country, or on unique editors, must be re-run. (1) Every new organization match of the v6.0.0 ROR refresh was audited, by hand or by screens and a sample; curated rules correct wrong matches, give research institutes named with their parent their own record, and clear matches to strings that name no organization: 14,359 positions change organization. (2) Positions on an inactive ROR record move to its successor where ROR names one (408), and organization names and countries follow ROR's current records. (3) ror_parent_ids, ror_parent_names, ror_ancestor_ids and ror_ancestor_names give the organizations above each record (157,933 positions have a parent). (4) Gender changes on 57 positions; 731,244 unique editors (was 731,230). data_version is 2026.7. See the release notes page for the full re-run guidance.",
     doi: "10.5281/zenodo.23718040",
-    latest: true,
+    latest: false,
   },
   {
     version: "6.0.0",

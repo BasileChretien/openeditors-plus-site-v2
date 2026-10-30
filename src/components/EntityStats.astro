@@ -4,7 +4,12 @@ import { slugify } from "../lib/slugify";
 import summary from "../../public/api/summary.json";
 import { pct } from "../lib/figures";
 
-const { name, records, editors, journals, extraLabel, extraValue, gd, topEntries, topType, mean_h_index, rank, rankTotal, globalShare, oaPct, entityType, entityValue } = Astro.props;
+const { name, records, editors, journals, extraLabel, extraValue, gd, topEntries, topType, mean_h_index, rank, rankTotal, globalShare, oaPct, entityType, entityValue, identityRule } = Astro.props;
+// How an editor is counted once here, for the gender note and the diversity
+// panel. An institution with sub-units passes its own rule (an ORCID iD from
+// the board page is one editor across its records); every other page counts
+// once per composite identity key.
+const identity: string = identityRule ?? "Each editor is counted once at this entity (composite identity key).";
 const exploreUrl = "/explore?" + (entityType || "publisher") + "=" + encodeURIComponent(entityValue || name);
 
 // Gender buckets — sourced from the per-entity aggregate in the parent
@@ -107,9 +112,9 @@ const hasDiversity = diversityCardCount > 0;
 const shannonCount = (showCountryS ? 1 : 0) + (showFieldS ? 1 : 0) + (showOrgS ? 1 : 0);
 const diversityIntro =
   shannonCount >= 2
-    ? "Per-editor diversity indicators. Each editor is counted once (composite identity key). The Shannon columns use Pielou's normalisation J = H / ln(k) so values are comparable across entities with different numbers of categories."
+    ? `Per-editor diversity indicators. ${identity} The Shannon columns use Pielou's normalisation J = H / ln(k) so values are comparable across entities with different numbers of categories.`
     : shannonCount === 1
-    ? "Per-editor diversity indicators. Each editor is counted once (composite identity key). The Shannon column uses Pielou's normalisation J = H / ln(k), bounded in [0, 1]."
+    ? `Per-editor diversity indicators. ${identity} The Shannon column uses Pielou's normalisation J = H / ln(k), bounded in [0, 1].`
     : "Per-editor seniority indicator, counted once per unique editor at this entity.";
 // Universities' share of editors with an institution type, from the data.
 const educationShare = pct((summary.org_type_distribution as Record<string, number>).education ?? 0,
@@ -160,7 +165,7 @@ const educationShare = pct((summary.org_type_distribution as Record<string, numb
       {pctFemale}% female &middot; {pctMale}% male (of {resolved.toLocaleString()} resolved; global avg {GLOBAL_PCT_FEMALE}%)
     </p>
     <p class="text-[10px] text-text-muted mt-1">
-      Each editor counted once at this entity (composite identity key). Gender is inferred from the first name — not self-reported — and coverage drops for non-Latin-script names, which inflates the "unknown" bar in some countries.
+      {identity} Gender is inferred from the first name — not self-reported — and coverage drops for non-Latin-script names, which inflates the "unknown" bar in some countries.
     </p>
   </div>
 
