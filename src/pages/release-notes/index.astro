@@ -34,7 +34,7 @@ const changesV62 = [
     tagClass: fixed,
     title: "Editor names restored, rows that held no person dropped",
     body: `A name cleaner had cut "Dr" and "Prof" from the start of any word and dropped surnames that spell a credential ("Ma", "Peng"), and the scraper had cut name words that look like a credential and the last word after an initial. Each name is restored from the scrape output or the page text. Rows that held no person (a page label, an address, a journal title) or listed a person a second time, with the name glued to the city, are dropped.`,
-    stat: "5,814 positions change editor name and 52 ORCID iDs printed in an affiliation fill an empty orcid. 994 rows are dropped (920,966 remain), and with them 19 journals whose only row was a page label.",
+    stat: "5,814 positions change editor name and 52 ORCID iDs printed in an affiliation fill an empty orcid (orcid_source scraped_affiliation, a new value). 994 rows are dropped (920,966 remain), and with them 19 journals whose only row was a page label.",
   },
   {
     id: "assistants-staff",
@@ -50,7 +50,7 @@ const changesV62 = [
     tagClass: fixed,
     title: "Every organization match audited, blank affiliations matched",
     body: `Every organization match of v6.1.0 was checked against ROR's data dump, and the wrong ones (another campus, another country, a namesake) are corrected. ROR's matcher had left many plain names blank ("Purdue University, USA"): every affiliation without an organization was read, or matched by a name matcher over the same dump that refuses whenever a namesake, a place or a generic name leaves a doubt.`,
-    stat: "70,657 positions change ror_id: 59,519 gain an organization, 9,915 move to another and 1,223 lose their match. 805,688 positions carry an organization, 93.2% of those with an affiliation (86.4% in v6.1.0), on 27,377 records. About 0.66% of matched positions are estimated to remain wrong (95% interval 0.26% to 1.25%).",
+    stat: "70,657 positions change ror_id: 59,519 gain an organization, 9,915 move to another and 1,223 lose their match. 805,688 positions carry an organization, 93.2% of those with an affiliation (86.4% in v6.1.0), on 27,377 ROR records. About 0.66% of matched positions are estimated to remain wrong (95% interval 0.26% to 1.25%).",
   },
   {
     id: "derived-62",
