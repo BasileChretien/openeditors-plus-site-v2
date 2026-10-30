@@ -13,8 +13,8 @@ const identity: string = identityRule ?? "Each editor is counted once at this en
 const exploreUrl = "/explore?" + (entityType || "publisher") + "=" + encodeURIComponent(entityValue || name);
 
 // Gender buckets — sourced from the per-entity aggregate in the parent
-// page. Each value is a UNIQUE-editor count (once per composite id at
-// the entity), not a row count.
+// page. Each value is an editor count, each editor counted once by the
+// page's identity rule (`identity` above), not a row count.
 const male = gd?.male || 0;
 const female = gd?.female || 0;
 const unknownG = gd?.unknown || 0;
@@ -115,7 +115,7 @@ const diversityIntro =
     ? `Per-editor diversity indicators. ${identity} The Shannon columns use Pielou's normalisation J = H / ln(k) so values are comparable across entities with different numbers of categories.`
     : shannonCount === 1
     ? `Per-editor diversity indicators. ${identity} The Shannon column uses Pielou's normalisation J = H / ln(k), bounded in [0, 1].`
-    : "Per-editor seniority indicator, counted once per unique editor at this entity.";
+    : `Per-editor seniority indicator. ${identity}`;
 // Universities' share of editors with an institution type, from the data.
 const educationShare = pct((summary.org_type_distribution as Record<string, number>).education ?? 0,
   Object.values(summary.org_type_distribution as Record<string, number>).reduce((a, b) => a + b, 0));
@@ -255,7 +255,7 @@ const educationShare = pct((summary.org_type_distribution as Record<string, numb
           </div>
           <div class="text-2xl font-bold text-brand-800 mt-1">{academic_age_stats.median} yr</div>
           <div class="text-[11px] text-text-muted mt-1">
-            Median years since first OpenAlex-indexed publication, per unique editor.
+            Median years since first OpenAlex-indexed publication, per editor.
             IQR {academic_age_stats.q1}–{academic_age_stats.q3} yr
             (spread {academic_age_stats.iqr} yr), mean {academic_age_stats.mean} yr,
             n = {academic_age_stats.count.toLocaleString()}. A low median with a small
