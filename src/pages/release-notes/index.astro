@@ -15,8 +15,59 @@ const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 // frozen-figures:start (every note below describes its own release)
 // The version the newest notes describe. The build fails when the site
 // serves another release, so a data update cannot ship without its notes.
-const NEWEST_NOTES = "6.2.0";
-const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.2.0 (affiliations, names and roles repaired from the board pages, every organization match audited, blank affiliations matched), v6.1.0, v6.0.0, v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+const NEWEST_NOTES = "6.3.0";
+const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.3.0 (organizations above a laboratory no longer reached through an observatory or federation, four boards corrected from their pages, former positions marked in the explorer), v6.2.0, v6.1.0, v6.0.0, v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+
+// v6.3.0 (2026-11-10), a corrected release; the columns are unchanged.
+const changesV63 = [
+  {
+    id: "federation-stop",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Organizations above a laboratory stop at observatories and federations",
+    body: `ROR places some laboratories under a French observatory of the sciences of the Universe (OSU) or a research federation, which groups laboratories under several parent organizations of its own. A member laboratory need not belong to each of them, but the organizations above a record followed ROR through the federation, so a laboratory counted on the page of an organization it has no tie to: Géosciences Rennes, a CNRS and Université de Rennes unit, appeared on INRAE's page because its observatory has INRAE among its parents (reported by INRAE). The federation is still listed above its laboratories, but the organizations above it no longer are; an organization the laboratory reaches along another path stays. The list holds 16 observatories and federations, each checked by hand.`,
+    stat: "80 positions lose an organization above them, at 26 organizations: INRAE 47, Météo-France 23, INSU 21. INRAE's page goes from 927 positions to 884, as the corrections add 4 to its own record.",
+  },
+  {
+    id: "board-corrections",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Four boards corrected from their pages",
+    body: `INRAE found managing editors counted as editors and a journal listed under its former publisher. On Agronomy for Sustainable Development, the managing editors had taken the heading above theirs ("Editors-in-Chief"); on Apidologie, a rule had made the managing editor the editor of a board that names no editor-in-chief. Both are now staff (role other). On Apidologie and the Review of Agricultural, Food and Environmental Studies, headings the parser had missed are restored (the Emeritus Board, now marked as former, and a Scientific Board read as book review editors), affiliations and two names are taken from the page, and page labels or address lines read as people are dropped. Plant Phenomics moved from AAAS to Elsevier in January 2025 and was held under both; it is now held under Elsevier with its current board.`,
+    stat: "103 positions corrected: 42 change role, 46 affiliation, 35 publisher; 16 rows are dropped (920,950 remain). Positions the pages list and the data lack come with the 2027 collection.",
+  },
+  {
+    id: "former-in-explorer",
+    tag: "Added",
+    tagClass: added,
+    title: "Former positions marked in the explorer",
+    body: `A board page may still list a former, honorary or emeritus editor-in-chief. The dataset flagged these positions (role_is_former), but the explorer did not show it, so a former editor-in-chief, who died in 2019, read as a current one. The explorer now marks such a position "former" next to its role. They are still counted, as before.`,
+    stat: "10,528 positions are marked former.",
+  },
+  {
+    id: "derived-v63",
+    tag: "Recomputed",
+    tagClass: recomputed,
+    title: "Organizations, gender and unique editors recomputed",
+    body: `The corrected affiliations are matched to ROR (by the record their other rows carry, a reviewed rule or the name matcher), and gender, editor_key and the board figures are recomputed where they change.`,
+    stat: "13 positions change organization (11 gain one) and 3 change gender. 722,109 unique editors (722,124 in v6.2.0).",
+  },
+];
+
+const rerunV63 = [
+  {
+    what: "Institution pages and any count by an organization above a record (ror_ancestor_ids, ror_ancestor_names)",
+    why: "80 positions lose an organization above them (INRAE 47).",
+  },
+  {
+    what: "Roles (role_std, role_is_former) and chief-editor counts of the four corrected journals",
+    why: "42 positions change role; managing editors are staff.",
+  },
+  {
+    what: "Plant Phenomics, and counts by publisher",
+    why: "The journal is held under Elsevier only, with its current board.",
+  },
+];
 
 // v6.2.0 (2026-10-30), a corrected release; the columns are unchanged.
 const changesV62 = [
@@ -447,11 +498,11 @@ if (NEWEST_NOTES !== release.version) {
 
     <!-- frozen-figures:start (the notes describe their own releases) -->
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v6.2.0 is a <strong>corrected</strong> release. It repairs affiliations, editor names
-      and roles from the board pages, drops rows that held no person, and matches affiliations
-      to ROR again, so analyses built on v6.1.0 by organization, institution, country or
-      gender, or on unique editors, need to be re-run. The paper that describes the dataset
-      uses v3.0.0, which stays available on Zenodo.
+      v6.3.0 is a <strong>corrected</strong> release made from INRAE's review of v6.2.0. The
+      organizations above a laboratory no longer go through an observatory or research
+      federation, four boards are corrected from their pages, and the explorer marks former
+      positions. Analyses of institution pages, of these four journals or by role need to be
+      re-run. The paper that describes the dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -471,7 +522,55 @@ if (NEWEST_NOTES !== release.version) {
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4" id="v6.2.0">What changed in v6.2.0</h2>
+    <h2 class="text-2xl font-bold mb-4" id="v6.3.0">What changed in v6.3.0</h2>
+    <div class="space-y-5 mb-12">
+      {changesV63.map((c, i) => (
+        <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+          <div class="flex items-start gap-3 mb-2">
+            <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+            <div class="min-w-0">
+              <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                {c.tag}
+              </span>
+              <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+          <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+            {c.stat}
+          </p>
+        </section>
+      ))}
+    </div>
+
+    <h2 class="text-2xl font-bold mb-2">If you used v6.2.0</h2>
+    <p class="text-sm text-text-secondary mb-4">
+      Most analyses are little affected: 16 rows are dropped and a few hundred positions change.
+      Re-run anything that touches the following. No column is added or removed.
+    </p>
+    <div class="overflow-x-auto border border-border rounded-lg mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-surface-dim border-b border-border">
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Re-run</th>
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rerunV63.map((r, i) => (
+            <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+              <td class="py-2.5 px-3 align-top font-medium whitespace-normal">{r.what}</td>
+              <td class="py-2.5 px-3 align-top text-text-secondary">{r.why}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4" id="v6.2.0">
+      <h2 class="text-2xl font-bold">What changed in v6.2.0</h2>
+      <span class="text-sm text-text-muted">released 2026-10-30 &middot; data_version 2026.8</span>
+    </div>
     <div class="space-y-5 mb-12">
       {changesV62.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">
