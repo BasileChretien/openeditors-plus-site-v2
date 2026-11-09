@@ -34,14 +34,14 @@ const changesV63 = [
     tagClass: fixed,
     title: "Four boards corrected from their pages",
     body: `INRAE found managing editors counted as editors and a journal listed under its former publisher. On Agronomy for Sustainable Development, the managing editors had taken the heading above theirs ("Editors-in-Chief"); on Apidologie, a rule had made the managing editor the editor of a board that names no editor-in-chief. Both are now staff (role other). On Apidologie and the Review of Agricultural, Food and Environmental Studies, headings the parser had missed are restored (the Emeritus Board, now marked as former, and a Scientific Board read as book review editors), affiliations and two names are taken from the page, and page labels or address lines read as people are dropped. Plant Phenomics moved from AAAS to Elsevier in January 2025 and was held under both; it is now held under Elsevier with its current board.`,
-    stat: "103 positions corrected: 42 change role, 46 affiliation, 35 publisher; 16 rows are dropped (920,950 remain). Positions the pages list and the data lack come with the 2027 collection.",
+    stat: "103 positions corrected: 43 change role or role category, 46 affiliation, 35 publisher; 16 rows are dropped (920,950 remain). Positions the pages list and the data lack come with the 2027 collection.",
   },
   {
     id: "former-in-explorer",
     tag: "Added",
     tagClass: added,
     title: "Former positions marked in the explorer",
-    body: `A board page may still list a former, honorary or emeritus editor-in-chief. The dataset flagged these positions (role_is_former), but the explorer did not show it, so a former editor-in-chief, who died in 2019, read as a current one. The explorer now marks such a position "former" next to its role. They are still counted, as before.`,
+    body: `A board page may still list a former, honorary or emeritus editor-in-chief. The dataset flagged these positions (role_is_former), but the explorer did not show it, so a former editor-in-chief read as a current one (reported by INRAE). The explorer now marks such a position "former" next to its role. They are still counted, as before.`,
     stat: "10,528 positions are marked former.",
   },
   {
@@ -61,11 +61,15 @@ const rerunV63 = [
   },
   {
     what: "Roles (role_std, role_is_former) and chief-editor counts of the four corrected journals",
-    why: "42 positions change role; managing editors are staff.",
+    why: "43 positions change role or role category; managing editors are staff.",
   },
   {
     what: "Plant Phenomics, and counts by publisher",
     why: "The journal is held under Elsevier only, with its current board.",
+  },
+  {
+    what: "Organizations and countries (ror_id, ror_country, org_type), gender, unique editors",
+    why: "Small changes: 13 positions change organization (11 gain one), 3 change gender, and 722,109 unique editors instead of 722,124.",
   },
 ];
 
@@ -501,8 +505,8 @@ if (NEWEST_NOTES !== release.version) {
       v6.3.0 is a <strong>corrected</strong> release made from INRAE's review of v6.2.0. The
       organizations above a laboratory no longer go through an observatory or research
       federation, four boards are corrected from their pages, and the explorer marks former
-      positions. Analyses of institution pages, of these four journals or by role need to be
-      re-run. The paper that describes the dataset uses v3.0.0, which stays available on Zenodo.
+      positions. Analyses of institution pages or of these four journals need to be re-run;
+      other counts change slightly. The paper that describes the dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
