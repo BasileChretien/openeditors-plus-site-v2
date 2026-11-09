@@ -200,6 +200,13 @@ const parquetMB = Math.round(parquetBytes.length / 1_000_000);
       "guest_editor": "Guest Editor", "editor": "Editor", "other": "Other",
     };
     const formatRole = (r) => ROLE_LABELS[r] || r.replace(/_/g, " ");
+    // role_is_former marks a past position the board page still lists (a
+    // former, founding, emeritus or honorary editor). A browser file built
+    // before the column was added lacks it, so it is read only when present.
+    const FORMER_COL = "role_is_former";
+    let hasFormer = false;
+    const queryColumns = () => [...COLUMNS.map(c => c.key), ...(hasFormer ? [FORMER_COL] : [])];
+    const isFormer = (v) => v === true || String(v).toLowerCase() === "true";
     const esc = (s) => String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
     // ─── State ───
@@ -455,6 +462,9 @@ const parquetMB = Math.round(parquetBytes.length / 1_000_000);
       const parquetUrl = new URL("/data/editors.parquet?v=" + parquetHash, window.location.origin).href;
       await db.registerFileURL("editors.parquet", parquetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
       await conn.query("CREATE TABLE editors AS SELECT * FROM 'editors.parquet'");
+      const formerRes = await conn.query(
+        `SELECT COUNT(*) AS n FROM information_schema.columns WHERE table_name = 'editors' AND column_name = '${FORMER_COL}'`);
+      hasFormer = Number(formerRes.toArray()[0].n) > 0;
 
       const countResult = await conn.query("SELECT COUNT(*) as n FROM editors");
       totalCount = Number(countResult.toArray()[0].n);
@@ -593,11 +603,11 @@ const parquetMB = Math.round(parquetBytes.length / 1_000_000);
       const filteredCount = Number(countRes.toArray()[0].n);
 
       // Data
-      const cols = COLUMNS.map(c => c.key).join(", ");
-      const dataRes = await conn.query(`SELECT ${cols} FROM editors ${where} ${orderBy} LIMIT ${pageSize} OFFSET ${offset}`);
+      const keys = queryColumns();
+      const dataRes = await conn.query(`SELECT ${keys.join(", ")} FROM editors ${where} ${orderBy} LIMIT ${pageSize} OFFSET ${offset}`);
       const rows = dataRes.toArray().map(r => {
         const obj = {};
-        COLUMNS.forEach(c => { obj[c.key] = r[c.key] ?? ""; });
+        keys.forEach(k => { obj[k] = r[k] ?? ""; });
         return obj;
       });
 
@@ -1287,7 +1297,10 @@ const parquetMB = Math.round(parquetBytes.length / 1_000_000);
               const safeOrcid = /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(val) ? val : "";
               cells += `<td class="py-1.5 px-2 text-xs font-mono">${safeOrcid ? `<a href="https://orcid.org/${esc(safeOrcid)}" target="_blank" rel="noopener noreferrer" class="text-brand-600 hover:underline">${esc(safeOrcid)}</a>` : (val ? esc(val) : '<span class="text-text-muted">—</span>')}</td>`;
             } else if (col.key === "role_std") {
-              cells += `<td class="py-1.5 px-2 text-xs"><span class="inline-block px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 text-[10px] font-medium" title="${esc(val)}">${esc(formatRole(val))}</span></td>`;
+              const former = isFormer(row[FORMER_COL])
+                ? ` <span class="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-text-muted text-[10px] font-medium" title="A past position that the board page still lists (former, founding, emeritus or honorary)">former</span>`
+                : "";
+              cells += `<td class="py-1.5 px-2 text-xs whitespace-nowrap"><span class="inline-block px-1.5 py-0.5 rounded bg-brand-50 text-brand-700 text-[10px] font-medium" title="${esc(val)}">${esc(formatRole(val))}</span>${former}</td>`;
             } else if (col.key === "gender") {
               const gc = { male: "text-blue-600", female: "text-pink-600", unknown: "text-gray-400" };
               cells += `<td class="py-1.5 px-2 text-xs ${gc[val]||''}">${val ? val.charAt(0).toUpperCase() + val.slice(1) : '—'}</td>`;
@@ -1412,7 +1425,7 @@ const parquetMB = Math.round(parquetBytes.length / 1_000_000);
         // Pull every column the explore table knows about (16 cols in
         // the browser parquet) — not just the visible ones, since the
         // user presumably wants the raw data for downstream analysis.
-        const cols = COLUMNS.map(c => c.key);
+        const cols = queryColumns();
         const colList = cols.join(", ");
         const sql = `SELECT ${colList} FROM editors ${where}`;
         const dataRes = await conn.query(sql);
