@@ -7,6 +7,7 @@ import release from "../../../public/api/release_meta.json";
 // top of `versions` with its version DOI.
 import { ZENODO_RECORD_ID } from "../../lib/zenodo";
 import { fmtMB } from "../../lib/format";
+import { ARTICLE, ARTICLE_RELEASE } from "../../lib/article";
 // Primary DOI shown in the header chip. This is the CONCEPT DOI
 // (concept recid 19468382), verified against the Zenodo API: it always
 // resolves to the latest published version. Version-specific DOIs live
@@ -190,6 +191,10 @@ const versions = [
 // a data update cannot ship with the previous release's entry on top.
 if (versions[0].version !== release.version || !versions[0].latest || versions.filter((v) => v.latest).length !== 1) {
   throw new Error(`download page: the newest version entry must be v${release.version}, the only one marked latest`);
+}
+// The entry of the release the article describes carries a badge, so it must exist.
+if (!versions.some((v) => v.version === ARTICLE_RELEASE.version && v.doi === ARTICLE_RELEASE.doi)) {
+  throw new Error(`download page: no entry v${ARTICLE_RELEASE.version} with DOI ${ARTICLE_RELEASE.doi}, the release the article describes`);
 }
 ---
 
@@ -388,6 +393,8 @@ curl https://openeditors-plus.org/api/fields.json</pre>
         Versions 2.0.0 to 2.6.0 were published as in-place updates of one Zenodo record
         (<a href="https://doi.org/10.5281/zenodo.19590816" class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">10.5281/zenodo.19590816</a>),
         which now serves the v2.7.0 files, so their own files are no longer available.
+        The article in <a href="/cite#article" class="text-brand-600 hover:underline"><em>{ARTICLE.journal}</em></a>
+        describes v{ARTICLE_RELEASE.version}: download that version to reproduce its figures.
       </p>
       <div class="space-y-3">
         {versions.map((v) => (
@@ -408,6 +415,15 @@ curl https://openeditors-plus.org/api/fields.json</pre>
                     title="Version DOI"
                   >
                     {v.doi}
+                  </a>
+                )}
+                {v.version === ARTICLE_RELEASE.version && (
+                  <a
+                    href="/cite#article"
+                    class="text-[10px] px-2 py-0.5 rounded bg-brand-100 text-brand-800 font-semibold uppercase tracking-wide hover:bg-brand-200"
+                    title={`The version described in ${ARTICLE.journal} (${ARTICLE.year})`}
+                  >
+                    In the article
                   </a>
                 )}
                 {v.latest && <span class="text-[10px] px-2 py-0.5 rounded bg-green-100 text-green-800 font-semibold uppercase tracking-wide">Latest</span>}

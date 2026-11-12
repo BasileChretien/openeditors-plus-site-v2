@@ -5,7 +5,8 @@ import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
 import { fmtMB } from "../../lib/format";
 import countries from "../../../public/api/countries.json";
-import { DATASET_TITLE } from "../../lib/dataset";
+import { DATASET_DOI_URL, DATASET_TITLE, DATASET_VERSION, DATASET_YEAR } from "../../lib/dataset";
+import { ARTICLE, ARTICLE_RELEASE, ARTICLE_URL, articleLocator } from "../../lib/article";
 import { oneDecimal, whole } from "../../lib/figures";
 
 const gd = summary.gender_distribution;
@@ -85,7 +86,7 @@ const faqs = [
   },
   {
     q: "How should I cite this dataset?",
-    a: `Chretien, B. (2026). ${DATASET_TITLE} [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19468382`
+    a: `Cite the article for the method and the dataset version you analysed for the data. Article: ${ARTICLE.authorShort} (${ARTICLE.year}). ${ARTICLE.titleSentenceCase}. ${ARTICLE.journal}${articleLocator() ? `, ${articleLocator()}.` : ". Advance online publication."} ${ARTICLE_URL}. Dataset, current release: Chretien, B. (${DATASET_YEAR}). ${DATASET_TITLE} (Version ${DATASET_VERSION}) [Data set]. Zenodo. ${DATASET_DOI_URL}. The article describes v${ARTICLE_RELEASE.version} (${ARTICLE_RELEASE.doi}); each release's DOI is in the version history on the download page, and openeditors-plus.org/cite gives BibTeX and RIS.`
   },
   {
     q: "What license is the data released under?",

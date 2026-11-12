@@ -1,19 +1,138 @@
 ---
 import Base from "../../layouts/Base.astro";
 import ContactEmail from "../../components/ContactEmail.astro";
-import { DATASET_TITLE } from "../../lib/dataset";
+import {
+  DATASET_DOI_URL,
+  DATASET_TITLE,
+  DATASET_VERSION,
+  DATASET_YEAR,
+  datasetBibtex,
+  datasetRis,
+} from "../../lib/dataset";
+import { fmt } from "../../lib/figures";
+import release from "../../../public/api/release_meta.json";
+import {
+  ARTICLE,
+  ARTICLE_RELEASE,
+  ARTICLE_RELEASE_URL,
+  ARTICLE_URL,
+  articleBibtex,
+  articleLocator,
+  articleRis,
+} from "../../lib/article";
+
+const locator = articleLocator();
+
+// The article's counts (v3.0.0, as published) beside the current release's (public/api/).
+const comparison = [
+  { label: "Editorial positions", then: ARTICLE_RELEASE.positions, now: release.row_count, key: "row_count" },
+  { label: "Unique editors", then: ARTICLE_RELEASE.uniqueEditors, now: release.unique_editors, key: "unique_editors" },
+  { label: "Journals", then: ARTICLE_RELEASE.journals, now: release.journal_count, key: "journal_count" },
+  { label: "Countries", then: ARTICLE_RELEASE.countries, now: release.country_count, key: "country_count" },
+].map((r) => ({ ...r, then: fmt(r.then), now: fmt(r.now, `release_meta.${r.key}`) }));
 ---
 
-<Base title="Cite — Open Editors Plus" path="cite" description="How to cite Open Editors Plus in your research. BibTeX, APA, and other citation formats.">
+<Base title="Cite — Open Editors Plus" path="cite" description="How to cite Open Editors Plus in your research: the Quantitative Science Studies article and the dataset version you used. APA, BibTeX and RIS.">
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
     <h1 class="text-3xl sm:text-4xl font-bold mb-4">How to cite</h1>
     <p class="text-text-secondary text-lg mb-10">
-      If you use Open Editors Plus in your research, please cite the dataset. This helps us track impact and justify continued development.
+      If you use Open Editors Plus in your research, please cite the article for the method and the
+      dataset version you analysed for the data. Releases correct values, so the version is what lets
+      a reader reproduce your figures. This also helps us track impact and justify continued development.
     </p>
 
+    <!-- Article citation -->
+    <section class="mb-12" id="article">
+      <h2 class="text-2xl font-bold mb-2">Article</h2>
+      <p class="text-text-secondary mb-6">
+        The dataset is described in a peer-reviewed data paper in <em>{ARTICLE.journal}</em>,
+        {locator ? "" : `published online on ${ARTICLE.publishedOnline}, `}open access under {ARTICLE.license}.
+      </p>
+
+      <!-- The version the article describes -->
+      <div class="rounded-lg border border-brand-300 bg-brand-50 p-5 mb-8">
+        <h3 class="font-bold text-brand-950 mb-2">The article describes v{ARTICLE_RELEASE.version}</h3>
+        <p class="text-sm text-text-primary leading-relaxed">
+          The article's analyses were all run on <strong>v{ARTICLE_RELEASE.version}</strong>
+          (released {ARTICLE_RELEASE.date}, data_version {ARTICLE_RELEASE.dataVersion}). This site and the
+          download page serve <strong>v{release.version}</strong>, in which later releases corrected
+          journal fields, organization matches, roles, names and affiliations, so its counts differ from the
+          article's. To reproduce the article, use v{ARTICLE_RELEASE.version}
+          (<a href={ARTICLE_RELEASE_URL} class="text-brand-700 hover:underline font-mono text-xs" target="_blank" rel="noopener noreferrer">{ARTICLE_RELEASE.doi}</a>),
+          which stays on Zenodo; for new work, use the current release and cite its version.
+        </p>
+        <div class="overflow-x-auto mt-4">
+          <table class="w-full text-sm bg-white rounded border border-border">
+            <thead>
+              <tr class="border-b border-border">
+                <th class="text-left py-2 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted"></th>
+                <th class="text-right py-2 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">In the article (v{ARTICLE_RELEASE.version})</th>
+                <th class="text-right py-2 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Current release (v{release.version})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comparison.map((r) => (
+                <tr class="border-b border-border last:border-0">
+                  <td class="py-2 px-3 text-text-secondary">{r.label}</td>
+                  <td class="py-2 px-3 text-right tabular-nums">{r.then}</td>
+                  <td class="py-2 px-3 text-right tabular-nums">{r.now}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p class="text-sm text-text-secondary mt-3">
+          What changed in each release since v{ARTICLE_RELEASE.version}, and which analyses to re-run:
+          <a href="/release-notes" class="text-brand-700 hover:underline">release notes</a>.
+        </p>
+      </div>
+
+      <!-- APA -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-sm text-text-muted uppercase tracking-wide">APA 7th</h3>
+          <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="article-apa">Copy</button>
+        </div>
+        <div id="article-apa" class="bg-surface-dim rounded-lg border border-border p-4 text-sm leading-relaxed">
+          {ARTICLE.authorShort} ({ARTICLE.year}). {ARTICLE.titleSentenceCase}. <em>{ARTICLE.journal}</em>{locator ? `, ${locator}` : ""}.{locator ? "" : " Advance online publication."} {ARTICLE_URL}
+        </div>
+      </div>
+
+      <!-- BibTeX -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-sm text-text-muted uppercase tracking-wide">BibTeX</h3>
+          <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="article-bibtex">Copy</button>
+        </div>
+        <div id="article-bibtex" class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+          <pre class="text-sm text-green-400 font-mono">{articleBibtex()}</pre>
+        </div>
+      </div>
+
+      <!-- RIS -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="font-semibold text-sm text-text-muted uppercase tracking-wide">RIS (EndNote, Zotero)</h3>
+          <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="article-ris">Copy</button>
+        </div>
+        <div id="article-ris" class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+          <pre class="text-sm text-green-400 font-mono">{articleRis()}</pre>
+        </div>
+      </div>
+    </section>
+
     <!-- Dataset citation -->
-    <section class="mb-12">
-      <h2 class="text-2xl font-bold mb-4">Dataset</h2>
+    <section class="mb-12" id="dataset">
+      <h2 class="text-2xl font-bold mb-2">Dataset</h2>
+      <p class="text-text-secondary mb-6">
+        Cite the version you analysed. The citations below are for the current release,
+        v{DATASET_VERSION}; for an earlier one, take its DOI from the
+        <a href="/download" class="text-brand-600 hover:underline">version history</a>
+        (v{ARTICLE_RELEASE.version}, the version in the article, is
+        <a href={ARTICLE_RELEASE_URL} class="text-brand-600 hover:underline font-mono text-sm" target="_blank" rel="noopener noreferrer">{ARTICLE_RELEASE.doi}</a>).
+        The concept DOI, <span class="font-mono text-sm">{release.concept_doi}</span>, always resolves to
+        the newest release: use it to refer to the dataset as a whole, not to the data behind a figure.
+      </p>
 
       <!-- APA -->
       <div class="mb-6">
@@ -22,7 +141,7 @@ import { DATASET_TITLE } from "../../lib/dataset";
           <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="apa">Copy</button>
         </div>
         <div id="apa" class="bg-surface-dim rounded-lg border border-border p-4 text-sm leading-relaxed">
-          Chretien, B. (2026). <em>{DATASET_TITLE}</em> [Data set]. Zenodo. https://doi.org/10.5281/zenodo.19468382
+          Chretien, B. ({DATASET_YEAR}). <em>{DATASET_TITLE}</em> (Version {DATASET_VERSION}) [Data set]. Zenodo. {DATASET_DOI_URL}
         </div>
       </div>
 
@@ -33,14 +152,7 @@ import { DATASET_TITLE } from "../../lib/dataset";
           <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="bibtex">Copy</button>
         </div>
         <div id="bibtex" class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-          <pre class="text-sm text-green-400 font-mono">@dataset{"{"}chretien2026openeditors,
-  author    = {"{"}Chretien, Basile{"}"},
-  title     = {"{"}{DATASET_TITLE}{"}"},
-  year      = {"{"}2026{"}"},
-  publisher = {"{"}Zenodo{"}"},
-  doi       = {"{"}10.5281/zenodo.19468382{"}"},
-  url       = {"{"}https://openeditors-plus.org{"}"}
-{"}"}</pre>
+          <pre class="text-sm text-green-400 font-mono">{datasetBibtex()}</pre>
         </div>
       </div>
 
@@ -51,14 +163,7 @@ import { DATASET_TITLE } from "../../lib/dataset";
           <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="ris">Copy</button>
         </div>
         <div id="ris" class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-          <pre class="text-sm text-green-400 font-mono">TY  - DATA
-AU  - Chretien, Basile
-TI  - {DATASET_TITLE}
-PY  - 2026
-PB  - Zenodo
-DO  - 10.5281/zenodo.19468382
-UR  - https://openeditors-plus.org
-ER  -</pre>
+          <pre class="text-sm text-green-400 font-mono">{datasetRis()}</pre>
         </div>
       </div>
     </section>
