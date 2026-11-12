@@ -18,10 +18,12 @@ import {
   ARTICLE_URL,
   articleBibtex,
   articleLocator,
+  articleLocatorParts,
   articleRis,
 } from "../../lib/article";
 
 const locator = articleLocator();
+const loc = articleLocatorParts();
 
 // The article's counts (v3.0.0, as published) beside the current release's (public/api/).
 const comparison = [
@@ -94,7 +96,7 @@ const comparison = [
           <button class="copy-btn text-xs text-brand-600 hover:text-brand-800 font-medium" data-target="article-apa">Copy</button>
         </div>
         <div id="article-apa" class="bg-surface-dim rounded-lg border border-border p-4 text-sm leading-relaxed">
-          {ARTICLE.authorShort} ({ARTICLE.year}). {ARTICLE.titleSentenceCase}. <em>{ARTICLE.journal}</em>{locator ? `, ${locator}` : ""}.{locator ? "" : " Advance online publication."} {ARTICLE_URL}
+          {ARTICLE.authorShort} ({ARTICLE.year}). {ARTICLE.titleSentenceCase}. <em>{ARTICLE.journal}</em>{loc ? <>, <em>{loc.volume}</em>{loc.issue ? `(${loc.issue})` : ""}{loc.pages ? `, ${loc.pages}` : ""}</> : ""}.{loc ? "" : " Advance online publication."} {ARTICLE_URL}
         </div>
       </div>
 

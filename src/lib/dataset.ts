@@ -1,5 +1,6 @@
 import release from "../../public/api/release_meta.json";
 import { ZENODO_VERSION_DOI } from "./zenodo";
+import { protectName } from "./article";
 
 // The dataset's registered title, as deposited on Zenodo and cited. It is a
 // name, not a live count: its "15,000+" stays as registered whatever the
@@ -19,9 +20,9 @@ export const DATASET_DOI_URL = `https://doi.org/${ZENODO_VERSION_DOI}`;
 
 export const datasetBibtex = () =>
   [
-    "@dataset{chretien2026openeditors,",
+    `@dataset{chretien${DATASET_YEAR}openeditors,`,
     "  author    = {Chretien, Basile},",
-    `  title     = {${DATASET_TITLE}},`,
+    `  title     = {${protectName(DATASET_TITLE)}},`,
     `  year      = {${DATASET_YEAR}},`,
     `  version   = {${DATASET_VERSION}},`,
     "  publisher = {Zenodo},",

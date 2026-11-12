@@ -47,24 +47,39 @@ export const ARTICLE_RELEASE_URL = `https://doi.org/${ARTICLE_RELEASE.doi}`;
 /** True once MIT Press has placed the article in an issue. */
 export const articleInIssue = () => ARTICLE.volume !== null;
 
-/** "7(1), 1-38" once in an issue; null while it is an advance publication. */
-export function articleLocator(): string | null {
-  if (!articleInIssue()) return null;
-  const issue = ARTICLE.issue ? `(${ARTICLE.issue})` : "";
-  const pages = ARTICLE.pages ? `, ${ARTICLE.pages}` : "";
-  return `${ARTICLE.volume}${issue}${pages}`;
+// A page range as typed or pasted: "1009-1030", "1009–1030" or "1009—1030".
+const pageEnds = (pages: string) => pages.split(/\s*[-–—]+\s*/);
+
+/** Volume, issue and page range (with an en dash) once in an issue; null before. */
+export function articleLocatorParts(): { volume: string; issue: string | null; pages: string | null } | null {
+  if (!ARTICLE.volume) return null;
+  return {
+    volume: ARTICLE.volume,
+    issue: ARTICLE.issue,
+    pages: ARTICLE.pages ? pageEnds(ARTICLE.pages).join("–") : null,
+  };
 }
+
+/** "7(1), 1009–1030" once in an issue; null while it is an advance publication. */
+export function articleLocator(): string | null {
+  const parts = articleLocatorParts();
+  if (!parts) return null;
+  return `${parts.volume}${parts.issue ? `(${parts.issue})` : ""}${parts.pages ? `, ${parts.pages}` : ""}`;
+}
+
+// BibTeX styles that set titles in sentence case would lowercase the name.
+export const protectName = (title: string) => title.replace("Open Editors Plus", "{Open Editors Plus}");
 
 export function articleBibtex(): string {
   const fields: [string, string][] = [
     ["author", ARTICLE.author],
-    ["title", ARTICLE.title],
+    ["title", protectName(ARTICLE.title)],
     ["journal", ARTICLE.journal],
     ["year", String(ARTICLE.year)],
   ];
   if (ARTICLE.volume) fields.push(["volume", ARTICLE.volume]);
   if (ARTICLE.issue) fields.push(["number", ARTICLE.issue]);
-  if (ARTICLE.pages) fields.push(["pages", ARTICLE.pages.replace("-", "--")]);
+  if (ARTICLE.pages) fields.push(["pages", pageEnds(ARTICLE.pages).join("--")]);
   fields.push(["doi", ARTICLE.doi]);
   if (!articleInIssue()) fields.push(["note", "Advance online publication"]);
   const width = Math.max(...fields.map(([k]) => k.length));
@@ -83,7 +98,7 @@ export function articleRis(): string {
   if (ARTICLE.volume) lines.push(`VL  - ${ARTICLE.volume}`);
   if (ARTICLE.issue) lines.push(`IS  - ${ARTICLE.issue}`);
   if (ARTICLE.pages) {
-    const [sp, ep] = ARTICLE.pages.split("-");
+    const [sp, ep] = pageEnds(ARTICLE.pages);
     lines.push(`SP  - ${sp}`);
     if (ep) lines.push(`EP  - ${ep}`);
   }

@@ -144,6 +144,11 @@ const breadcrumbSchema = breadcrumbs ? {
       "citation": {
         "@type": "ScholarlyArticle",
         "name": ARTICLE.title,
+        "author": {
+          "@type": "Person",
+          "name": "Basile Chretien",
+          "identifier": "https://orcid.org/0000-0002-7483-2489"
+        },
         "isPartOf": { "@type": "Periodical", "name": ARTICLE.journal },
         "datePublished": ARTICLE.publishedOnline,
         "identifier": ARTICLE_URL,

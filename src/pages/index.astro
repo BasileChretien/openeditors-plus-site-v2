@@ -2,7 +2,7 @@
 import Base from "../layouts/Base.astro";
 import { slugify } from "../lib/slugify";
 import { DATASET_DOI_URL, DATASET_TITLE, DATASET_VERSION, DATASET_YEAR, datasetBibtex } from "../lib/dataset";
-import { ARTICLE, ARTICLE_RELEASE, ARTICLE_URL, articleBibtex, articleLocator } from "../lib/article";
+import { ARTICLE, ARTICLE_RELEASE, ARTICLE_URL, articleBibtex, articleLocatorParts } from "../lib/article";
 import summary from "../../public/api/summary.json";
 import release from "../../public/api/release_meta.json";
 import publishers from "../../public/api/publishers.json";
@@ -47,7 +47,7 @@ const pctGenderClassified = (summary as any).pct_gender_classified;
 
 const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
 
-const articleLoc = articleLocator();
+const articleLoc = articleLocatorParts();
 // Copied by the "Copy BibTeX" button: the article, then the current release.
 const citeBibtex = `${articleBibtex()}\n\n${datasetBibtex()}`;
 ---
@@ -73,8 +73,8 @@ const citeBibtex = `${articleBibtex()}\n\n${datasetBibtex()}`;
           href="/cite#article"
           class="inline-flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-sm text-blue-50 hover:bg-white/20 transition-colors"
         >
-          <span class="font-semibold text-white">Peer-reviewed</span>
-          <span>Described in <em>{ARTICLE.journal}</em> ({ARTICLE.year}), using v{ARTICLE_RELEASE.version}</span>
+          <span>Peer-reviewed data paper in <em>{ARTICLE.journal}</em> ({ARTICLE.year})</span>
+          <span class="font-semibold text-white">&middot; describes v{ARTICLE_RELEASE.version}</span>
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
         </a>
         <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
@@ -319,7 +319,7 @@ const citeBibtex = `${articleBibtex()}\n\n${datasetBibtex()}`;
       <div class="bg-surface-dim rounded-xl border border-border p-6 text-left">
         <p class="text-sm leading-relaxed text-text-primary">
           {ARTICLE.authorShort} ({ARTICLE.year}). {ARTICLE.titleSentenceCase}.
-          <em>{ARTICLE.journal}</em>{articleLoc ? `, ${articleLoc}` : ""}.{articleLoc ? "" : " Advance online publication."}
+          <em>{ARTICLE.journal}</em>{articleLoc ? <>, <em>{articleLoc.volume}</em>{articleLoc.issue ? `(${articleLoc.issue})` : ""}{articleLoc.pages ? `, ${articleLoc.pages}` : ""}</> : ""}.{articleLoc ? "" : " Advance online publication."}
           <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">{ARTICLE_URL}</a>
         </p>
         <p class="text-sm leading-relaxed text-text-primary mt-3">
