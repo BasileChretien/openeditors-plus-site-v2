@@ -2,6 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import summary from "../../../public/api/summary.json";
 import release from "../../../public/api/release_meta.json";
+import { ARTICLE, ARTICLE_URL } from "../../lib/article";
 
 // Release notes, newest version first. The headline counts are read from the
 // generated API JSON, so they cannot drift from the bytes actually published.
@@ -506,7 +507,7 @@ if (NEWEST_NOTES !== release.version) {
       organizations above a laboratory no longer go through an observatory or research
       federation, four boards are corrected from their pages, and the explorer marks former
       positions. Analyses of institution pages or of these four journals need to be re-run;
-      other counts change slightly. The paper that describes the dataset uses v3.0.0, which stays available on Zenodo.
+      other counts change slightly. The <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">article in <em>{ARTICLE.journal}</em></a> that describes the dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -853,8 +854,9 @@ if (NEWEST_NOTES !== release.version) {
       </div>
       <p class="text-text-secondary mb-6 leading-relaxed">
         A corrected release that changed values in existing columns, so analyses built on
-        v2.6.0 or v2.7.0 need to be re-run. It is the version described in the accompanying
-        paper: 922,097 positions held by 745,125 unique editors.
+        v2.6.0 or v2.7.0 need to be re-run. It is the version described in the
+        <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">article in <em>{ARTICLE.journal}</em></a>:
+        922,097 positions held by 745,125 unique editors.
       </p>
       <div class="space-y-5 mb-10">
         {changesV3.map((c, i) => (

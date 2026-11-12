@@ -1,7 +1,8 @@
 ---
 import Base from "../layouts/Base.astro";
 import { slugify } from "../lib/slugify";
-import { DATASET_TITLE } from "../lib/dataset";
+import { DATASET_DOI_URL, DATASET_TITLE, DATASET_VERSION, DATASET_YEAR, datasetBibtex } from "../lib/dataset";
+import { ARTICLE, ARTICLE_RELEASE, ARTICLE_URL, articleBibtex, articleLocatorParts } from "../lib/article";
 import summary from "../../public/api/summary.json";
 import release from "../../public/api/release_meta.json";
 import publishers from "../../public/api/publishers.json";
@@ -45,6 +46,10 @@ const totalResolved = maleCount + femaleCount;
 const pctGenderClassified = (summary as any).pct_gender_classified;
 
 const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
+
+const articleLoc = articleLocatorParts();
+// Copied by the "Copy BibTeX" button: the article, then the current release.
+const citeBibtex = `${articleBibtex()}\n\n${datasetBibtex()}`;
 ---
 
 <Base title="Open Editors Plus — Who edits science?">
@@ -64,6 +69,14 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
 
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 lg:py-36">
       <div class="max-w-3xl">
+        <a
+          href="/cite#article"
+          class="inline-flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-sm text-blue-50 hover:bg-white/20 transition-colors"
+        >
+          <span>Peer-reviewed data paper in <em>{ARTICLE.journal}</em> ({ARTICLE.year})</span>
+          <span class="font-semibold text-white">&middot; describes v{ARTICLE_RELEASE.version}</span>
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </a>
         <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
           Who edits science?
         </h1>
@@ -299,17 +312,27 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
   <!-- How to cite -->
   <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
     <div class="max-w-2xl mx-auto text-center">
-      <h2 class="text-2xl sm:text-3xl font-bold mb-6">Cite this dataset</h2>
+      <h2 class="text-2xl sm:text-3xl font-bold mb-6">How to cite</h2>
       <p class="text-text-secondary mb-8">
-        If you use Open Editors Plus in your research, please cite:
+        If you use Open Editors Plus in your research, please cite the article and the dataset version you analysed:
       </p>
       <div class="bg-surface-dim rounded-xl border border-border p-6 text-left">
         <p class="text-sm leading-relaxed text-text-primary">
-          Chretien, B. (2026). <em>{DATASET_TITLE}</em>.
-          Zenodo. <span class="text-brand-600">https://doi.org/10.5281/zenodo.19468382</span>
+          {ARTICLE.authorShort} ({ARTICLE.year}). {ARTICLE.titleSentenceCase}.
+          <em>{ARTICLE.journal}</em>{articleLoc ? <>, <em>{articleLoc.volume}</em>{articleLoc.issue ? `(${articleLoc.issue})` : ""}{articleLoc.pages ? `, ${articleLoc.pages}` : ""}</> : ""}.{articleLoc ? "" : " Advance online publication."}
+          <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">{ARTICLE_URL}</a>
+        </p>
+        <p class="text-sm leading-relaxed text-text-primary mt-3">
+          Chretien, B. ({DATASET_YEAR}). <em>{DATASET_TITLE}</em> (Version {DATASET_VERSION}) [Data set].
+          Zenodo. <a href={DATASET_DOI_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">{DATASET_DOI_URL}</a>
+        </p>
+        <p class="text-xs text-text-muted mt-3">
+          The article describes v{ARTICLE_RELEASE.version}; this site serves v{DATASET_VERSION}.
+          To reproduce the article's figures, use v{ARTICLE_RELEASE.version} (<a href="/cite#article" class="text-brand-600 hover:underline">details</a>).
         </p>
         <button
           id="copy-citation"
+          data-bibtex={citeBibtex}
           class="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -372,7 +395,6 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
   </section>
 
   <script>
-    import { DATASET_TITLE } from "../lib/dataset";
     // ─── Animated counters (triggered on scroll into view) ───
     function animateCounter(el) {
       const target = parseFloat(el.dataset.target);
@@ -419,23 +441,15 @@ const eicCount = summary.role_distribution["editor_in_chief"] ?? 0;
       if (grid.querySelector(".counter")) counterObserver.observe(grid);
     });
 
-    // ─── Copy citation ───
+    // ─── Copy citation (the BibTeX is rendered at build time into data-bibtex) ───
     document.getElementById("copy-citation")?.addEventListener("click", () => {
-      const bibtex = `@dataset{chretien2026openeditors,
-  author    = {Chretien, Basile},
-  title     = {${DATASET_TITLE}},
-  year      = {2026},
-  publisher = {Zenodo},
-  doi       = {10.5281/zenodo.19468382},
-  url       = {https://openeditors-plus.org}
-}`;
-      navigator.clipboard.writeText(bibtex);
       const btn = document.getElementById("copy-citation");
-      if (btn) {
-        const original = btn.innerHTML;
-        btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg> Copied!`;
-        setTimeout(() => { btn.innerHTML = original; }, 2000);
-      }
+      const bibtex = btn?.dataset.bibtex;
+      if (!btn || !bibtex) return;
+      navigator.clipboard.writeText(bibtex);
+      const original = btn.innerHTML;
+      btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg> Copied!`;
+      setTimeout(() => { btn.innerHTML = original; }, 2000);
     });
   </script>
 </Base>

@@ -4,6 +4,7 @@ import release from "../../public/api/release_meta.json";
 import summary from "../../public/api/summary.json";
 import { atLeast, thousandsAtLeast } from "../lib/figures";
 import { ZENODO_RECORD_ID } from "../lib/zenodo";
+import { ARTICLE, ARTICLE_URL } from "../lib/article";
 
 // Counts in the meta tags, the Dataset JSON-LD and the footer come from the
 // generated data, so they follow every release.
@@ -88,7 +89,7 @@ const breadcrumbSchema = breadcrumbs ? {
 
     <!-- Fonts (self-hosted, no external requests) -->
 
-    <!-- Schema.org Dataset — SECURITY: set:html is safe here only because every value is trusted: hardcoded, or read from this repo's own release_meta.json and lib/zenodo.ts. JSON.stringify does NOT escape a closing script tag, so anything else interpolated here must have every less-than sign replaced with the JSON escape \u003c first. -->
+    <!-- Schema.org Dataset — SECURITY: set:html is safe here only because every value is trusted: hardcoded, or read from this repo's own release_meta.json, lib/zenodo.ts and lib/article.ts. JSON.stringify does NOT escape a closing script tag, so anything else interpolated here must have every less-than sign replaced with the JSON escape \u003c first. -->
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "Dataset",
@@ -139,6 +140,20 @@ const breadcrumbSchema = breadcrumbs ? {
         "url": "https://zenodo.org"
       },
       "identifier": `https://doi.org/${release.concept_doi}`,
+      // The article to cite with the dataset (Google Dataset Search reads `citation`).
+      "citation": {
+        "@type": "ScholarlyArticle",
+        "name": ARTICLE.title,
+        "author": {
+          "@type": "Person",
+          "name": "Basile Chretien",
+          "identifier": "https://orcid.org/0000-0002-7483-2489"
+        },
+        "isPartOf": { "@type": "Periodical", "name": ARTICLE.journal },
+        "datePublished": ARTICLE.publishedOnline,
+        "identifier": ARTICLE_URL,
+        "url": ARTICLE_URL
+      },
       "datePublished": release.release_date,
       "version": release.version
     })} />

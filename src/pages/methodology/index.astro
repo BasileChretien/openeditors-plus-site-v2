@@ -4,6 +4,8 @@ import summary from "../../../public/api/summary.json";
 import countries from "../../../public/api/countries.json";
 import { fmt, oneDecimal, pct } from "../../lib/figures";
 import { GENDER_COVERAGE_WARN } from "../../lib/genderCoverage";
+import { ARTICLE, ARTICLE_RELEASE, ARTICLE_URL } from "../../lib/article";
+import release from "../../../public/api/release_meta.json";
 
 // Role-count rows are rendered from summary.role_distribution so the
 // numbers stay in lock-step with each release. The pattern column maps
@@ -58,6 +60,13 @@ const coverageBands = BANDS.map((band, i) => ({
         <h2 class="text-2xl font-bold mt-10 mb-4">Overview</h2>
         <p class="text-text-secondary leading-relaxed">
           Open Editors Plus is a two-stage pipeline that (1) automatically collects editorial board listings from publicly available publisher web pages, then (2) enriches each record with institutional, demographic, and bibliometric metadata from open APIs.
+        </p>
+        <p class="text-text-secondary leading-relaxed mt-4 bg-surface-dim border-l-2 border-brand-300 pl-4 py-2">
+          The full method, with its validation, is set out in the peer-reviewed article in
+          <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer"><em>{ARTICLE.journal}</em> ({ARTICLE.year})</a>,
+          which describes v{ARTICLE_RELEASE.version}. This page describes the current release, v{release.version}:
+          what changed in between is in the <a href="/release-notes" class="text-brand-600 hover:underline">release notes</a>,
+          and how to cite both is on the <a href="/cite#article" class="text-brand-600 hover:underline">cite page</a>.
         </p>
       </section>
 
