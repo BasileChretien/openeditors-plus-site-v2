@@ -310,6 +310,8 @@ export interface MirabelLinks {
 }
 
 export const MIRABEL_RECORD = "https://reseau-mirabel.info/revue/";
+/** The licence the page credits; a file under any other fails the build, so the credit cannot go wrong unseen. */
+export const MIRABEL_LICENCE = "Licence Ouverte / Open Licence (Etalab)";
 const MIRABEL_TEMPLATE = `${MIRABEL_RECORD}{revueid}`;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -318,9 +320,10 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 /** What is wrong with mirabel_links.json, or [] when the pages can link it. */
 export function mirabelProblems(file: unknown): string[] {
   if (!isObject(file)) return ["mirabel_links.json is not an object"];
-  const problems = (["source", "licence"] as const)
-    .filter((key) => typeof file[key] !== "string" || !file[key])
-    .map((key) => `mirabel_links.json has no ${key}`);
+  const problems = typeof file.source === "string" && file.source ? [] : ["mirabel_links.json has no source"];
+  if (file.licence !== MIRABEL_LICENCE) {
+    problems.push(`mirabel_links.json: licence ${JSON.stringify(file.licence)} is not "${MIRABEL_LICENCE}", which the page credits`);
+  }
   if (file.record_url !== MIRABEL_TEMPLATE) {
     problems.push(`mirabel_links.json: record_url ${JSON.stringify(file.record_url)} is not "${MIRABEL_TEMPLATE}"`);
   }
@@ -349,6 +352,25 @@ export function mirabelLinks(file: unknown): MirabelLinks {
 /** The journal's Mir@bel record, or "" when Mir@bel has none for this ISSN-L. */
 export function mirabelUrl(links: MirabelLinks, issn_l: string): string {
   return Object.hasOwn(links.revueid, issn_l) ? MIRABEL_RECORD + links.revueid[issn_l] : "";
+}
+
+/**
+ * The file's ISSN-Ls that are no journal page, sorted. They do not fail the build
+ * (a data release that changes an ISSN-L must build before the links are fetched
+ * again), but the page under the new ISSN-L has lost its link until then.
+ */
+export function staleMirabelLinks(links: MirabelLinks, pages: JournalPage[]): string[] {
+  const live = new Set(pages.map((p) => p.issn_l));
+  return Object.keys(links.revueid).filter((issn) => !live.has(issn)).sort();
+}
+
+/** The build's warning for stale ISSN-Ls (at most ten named), or "" when there are none. */
+export function staleMirabelWarning(stale: string[]): string {
+  if (!stale.length) return "";
+  const named = stale.slice(0, 10).join(", ") + (stale.length > 10 ? ", …" : "");
+  const issns = stale.length === 1 ? "ISSN-L is" : "ISSN-Ls are";
+  return `mirabel_links.json: ${stale.length} ${issns} no journal page (${named}), so their pages have lost the link: `
+    + "run the data repository's scripts/site/fetch_mirabel_links.py again";
 }
 
 /**

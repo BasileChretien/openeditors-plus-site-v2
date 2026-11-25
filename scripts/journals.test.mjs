@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
-  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, MIRABEL_RECORD, mirabelLinks, mirabelProblems,
-  mirabelUrl, RETIRED_JOURNAL_PAGES, releaseNoteVersions, retiredPageProblems, retiredPages,
+  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, MIRABEL_LICENCE, MIRABEL_RECORD, mirabelLinks,
+  mirabelProblems, mirabelUrl, RETIRED_JOURNAL_PAGES, releaseNoteVersions, retiredPageProblems, retiredPages,
+  staleMirabelLinks, staleMirabelWarning,
 } from "../src/lib/journals.ts";
 import { slugify } from "../src/lib/slugify.ts";
 
@@ -202,8 +203,12 @@ test("a Mir@bel file the pages cannot link fails the build", () => {
   for (const file of [null, [], "text", 3]) {
     assert.deepEqual(mirabelProblems(file), ["mirabel_links.json is not an object"]);
   }
-  assert.deepEqual(mirabelProblems(mirabel({ source: "", licence: undefined })), [
-    "mirabel_links.json has no source", "mirabel_links.json has no licence"]);
+  assert.deepEqual(mirabelProblems(mirabel({ source: "" })), ["mirabel_links.json has no source"]);
+  // The page credits the Licence Ouverte: a file under another licence (or none) fails the build.
+  for (const licence of ["CC BY 4.0", "", undefined]) {
+    assert.deepEqual(mirabelProblems(mirabel({ licence })), [
+      `mirabel_links.json: licence ${JSON.stringify(licence)} is not "${MIRABEL_LICENCE}", which the page credits`], String(licence));
+  }
   assert.deepEqual(mirabelProblems(mirabel({ record_url: "https://example.org/revue/{revueid}" })), [
     `mirabel_links.json: record_url "https://example.org/revue/{revueid}" is not "https://reseau-mirabel.info/revue/{revueid}"`]);
   for (const retrieved of ["2026-02-30", "25/11/2026", "", undefined, "2026-11-25T10:00:00Z"]) {
@@ -221,9 +226,21 @@ test("a Mir@bel file the pages cannot link fails the build", () => {
     /^Error: public\/api\/mirabel_links\.json:\n- mirabel_links\.json has no source\n- mirabel_links\.json: retrieved/);
 });
 
-// An ISSN-L of the file that is no journal page is not checked: it shows nowhere,
-// and a data release that changes an ISSN-L must not fail the site's build before
-// the links are fetched again.
+// An ISSN-L of the file that is no journal page does not fail the build: it shows
+// nowhere, and a data release that changes an ISSN-L must not fail the site's build
+// before the links are fetched again. The build names them in a warning instead.
+test("the file's ISSN-Ls that are no journal page are named, not refused", () => {
+  const links = mirabelLinks(mirabel({ revueid: { "0036-8075": 7848, "0028-0836": 12852, "1234-5678": 1 } }));
+  assert.deepEqual(staleMirabelLinks(links, live("0028-0836")), ["0036-8075", "1234-5678"]);
+  assert.deepEqual(staleMirabelLinks(links, live("0028-0836", "0036-8075", "1234-5678", "9999-9999")), []);
+  assert.match(staleMirabelWarning(["0036-8075", "1234-5678"]),
+    /^mirabel_links\.json: 2 ISSN-Ls are no journal page \(0036-8075, 1234-5678\), so their pages have lost the link: run the data repository's scripts\/site\/fetch_mirabel_links\.py again$/);
+  assert.match(staleMirabelWarning(["0036-8075"]), /^mirabel_links\.json: 1 ISSN-L is no journal page \(0036-8075\)/);
+  const many = Array.from({ length: 12 }, (_, i) => `0000-00${String(i).padStart(2, "0")}`);
+  assert.match(staleMirabelWarning(many), /\(0000-0000, .*, 0000-0009, …\)/);
+  assert.equal(staleMirabelWarning([]), "");
+});
+
 test("the served Mir@bel file passes", () => {
   const file = JSON.parse(readFileSync(new URL("../public/api/mirabel_links.json", import.meta.url), "utf-8"));
   assert.ok(Object.keys(mirabelLinks(file).revueid).length > 0);

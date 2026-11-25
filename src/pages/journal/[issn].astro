@@ -16,7 +16,8 @@ import { slugify } from "../../lib/slugify";
 import { oneDecimal } from "../../lib/figures";
 import {
   boardUrl, displayTitle, issnSources, journalPages, MIN_GENDER_RESOLVED, mirabelLinks, mirabelUrl, releaseNoteVersions,
-  retiredPages, ROLE_LABELS, type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
+  retiredPages, ROLE_LABELS, staleMirabelLinks, staleMirabelWarning, type JournalPage, type JournalTable, type Listing,
+  type RetiredJournalPage,
 } from "../../lib/journals";
 
 export function getStaticPaths() {
@@ -28,8 +29,11 @@ export function getStaticPaths() {
     releaseNotes: releaseNoteVersions(releaseNotes),
     version: release.version,
   };
-  // The journal's Mir@bel record, for the pages whose ISSN-L Mir@bel has.
+  // The journal's Mir@bel record, for the pages whose ISSN-L Mir@bel has. A stale
+  // ISSN-L of the file (a data release changed it) is named, not refused.
   const mirabel = mirabelLinks(mirabelFile);
+  const stale = staleMirabelWarning(staleMirabelLinks(mirabel, pages));
+  if (stale) console.warn(stale);
   return [
     ...pages.map((page) => ({ params: { issn: page.issn_l }, props: { page, mirabel: mirabelUrl(mirabel, page.issn_l) } })),
     ...retiredPages(pages, links).map((retired) => ({ params: { issn: retired.issn_l }, props: { retired } })),
