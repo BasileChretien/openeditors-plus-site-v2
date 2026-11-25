@@ -16,8 +16,63 @@ const recomputed = "bg-amber-100 text-amber-800 border-amber-200";
 // frozen-figures:start (every note below describes its own release)
 // The version the newest notes describe. The build fails when the site
 // serves another release, so a data update cannot ship without its notes.
-const NEWEST_NOTES = "6.3.0";
-const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.3.0 (organizations above a laboratory no longer reached through an observatory or federation, four boards corrected from their pages, former positions marked in the explorer), v6.2.0, v6.1.0, v6.0.0, v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+const NEWEST_NOTES = "6.4.0";
+const NOTES_DESCRIPTION = "What changed in Open Editors Plus v6.4.0 (ScienceDirect board addresses restored, journals read twice merged, Environmental Epigenetics given its own ISSN-L), v6.3.0, v6.2.0, v6.1.0, v6.0.0, v5.0.0, v4.0.1 and v4.0.0. Notes for v3.0.0 follow.";
+
+// v6.4.0 (2026-11-26), a corrected release; the columns are unchanged.
+const changesV64 = [
+  {
+    id: "sciencedirect-urls",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "ScienceDirect board addresses restored",
+    body: `Some Elsevier journals carried the board address https://www.sciencedirect.com/journal//about/editorial-board, which lost the journal's name and leads to no board (reported by Mir@bel). The boards had been read from the right pages; only the address was wrong. Each journal now carries the address its board page gave when it was collected, read from the page kept at collection: the name cannot be rebuilt from the title (L'Aide-Soignante's page is "laide-soignante").`,
+    stat: "13,827 positions of 255 titles carried the broken address. 13,219 positions of 244 journals take their board address, and the other 11 titles were second copies, merged below; no position keeps the broken address. Their journal pages now link to the board.",
+  },
+  {
+    id: "journals-read-twice",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Journals read twice merged",
+    body: `13 journals had been read twice, under two names: 11 Elsevier journals under their own name and under a second spelling of it (most with "&" or "," written as a colon: Accident Analysis & Prevention and "Accident Analysis: Prevention"), and 2 AIP journals under their short and full titles (Chaos, Structural Dynamics). Both copies held one board, so each position was counted twice. Each pair is merged into the journal under its own name. What only one copy held is kept: the three editors-in-chief of Clinical Lymphoma, Myeloma & Leukemia, the page's spelling of two names, and six ORCID iDs or author matches. 154 other Elsevier journals, read once, keep the scraper's spelling of their name in the data, with "&" written as a colon and two spaces (Social Science & Medicine is stored with a colon). Their journal pages show "&" in its place; the journal list and the explorer show the name as stored, and a comma written as a colon stays. The names are corrected at the 2027 collection.`,
+    stat: "639 repeated positions are dropped (920,311 remain), with the 13 second names: 15,133 journals.",
+  },
+  {
+    id: "environmental-epigenetics",
+    tag: "Fixed",
+    tagClass: fixed,
+    title: "Environmental Epigenetics has its own ISSN-L",
+    body: `v5.0.0 cleared the journal's ISSN-L because OpenAlex then filed its ISSN under Current Zoology. The ISSN register has since been corrected (thanks to Mir@bel) and OpenAlex has a source of its own for the journal, so it takes ISSN-L 2058-5888, that source and the values taken from it: metrics, open access and indexing flags, funders, field and electronic ISSN. It has a journal page again.`,
+    stat: "175 positions take ISSN-L 2058-5888; the journal is ranked Q1 within Biochemistry, Genetics and Molecular Biology.",
+  },
+  {
+    id: "derived-v64",
+    tag: "Recomputed",
+    tagClass: recomputed,
+    title: "Unique editors, multi-board editors and quartiles recomputed",
+    body: `With each board counted once, editor_key, the multi-board columns, the board figures of the merged journals and the quartiles within each field are recomputed. Some editors of the second copies had their affiliation written another way (with the state or province) and counted as other people.`,
+    stat: "722,087 unique editors (722,109 in v6.3.0); 123,438 editors on two boards or more (123,759); 13 journals change quartile within their field.",
+  },
+];
+
+const rerunV64 = [
+  {
+    what: "The 13 merged journals, and counts by journal or publisher",
+    why: "Their positions were counted twice; 639 rows are dropped.",
+  },
+  {
+    what: "Editors on several boards (boards_count, is_multi_board) and unique editors",
+    why: "A board counted twice is now one: 321 fewer editors on two boards or more, 22 fewer unique editors.",
+  },
+  {
+    what: "Board addresses (source_url)",
+    why: "13,219 positions of 244 Elsevier journals take their board address.",
+  },
+  {
+    what: "Environmental Epigenetics, and the quartiles of its field",
+    why: "It takes ISSN-L 2058-5888 and its own OpenAlex source; 13 journals change quartile.",
+  },
+];
 
 // v6.3.0 (2026-11-10), a corrected release; the columns are unchanged.
 const changesV63 = [
@@ -503,11 +558,11 @@ if (NEWEST_NOTES !== release.version) {
 
     <!-- frozen-figures:start (the notes describe their own releases) -->
     <p class="text-text-secondary text-lg mb-8 leading-relaxed">
-      v6.3.0 is a <strong>corrected</strong> release made from INRAE's review of v6.2.0. The
-      organizations above a laboratory no longer go through an observatory or research
-      federation, four boards are corrected from their pages, and the explorer marks former
-      positions. Analyses of institution pages or of these four journals need to be re-run;
-      other counts change slightly. The <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">article in <em>{ARTICLE.journal}</em></a> that describes the dataset uses v3.0.0, which stays available on Zenodo.
+      v6.4.0 is a <strong>corrected</strong> release made from a report by Mir@bel. ScienceDirect
+      board addresses that had lost the journal's name are restored, 13 journals read twice are
+      merged, and Environmental Epigenetics has its own ISSN-L again. Analyses of these journals,
+      of board addresses or of editors on several boards need to be re-run; other counts change
+      slightly. The <a href={ARTICLE_URL} class="text-brand-600 hover:underline" target="_blank" rel="noopener noreferrer">article in <em>{ARTICLE.journal}</em></a> that describes the dataset uses v3.0.0, which stays available on Zenodo.
     </p>
 
     <!-- Headline counts, read from the generated API JSON -->
@@ -527,7 +582,56 @@ if (NEWEST_NOTES !== release.version) {
       ))}
     </div>
 
-    <h2 class="text-2xl font-bold mb-4" id="v6.3.0">What changed in v6.3.0</h2>
+    <h2 class="text-2xl font-bold mb-4" id="v6.4.0">What changed in v6.4.0</h2>
+    <div class="space-y-5 mb-12">
+      {changesV64.map((c, i) => (
+        <section id={c.id} class="bg-white border border-border rounded-xl p-5">
+          <div class="flex items-start gap-3 mb-2">
+            <span class="text-xs font-mono text-text-muted mt-1.5 shrink-0">{i + 1}</span>
+            <div class="min-w-0">
+              <span class={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-semibold border ${c.tagClass} mb-1.5`}>
+                {c.tag}
+              </span>
+              <h3 class="font-bold text-lg leading-snug">{c.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm text-text-secondary leading-relaxed mb-3">{c.body}</p>
+          <p class="text-sm text-text-primary bg-surface-dim border-l-2 border-brand-300 pl-3 py-1.5">
+            {c.stat}
+          </p>
+        </section>
+      ))}
+    </div>
+
+    <h2 class="text-2xl font-bold mb-2">If you used v6.3.0</h2>
+    <p class="text-sm text-text-secondary mb-4">
+      Most analyses are little affected: 639 repeated rows are dropped and the board addresses of
+      244 journals change. Re-run anything that touches the following. No column is added or
+      removed.
+    </p>
+    <div class="overflow-x-auto border border-border rounded-lg mb-12">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-surface-dim border-b border-border">
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Re-run</th>
+            <th class="text-left py-2.5 px-3 font-semibold text-xs uppercase tracking-wide text-text-muted">Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rerunV64.map((r, i) => (
+            <tr class={i % 2 === 0 ? "bg-white" : "bg-surface-dim/50"}>
+              <td class="py-2.5 px-3 align-top font-medium whitespace-normal">{r.what}</td>
+              <td class="py-2.5 px-3 align-top text-text-secondary">{r.why}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4" id="v6.3.0">
+      <h2 class="text-2xl font-bold">What changed in v6.3.0</h2>
+      <span class="text-sm text-text-muted">released 2026-11-10 &middot; data_version 2026.9</span>
+    </div>
     <div class="space-y-5 mb-12">
       {changesV63.map((c, i) => (
         <section id={c.id} class="bg-white border border-border rounded-xl p-5">

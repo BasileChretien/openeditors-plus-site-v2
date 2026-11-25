@@ -4,7 +4,7 @@
 // whose files public/api/release_meta.json describes (sizes, SHA-256). Bump it together
 // with release_meta.json whenever a new version is deposited, or the page shows one
 // version's hashes for another's files.
-export const ZENODO_RECORD_ID = "24071256";
+export const ZENODO_RECORD_ID = "24520095";
 
 // The current release's version DOI: Zenodo mints 10.5281/zenodo.<record id>.
 export const ZENODO_VERSION_DOI = `10.5281/zenodo.${ZENODO_RECORD_ID}`;
