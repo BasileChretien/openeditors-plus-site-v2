@@ -27,14 +27,14 @@ const changesV64 = [
     tagClass: fixed,
     title: "ScienceDirect board addresses restored",
     body: `Some Elsevier journals carried the board address https://www.sciencedirect.com/journal//about/editorial-board, which lost the journal's name and leads to no board (reported by Mir@bel). The boards had been read from the right pages; only the address was wrong. Each journal now carries the address its board page gave when it was collected, read from the page kept at collection: the name cannot be rebuilt from the title (L'Aide-Soignante's page is "laide-soignante").`,
-    stat: "13,219 positions of 244 journals take their board address; no position keeps the broken one. Their journal pages now link to the board.",
+    stat: "13,827 positions of 255 titles carried the broken address. 13,219 positions of 244 journals take their board address, and the other 11 titles were second copies, merged below; no position keeps the broken address. Their journal pages now link to the board.",
   },
   {
     id: "journals-read-twice",
     tag: "Fixed",
     tagClass: fixed,
     title: "Journals read twice merged",
-    body: `13 journals had been read twice, under two names: 11 Elsevier journals under their own name and under the name with "&" or "," written as a colon (Accident Analysis & Prevention and "Accident Analysis: Prevention"), and 2 AIP journals under their short and full titles (Chaos, Structural Dynamics). Both copies held one board, so each position was counted twice. Each pair is merged into the journal under its own name. What only one copy held is kept: the three editors-in-chief of Clinical Lymphoma, Myeloma & Leukemia, the page's spelling of two names, and six ORCID iDs or author matches.`,
+    body: `13 journals had been read twice, under two names: 11 Elsevier journals under their own name and under a second spelling of it (most with "&" or "," written as a colon: Accident Analysis & Prevention and "Accident Analysis: Prevention"), and 2 AIP journals under their short and full titles (Chaos, Structural Dynamics). Both copies held one board, so each position was counted twice. Each pair is merged into the journal under its own name. What only one copy held is kept: the three editors-in-chief of Clinical Lymphoma, Myeloma & Leukemia, the page's spelling of two names, and six ORCID iDs or author matches. 154 other Elsevier journals, read once, keep the scraper's spelling of their name in the data ("Social Science:  Medicine"); this site shows them with "&". Their names are corrected at the 2027 collection.`,
     stat: "639 repeated positions are dropped (920,311 remain), with the 13 second names: 15,133 journals.",
   },
   {
