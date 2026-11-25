@@ -1,12 +1,12 @@
 // Tests for the journal pages' checks in src/lib/journals.ts (the retired pages,
-// the print and electronic ISSNs): run with
+// the print and electronic ISSNs, the Mir@bel links): run with
 // `node --test scripts/journals.test.mjs` (Node strips the TypeScript types).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
-  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, RETIRED_JOURNAL_PAGES,
-  releaseNoteVersions, retiredPageProblems, retiredPages,
+  ISSN_COLUMNS, issnProblem, issnSources, journalPages, listings, MIRABEL_RECORD, mirabelLinks, mirabelProblems,
+  mirabelUrl, RETIRED_JOURNAL_PAGES, releaseNoteVersions, retiredPageProblems, retiredPages,
 } from "../src/lib/journals.ts";
 import { slugify } from "../src/lib/slugify.ts";
 
@@ -175,4 +175,56 @@ test("the source note names the sources that typed the ISSNs", () => {
 test("the served journal pages pass the ISSN checks", () => {
   const read = (name) => JSON.parse(readFileSync(new URL(`../public/api/${name}`, import.meta.url), "utf-8"));
   assert.ok(journalPages(read("journal_pages.json")).length > 0);
+});
+
+// mirabel_links.json as fetch_mirabel_links.py writes it.
+const mirabel = (over = {}) => ({
+  source: "Mir@bel, https://reseau-mirabel.info/api (/titres)",
+  licence: "Licence Ouverte / Open Licence (Etalab)",
+  record_url: "https://reseau-mirabel.info/revue/{revueid}",
+  retrieved: "2026-11-25",
+  revueid: { "0028-0836": 12852, "0036-8075": 7848 },
+  ...over,
+});
+
+test("a page links its Mir@bel record only when its ISSN-L is in the file", () => {
+  const links = mirabelLinks(mirabel());
+  assert.equal(mirabelUrl(links, "0028-0836"), "https://reseau-mirabel.info/revue/12852");
+  assert.equal(mirabelUrl(links, "0036-8075"), `${MIRABEL_RECORD}7848`);
+  assert.equal(mirabelUrl(links, "1476-4687"), "");
+  // Only the file's own keys: nothing inherited from Object.prototype.
+  assert.equal(mirabelUrl(links, "constructor"), "");
+  assert.equal(mirabelUrl(mirabelLinks(mirabel({ revueid: {} })), "0028-0836"), "");
+});
+
+test("a Mir@bel file the pages cannot link fails the build", () => {
+  assert.deepEqual(mirabelProblems(mirabel()), []);
+  for (const file of [null, [], "text", 3]) {
+    assert.deepEqual(mirabelProblems(file), ["mirabel_links.json is not an object"]);
+  }
+  assert.deepEqual(mirabelProblems(mirabel({ source: "", licence: undefined })), [
+    "mirabel_links.json has no source", "mirabel_links.json has no licence"]);
+  assert.deepEqual(mirabelProblems(mirabel({ record_url: "https://example.org/revue/{revueid}" })), [
+    `mirabel_links.json: record_url "https://example.org/revue/{revueid}" is not "https://reseau-mirabel.info/revue/{revueid}"`]);
+  for (const retrieved of ["2026-02-30", "25/11/2026", "", undefined, "2026-11-25T10:00:00Z"]) {
+    assert.deepEqual(mirabelProblems(mirabel({ retrieved })), [
+      `mirabel_links.json: retrieved ${JSON.stringify(retrieved)} is not a date (YYYY-MM-DD)`], String(retrieved));
+  }
+  assert.deepEqual(mirabelProblems(mirabel({ revueid: [12852] })), ["mirabel_links.json has no revueid object"]);
+  assert.deepEqual(mirabelProblems(mirabel({ revueid: { "0028-083x": 1, "0036-8075": "7848", "1476-4687": 0, "1095-9203": 1.5 } })), [
+    `mirabel_links.json: "0028-083x" is not an ISSN-L (NNNN-NNNC)`,
+    `mirabel_links.json: 0036-8075 has the Mir@bel id "7848", not a positive integer`,
+    "mirabel_links.json: 1476-4687 has the Mir@bel id 0, not a positive integer",
+    "mirabel_links.json: 1095-9203 has the Mir@bel id 1.5, not a positive integer",
+  ]);
+  assert.throws(() => mirabelLinks(mirabel({ source: "", retrieved: "" })),
+    /^Error: public\/api\/mirabel_links\.json:\n- mirabel_links\.json has no source\n- mirabel_links\.json: retrieved/);
+});
+
+// An ISSN-L of the file that is no journal page is not checked: it shows nowhere,
+// and a data release that changes an ISSN-L must not fail the site's build before
+// the links are fetched again.
+test("the served Mir@bel file passes", () => {
+  const file = JSON.parse(readFileSync(new URL("../public/api/mirabel_links.json", import.meta.url), "utf-8"));
+  assert.ok(Object.keys(mirabelLinks(file).revueid).length > 0);
 });

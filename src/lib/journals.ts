@@ -290,6 +290,68 @@ export function boardUrl(url: string): string {
 }
 
 /**
+ * The journal's record in Mir@bel (reseau-mirabel.info), the journal
+ * catalogue run from Sciences Po Lyon, from public/api/mirabel_links.json:
+ * ISSN-L -> Mir@bel journal id ("revueid"). The data repository's
+ * scripts/site/fetch_mirabel_links.py writes it from Mir@bel's API (matched on
+ * the ISSN-L, then the print ISSN, then the E-ISSN); the build never calls
+ * Mir@bel. A page links the record when its ISSN-L is in the file, and names
+ * the source with the date the file was retrieved, as Mir@bel's Licence
+ * Ouverte asks. A file the page cannot read fails the build.
+ */
+export interface MirabelLinks {
+  source: string;
+  licence: string;
+  /** The record's URL with "{revueid}" in place of the id (MIRABEL_RECORD + id). */
+  record_url: string;
+  /** When the links were read from Mir@bel's API (YYYY-MM-DD). */
+  retrieved: string;
+  revueid: Record<string, number>;
+}
+
+export const MIRABEL_RECORD = "https://reseau-mirabel.info/revue/";
+const MIRABEL_TEMPLATE = `${MIRABEL_RECORD}{revueid}`;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** What is wrong with mirabel_links.json, or [] when the pages can link it. */
+export function mirabelProblems(file: unknown): string[] {
+  if (!isObject(file)) return ["mirabel_links.json is not an object"];
+  const problems = (["source", "licence"] as const)
+    .filter((key) => typeof file[key] !== "string" || !file[key])
+    .map((key) => `mirabel_links.json has no ${key}`);
+  if (file.record_url !== MIRABEL_TEMPLATE) {
+    problems.push(`mirabel_links.json: record_url ${JSON.stringify(file.record_url)} is not "${MIRABEL_TEMPLATE}"`);
+  }
+  const retrieved = typeof file.retrieved === "string" && ISO_DATE.test(file.retrieved) ? file.retrieved : "";
+  const day = new Date(`${retrieved}T00:00:00Z`);
+  if (!retrieved || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== retrieved) {
+    problems.push(`mirabel_links.json: retrieved ${JSON.stringify(file.retrieved)} is not a date (YYYY-MM-DD)`);
+  }
+  if (!isObject(file.revueid)) return [...problems, "mirabel_links.json has no revueid object"];
+  for (const [issn, id] of Object.entries(file.revueid)) {
+    if (!ISSN_L.test(issn)) problems.push(`mirabel_links.json: "${issn}" is not an ISSN-L (NNNN-NNNC)`);
+    if (typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0) {
+      problems.push(`mirabel_links.json: ${issn} has the Mir@bel id ${JSON.stringify(id)}, not a positive integer`);
+    }
+  }
+  return problems;
+}
+
+/** The file, once mirabelProblems finds nothing in it; otherwise the build fails naming every problem. */
+export function mirabelLinks(file: unknown): MirabelLinks {
+  const problems = mirabelProblems(file);
+  if (problems.length) throw new Error(`public/api/mirabel_links.json:\n${problems.map((p) => `- ${p}`).join("\n")}`);
+  return file as MirabelLinks;
+}
+
+/** The journal's Mir@bel record, or "" when Mir@bel has none for this ISSN-L. */
+export function mirabelUrl(links: MirabelLinks, issn_l: string): string {
+  return Object.hasOwn(links.revueid, issn_l) ? MIRABEL_RECORD + links.revueid[issn_l] : "";
+}
+
+/**
  * A journal name for display. The scraper wrote "&" as a colon and two
  * spaces ("Social Science:  Medicine"); the dataset keeps the name as
  * scraped, the page shows the journal's own. It also wrote "," as ": ", which

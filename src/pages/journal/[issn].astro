@@ -10,12 +10,13 @@ import table from "../../../public/api/journal_pages.json";
 import fields from "../../../public/api/fields.json";
 import publishers from "../../../public/api/publishers.json";
 import release from "../../../public/api/release_meta.json";
+import mirabelFile from "../../../public/api/mirabel_links.json";
 import releaseNotes from "../release-notes/index.astro?raw";
 import { slugify } from "../../lib/slugify";
 import { oneDecimal } from "../../lib/figures";
 import {
-  boardUrl, displayTitle, issnSources, journalPages, MIN_GENDER_RESOLVED, releaseNoteVersions, retiredPages,
-  ROLE_LABELS, type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
+  boardUrl, displayTitle, issnSources, journalPages, MIN_GENDER_RESOLVED, mirabelLinks, mirabelUrl, releaseNoteVersions,
+  retiredPages, ROLE_LABELS, type JournalPage, type JournalTable, type Listing, type RetiredJournalPage,
 } from "../../lib/journals";
 
 export function getStaticPaths() {
@@ -27,13 +28,15 @@ export function getStaticPaths() {
     releaseNotes: releaseNoteVersions(releaseNotes),
     version: release.version,
   };
+  // The journal's Mir@bel record, for the pages whose ISSN-L Mir@bel has.
+  const mirabel = mirabelLinks(mirabelFile);
   return [
-    ...pages.map((page) => ({ params: { issn: page.issn_l }, props: { page } })),
+    ...pages.map((page) => ({ params: { issn: page.issn_l }, props: { page, mirabel: mirabelUrl(mirabel, page.issn_l) } })),
     ...retiredPages(pages, links).map((retired) => ({ params: { issn: retired.issn_l }, props: { retired } })),
   ];
 }
 
-const { page, retired } = Astro.props as { page?: JournalPage; retired?: RetiredJournalPage };
+const { page, retired, mirabel } = Astro.props as { page?: JournalPage; retired?: RetiredJournalPage; mirabel?: string };
 const [main, ...others] = page?.listings ?? ([] as Listing[]);
 const fieldPages = new Set((fields as { field: string }[]).map((f) => f.field));
 const releaseDate = new Date(`${release.release_date}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -67,10 +70,19 @@ const path = `journal/${page?.issn_l}`;
       <a href={"/publisher/" + slugify(main.publisher)} class="text-brand-600 hover:underline">{main.publisher}</a>
       <span class="mx-2 text-text-muted">·</span>
       ISSN-L <a href={issnPortal(page.issn_l)} target="_blank" rel="noopener" class="font-mono text-brand-600 hover:underline">{page.issn_l}</a>
+      {mirabel && (<>
+        <span class="mx-2 text-text-muted">·</span>
+        <a href={mirabel} target="_blank" rel="noopener" class="text-brand-600 hover:underline">Mir@bel record</a>
+      </>)}
     </p>
     <p class="text-xs text-text-muted mb-8">
       Snapshot: board collected {dateLabel(main.collected) || "in " + release.data_version}, released in
       Open Editors Plus {release.version} ({releaseDate}). Boards change; the publisher's page is the current list.
+      {mirabel && (<>
+        {" "}Link to the Mir@bel record: source <a href="https://reseau-mirabel.info/" target="_blank" rel="noopener" class="underline">Mir@bel</a>,
+        retrieved {dateLabel(mirabelFile.retrieved)}, under the
+        <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence" target="_blank" rel="noopener" class="underline">Licence Ouverte</a>.
+      </>)}
     </p>
 
     {(page?.listings ?? []).map((l) => {
