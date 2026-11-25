@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "version": "6.3.0",
-  "data_version": "2026.9",
-  "release_date": "2026-11-10",
-  "exported_at": "2026-11-09T05:37:04+00:00",
-  "row_count": 920950,
+  "version": "6.4.0",
+  "data_version": "2026.91",
+  "release_date": "2026-11-26",
+  "exported_at": "2026-11-25T02:52:15+00:00",
+  "row_count": 920311,
   "column_count": 87,
-  "unique_editors": 722109,
-  "journal_count": 15146,
+  "unique_editors": 722087,
+  "journal_count": 15133,
   "publisher_count": 48,
   "country_count": 201,
   "concept_doi": "10.5281/zenodo.19468382",
@@ -15,13 +15,13 @@
   "files": {
     "csv": {
       "name": "openeditors_plus_2026.csv",
-      "bytes": 911339385,
-      "sha256": "b848e250604f96c37a0648b22b9d822c626ede35f69e3deca651c3b0b48cface"
+      "bytes": 912221443,
+      "sha256": "e01b69edea10de5f6495a4c48fa9743e7c1d5f299e66c9ea2bfbc7fc3a109b2e"
     },
     "parquet": {
       "name": "openeditors_plus_2026.parquet",
-      "bytes": 97315083,
-      "sha256": "1ef3d720ed4e1c669dbf59bad3f5ce7e6d298cc2361ae9a63de45195b4402f6c"
+      "bytes": 97318517,
+      "sha256": "047dd23da72a442b088d1dbef66e47d18df02a55485f254eed4837d3f4c23a43"
     }
   }
 }
